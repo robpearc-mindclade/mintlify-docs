@@ -1,47 +1,137 @@
 ---
-title: "Quickstart"
-description: "Begin with a guide on the fastest path to a successful outcome"
+title: "Get Started with MindClade in Under 5 Minutes"
+sidebarTitle: "Quickstart"
+description: "Make your first MindClade API call in under 5 minutes. Create a resource, fetch it, and verify the response using curl or our SDKs."
 ---
 
-Describe how someone begins using your product. What is the first thing they need to do? Are there any prerequisites?
-
-A quickstart should take someone from zero to using your product. They'll get a quick win and a sense of what they can accomplish.
-
-## Prerequisites
-
-Before you begin, you must have:
-
-- Requirement one (for example, Node.js 18+, a free account, an API key)
-- Requirement two (for example, a compatible device, a compatible browser, a compatible operating system)
-
-## Get started
+This guide takes you from a blank slate to a working API integration in four steps. You'll sign up, install an SDK, create your first resource, and fetch it back — all against the sandbox environment so nothing you do here affects production data. By the end, you'll have a clear mental model of how MindClade requests and responses work, and you'll be ready to build something real.
 
 <Steps>
-  <Step title="Install">
-    Describe how to install your product or sign up.
+  <Step title="Sign up and get your API key">
+    Create a free account at [app.mindclade.com](https://app.mindclade.com). After you confirm your email, open the dashboard and go to **Settings → API Keys**. Click **Create key**, give it a name (e.g., `local-dev`), and copy the value — it starts with `mk_test_` for sandbox keys.
 
-    ```bash
-    npm install your-package
+    <Note>
+      Store your key immediately after creating it. MindClade only shows the full key value once. If you lose it, you'll need to rotate it and update your environment.
+    </Note>
+
+    Keep this key handy for the next steps. You'll pass it as a Bearer token in every request.
+  </Step>
+
+  <Step title="Install the SDK">
+    MindClade publishes official SDKs for JavaScript/TypeScript and Python. Install whichever matches your stack — or skip this step and use curl directly.
+
+    <CodeGroup>
+      ```bash npm
+      npm install @mindclade/sdk
+      ```
+
+      ```bash yarn
+      yarn add @mindclade/sdk
+      ```
+
+      ```bash pip
+      pip install mindclade
+      ```
+    </CodeGroup>
+
+    Both SDKs are fully typed. The JavaScript package ships with TypeScript declarations out of the box; the Python package uses type hints compatible with `mypy` and `pyright`.
+  </Step>
+
+  <Step title="Create a resource">
+    Send a `POST /resources` request to create your first resource. Replace `mk_test_xxxxxxxxxxxx` with the key you copied in Step 1.
+
+    <CodeGroup>
+      ```javascript JavaScript
+      import MindClade from "@mindclade/sdk";
+
+      const client = new MindClade({
+        apiKey: process.env.MINDCLADE_API_KEY, // mk_test_xxxxxxxxxxxx
+        baseURL: "https://sandbox.api.mindclade.com/v1",
+      });
+
+      const resource = await client.resources.create({
+        name: "My First Resource",
+        type: "example",
+      });
+
+      console.log(resource.id); // res_01hx...
+      ```
+
+      ```python Python
+      import mindclade
+      import os
+
+      client = mindclade.Client(
+          api_key=os.environ["MINDCLADE_API_KEY"],  # mk_test_xxxxxxxxxxxx
+          base_url="https://sandbox.api.mindclade.com/v1",
+      )
+
+      resource = client.resources.create(
+          name="My First Resource",
+          type="example",
+      )
+
+      print(resource.id)  # res_01hx...
+      ```
+
+      ```bash curl
+      curl -X POST https://sandbox.api.mindclade.com/v1/resources \
+        -H "Authorization: Bearer mk_test_xxxxxxxxxxxx" \
+        -H "Content-Type: application/json" \
+        -d '{"name": "My First Resource", "type": "example"}'
+      ```
+    </CodeGroup>
+
+    A successful response returns HTTP `201 Created` with a JSON body that includes the new resource's `id`. Copy that ID — you'll use it in the next step.
+
+    ```json Example response
+    {
+      "data": {
+        "id": "res_01hxkqp7z3mfvbn2c8d9e0g1",
+        "name": "My First Resource",
+        "type": "example",
+        "created_at": "2024-06-01T12:00:00Z",
+        "updated_at": "2024-06-01T12:00:00Z"
+      }
+    }
     ```
   </Step>
-  <Step title="Configure">
-    Describe any setup or configuration needed before first use.
 
-    ```bash
-    your-cli init
-    ```
-  </Step>
-  <Step title="Run it">
-    Show the first thing a user does to see it working.
+  <Step title="Fetch the resource">
+    Use the resource ID from the previous step to retrieve it with `GET /resources/{id}`.
 
-    ```bash
-    your-cli start
-    ```
+    <CodeGroup>
+      ```javascript JavaScript
+      const resource = await client.resources.get("res_01hxkqp7z3mfvbn2c8d9e0g1");
+
+      console.log(resource.name); // "My First Resource"
+      ```
+
+      ```python Python
+      resource = client.resources.get("res_01hxkqp7z3mfvbn2c8d9e0g1")
+
+      print(resource.name)  # "My First Resource"
+      ```
+
+      ```bash curl
+      curl https://sandbox.api.mindclade.com/v1/resources/res_01hxkqp7z3mfvbn2c8d9e0g1 \
+        -H "Authorization: Bearer mk_test_xxxxxxxxxxxx"
+      ```
+    </CodeGroup>
+
+    You'll receive HTTP `200 OK` with the same resource object. If you see a `404 Not Found`, double-check that you're using the sandbox base URL and the correct resource ID.
   </Step>
 </Steps>
 
-<Tip>
-  Give people a way to get help. This could be a link to a support page, a chat with a customer support agent, or a forum for your product.
+<Note>
+  **Sandbox vs. production environments**
 
-  Example: Need help? Reach out to us at [support@yourcompany.com](mailto:support@yourcompany.com).
-</Tip>
+  Every request in this guide targets the sandbox base URL (`https://sandbox.api.mindclade.com/v1`), which uses `mk_test_` keys and is completely isolated from production data. When you're ready to go live, swap the base URL for `https://api.mindclade.com/v1` and use a `mk_live_` key from the dashboard. Be aware that the sandbox rate limit is 100 requests/min vs. 1,000 requests/min on production.
+</Note>
+
+## Next steps
+
+You've made your first MindClade API calls. Here's where to go next:
+
+- **[Authentication](/authentication)** — understand key types, security best practices, and how to rotate keys safely.
+- **[Core Concepts](/concepts/overview)** — learn about resources, events, pagination, and environments before you build something bigger.

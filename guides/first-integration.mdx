@@ -1,0 +1,230 @@
+---
+title: "Build Your First MindClade Integration End-to-End"
+sidebarTitle: "First Integration"
+description: "Walk through building a complete MindClade integration: authenticate, create and manage resources, handle events, and test with the sandbox."
+---
+
+Building a MindClade integration takes only a few minutes. This guide walks you through the complete lifecycle — installing the SDK, authenticating, creating and managing resources, and cleaning up — so you have a working foundation to build on. All examples use the sandbox environment, which is free to use and isolated from your production data.
+
+<Tip>
+  Use the sandbox environment (`https://sandbox.api.mindclade.com/v1`) during development. Sandbox keys are prefixed `mk_test_` and have a separate rate limit of 100 req/min, so you can iterate freely without affecting production.
+</Tip>
+
+<Steps>
+
+  <Step title="Set Up Your Environment">
+    Install the MindClade SDK for your language and configure your API key as an environment variable. Never hard-code keys in source files.
+
+    <CodeGroup>
+    ```bash npm
+    npm install @mindclade/sdk
+    ```
+
+    ```bash pip
+    pip install mindclade
+    ```
+    </CodeGroup>
+
+    Store your key in your environment and read it at runtime:
+
+    <CodeGroup>
+    ```bash .env
+    MINDCLADE_API_KEY=mk_test_4xKz9mQpL2rVwYdNbTcJeH
+    ```
+
+    ```javascript JavaScript
+    import MindClade from "@mindclade/sdk";
+
+    const client = new MindClade({
+      apiKey: process.env.MINDCLADE_API_KEY,
+      baseUrl: "https://sandbox.api.mindclade.com/v1", // switch to production URL when ready
+    });
+    ```
+
+    ```python Python
+    import os
+    from mindclade import MindClade
+
+    client = MindClade(
+        api_key=os.environ["MINDCLADE_API_KEY"],
+        base_url="https://sandbox.api.mindclade.com/v1",  # switch to production URL when ready
+    )
+    ```
+    </CodeGroup>
+  </Step>
+
+  <Step title="Create a Resource">
+    Send a `POST /resources` request with a name and any metadata your application needs. MindClade returns the newly created resource object including its unique ID, which you'll use for all subsequent operations.
+
+    <CodeGroup>
+    ```javascript JavaScript
+    const resource = await client.resources.create({
+      name: "My First Resource",
+      metadata: {
+        environment: "sandbox",
+        owner: "team-platform",
+      },
+    });
+
+    console.log("Created resource:", resource.id); // res_8aHq3mPzLxYwKdNvTcBe
+    ```
+
+    ```python Python
+    resource = client.resources.create(
+        name="My First Resource",
+        metadata={
+            "environment": "sandbox",
+            "owner": "team-platform",
+        },
+    )
+
+    print("Created resource:", resource.id)  # res_8aHq3mPzLxYwKdNvTcBe
+    ```
+
+    ```bash cURL
+    curl -X POST https://sandbox.api.mindclade.com/v1/resources \
+      -H "Authorization: Bearer mk_test_4xKz9mQpL2rVwYdNbTcJeH" \
+      -H "Content-Type: application/json" \
+      -d '{
+        "name": "My First Resource",
+        "metadata": {
+          "environment": "sandbox",
+          "owner": "team-platform"
+        }
+      }'
+    ```
+    </CodeGroup>
+
+    A successful response returns HTTP `201` with the full resource object:
+
+    ```json
+    {
+      "id": "res_8aHq3mPzLxYwKdNvTcBe",
+      "name": "My First Resource",
+      "metadata": {
+        "environment": "sandbox",
+        "owner": "team-platform"
+      },
+      "created_at": "2024-06-12T14:30:00Z",
+      "updated_at": "2024-06-12T14:30:00Z"
+    }
+    ```
+  </Step>
+
+  <Step title="List and Filter Resources">
+    Retrieve all resources in your account with `GET /resources`. Use the `limit` query parameter to control how many results come back per page, and pass a `cursor` to move through large result sets.
+
+    <CodeGroup>
+    ```javascript JavaScript
+    // Fetch the first page of up to 25 resources
+    const page = await client.resources.list({ limit: 25 });
+
+    for (const resource of page.data) {
+      console.log(`${resource.id}: ${resource.name}`);
+    }
+
+    // Fetch the next page if one exists
+    if (page.has_more) {
+      const nextPage = await client.resources.list({
+        limit: 25,
+        cursor: page.next_cursor,
+      });
+      console.log("Next page items:", nextPage.data.length);
+    }
+    ```
+
+    ```python Python
+    # Fetch the first page of up to 25 resources
+    page = client.resources.list(limit=25)
+
+    for resource in page.data:
+        print(f"{resource.id}: {resource.name}")
+
+    # Fetch the next page if one exists
+    if page.has_more:
+        next_page = client.resources.list(limit=25, cursor=page.next_cursor)
+        print("Next page items:", len(next_page.data))
+    ```
+
+    ```bash cURL
+    curl "https://sandbox.api.mindclade.com/v1/resources?limit=25" \
+      -H "Authorization: Bearer mk_test_4xKz9mQpL2rVwYdNbTcJeH"
+    ```
+    </CodeGroup>
+
+    See the [Pagination guide](/guides/pagination) for a complete walkthrough of iterating through all pages automatically.
+  </Step>
+
+  <Step title="Update a Resource">
+    Use `PATCH /resources/{id}` to modify one or more fields on an existing resource. Only include the fields you want to change — MindClade performs a partial update and leaves everything else intact.
+
+    <CodeGroup>
+    ```javascript JavaScript
+    const updated = await client.resources.update("res_8aHq3mPzLxYwKdNvTcBe", {
+      name: "My First Resource (Revised)",
+      metadata: {
+        environment: "sandbox",
+        owner: "team-platform",
+        reviewed: true,
+      },
+    });
+
+    console.log("Updated at:", updated.updated_at);
+    ```
+
+    ```python Python
+    updated = client.resources.update(
+        "res_8aHq3mPzLxYwKdNvTcBe",
+        name="My First Resource (Revised)",
+        metadata={
+            "environment": "sandbox",
+            "owner": "team-platform",
+            "reviewed": True,
+        },
+    )
+
+    print("Updated at:", updated.updated_at)
+    ```
+
+    ```bash cURL
+    curl -X PATCH https://sandbox.api.mindclade.com/v1/resources/res_8aHq3mPzLxYwKdNvTcBe \
+      -H "Authorization: Bearer mk_test_4xKz9mQpL2rVwYdNbTcJeH" \
+      -H "Content-Type: application/json" \
+      -d '{
+        "name": "My First Resource (Revised)",
+        "metadata": {
+          "environment": "sandbox",
+          "owner": "team-platform",
+          "reviewed": true
+        }
+      }'
+    ```
+    </CodeGroup>
+  </Step>
+
+  <Step title="Delete a Resource">
+    When you no longer need a resource, delete it with `DELETE /resources/{id}`. This action is permanent and cannot be undone, so confirm the ID before calling it in production.
+
+    <CodeGroup>
+    ```javascript JavaScript
+    await client.resources.delete("res_8aHq3mPzLxYwKdNvTcBe");
+    console.log("Resource deleted successfully.");
+    ```
+
+    ```python Python
+    client.resources.delete("res_8aHq3mPzLxYwKdNvTcBe")
+    print("Resource deleted successfully.")
+    ```
+
+    ```bash cURL
+    curl -X DELETE https://sandbox.api.mindclade.com/v1/resources/res_8aHq3mPzLxYwKdNvTcBe \
+      -H "Authorization: Bearer mk_test_4xKz9mQpL2rVwYdNbTcJeH"
+    ```
+    </CodeGroup>
+
+    A successful deletion returns HTTP `204 No Content` with an empty response body.
+  </Step>
+
+</Steps>
+
+You now have a complete, working integration. The natural next step is reacting to changes in real time — head over to the [Webhooks guide](/guides/webhooks) to set up event notifications for your resources.

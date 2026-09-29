@@ -1,0 +1,205 @@
+---
+title: "Paginate MindClade API List Responses with Cursors"
+sidebarTitle: "Pagination"
+description: "MindClade uses cursor-based pagination for all list endpoints. Learn to use the limit and cursor parameters to fetch large datasets efficiently."
+---
+
+MindClade uses cursor-based pagination on all list endpoints, including `GET /resources` and `GET /events`. Unlike offset-based pagination, cursors stay accurate even when records are added or removed between requests — you never miss an item or see a duplicate just because the dataset shifted while you were iterating. This guide explains the request parameters, the response fields, and how to walk through an entire dataset reliably.
+
+## How It Works
+
+Every list endpoint accepts two query parameters:
+
+<ParamField query="limit" type="integer" default="20">
+  The maximum number of items to return in a single response. Accepted values are `1` to `100`. Defaults to `20` if omitted.
+</ParamField>
+
+<ParamField query="cursor" type="string">
+  An opaque string returned by the previous response as `next_cursor`. Omit this parameter to fetch the first page. Pass the cursor from the last response to advance to the next page.
+</ParamField>
+
+Every list response includes three standard fields alongside the `data` array:
+
+<ResponseField name="data" type="array">
+  The list of resource objects for this page. May be empty when there are no results matching the query.
+</ResponseField>
+
+<ResponseField name="next_cursor" type="string | null">
+  An opaque token representing the position after the last item on this page. Pass it as the `cursor` query parameter to fetch the next page. `null` when there are no further pages.
+</ResponseField>
+
+<ResponseField name="has_more" type="boolean">
+  `true` when at least one more page of results exists after this one. Use this as the loop condition when iterating through all pages.
+</ResponseField>
+
+A typical paginated response looks like this:
+
+```json
+{
+  "data": [
+    {
+      "id": "res_8aHq3mPzLxYwKdNvTcBe",
+      "name": "Production Config",
+      "created_at": "2024-06-10T09:15:00Z",
+      "updated_at": "2024-06-12T14:30:00Z"
+    },
+    {
+      "id": "res_2cRvTmNxKpWqBzLdYeHj",
+      "name": "Staging Config",
+      "created_at": "2024-06-11T11:00:00Z",
+      "updated_at": "2024-06-11T11:00:00Z"
+    }
+  ],
+  "next_cursor": "cur_eyJpZCI6InJlc18yY1J2VG1OeEtwV3FCekxkWWVIaiIsImRpciI6Im5leHQifQ",
+  "has_more": true
+}
+```
+
+When you are on the last page, `has_more` is `false` and `next_cursor` is `null`:
+
+```json
+{
+  "data": [
+    {
+      "id": "res_7fJbMwQkRnVyXpCsAzDu",
+      "name": "Dev Config",
+      "created_at": "2024-06-12T08:45:00Z",
+      "updated_at": "2024-06-12T08:45:00Z"
+    }
+  ],
+  "next_cursor": null,
+  "has_more": false
+}
+```
+
+<Note>
+  Cursors are valid for **24 hours** from the time they are issued. If your pagination loop is interrupted and you resume with a cursor older than 24 hours, the API returns a `404` with code `cursor_expired`. In that case, restart from the first page.
+</Note>
+
+## Iterating Through Pages
+
+Use `has_more` as your loop condition and pass `next_cursor` into each subsequent request. The loop exits automatically when all pages have been consumed.
+
+<CodeGroup>
+```javascript JavaScript
+async function fetchAllResources(client) {
+  const allResources = [];
+  let cursor = undefined;
+
+  do {
+    const page = await client.resources.list({
+      limit: 100, // use the maximum for efficiency
+      cursor,     // undefined on the first call, then set from previous page
+    });
+
+    allResources.push(...page.data);
+
+    cursor = page.has_more ? page.next_cursor : undefined;
+  } while (cursor !== undefined);
+
+  console.log(`Fetched ${allResources.length} resources total.`);
+  return allResources;
+}
+
+// Usage
+const resources = await fetchAllResources(client);
+```
+
+```python Python
+def fetch_all_resources(client):
+    all_resources = []
+    cursor = None
+
+    while True:
+        page = client.resources.list(
+            limit=100,       # use the maximum for efficiency
+            cursor=cursor,   # None on the first call, then set from previous page
+        )
+
+        all_resources.extend(page.data)
+
+        if not page.has_more:
+            break
+
+        cursor = page.next_cursor
+
+    print(f"Fetched {len(all_resources)} resources total.")
+    return all_resources
+
+
+# Usage
+resources = fetch_all_resources(client)
+```
+
+```bash cURL
+# First page
+curl "https://api.mindclade.com/v1/resources?limit=100" \
+  -H "Authorization: Bearer mk_live_9vBpWxRqMnKdYcLzTjHe"
+
+# Subsequent pages — replace CURSOR with the next_cursor value from the previous response
+curl "https://api.mindclade.com/v1/resources?limit=100&cursor=CURSOR" \
+  -H "Authorization: Bearer mk_live_9vBpWxRqMnKdYcLzTjHe"
+```
+</CodeGroup>
+
+## Best Practices
+
+Follow these guidelines to keep your pagination efficient and your code maintainable:
+
+**Choose the right page size.** Request between 50 and 100 items per page. Smaller pages mean more round-trips and higher latency for large datasets; larger pages use more memory and take longer to process if your handler is slow. A limit of `100` is a good default when you are fetching all records in bulk. Use a smaller value like `25` or `50` when rendering results interactively, so the first page loads quickly.
+
+**Do not rely on insertion order without explicit sorting.** Cursor-based pagination preserves a stable traversal order, but that order reflects MindClade's internal index, not necessarily the order you expect. If your application requires resources sorted by `created_at` or `name`, apply sorting parameters if available for the endpoint you are calling, and verify the results before acting on their sequence.
+
+**Treat cursors as opaque tokens.** Do not attempt to decode, construct, or modify cursor strings — their internal format may change without notice. Store and pass them as-is.
+
+**Handle `cursor_expired` gracefully.** If a cursor is more than 24 hours old, the API returns a `404` with `error.code` equal to `cursor_expired`. Catch this error and restart your pagination loop from scratch rather than surfacing a confusing error to your users.
+
+<CodeGroup>
+```javascript JavaScript
+async function fetchAllResourcesSafely(client) {
+  const allResources = [];
+  let cursor = undefined;
+
+  try {
+    do {
+      const page = await client.resources.list({ limit: 100, cursor });
+      allResources.push(...page.data);
+      cursor = page.has_more ? page.next_cursor : undefined;
+    } while (cursor !== undefined);
+  } catch (err) {
+    if (err?.response?.data?.error?.code === "cursor_expired") {
+      console.warn("Pagination cursor expired — restarting from the beginning.");
+      return fetchAllResourcesSafely(client); // restart from page 1
+    }
+    throw err;
+  }
+
+  return allResources;
+}
+```
+
+```python Python
+def fetch_all_resources_safely(client):
+    all_resources = []
+    cursor = None
+
+    try:
+        while True:
+            page = client.resources.list(limit=100, cursor=cursor)
+            all_resources.extend(page.data)
+
+            if not page.has_more:
+                break
+
+            cursor = page.next_cursor
+
+    except Exception as err:
+        error_body = getattr(getattr(err, "response", None), "json", lambda: {})()
+        if error_body.get("error", {}).get("code") == "cursor_expired":
+            print("Pagination cursor expired — restarting from the beginning.")
+            return fetch_all_resources_safely(client)  # restart from page 1
+        raise
+
+    return all_resources
+```
+</CodeGroup>

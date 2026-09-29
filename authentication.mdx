@@ -1,0 +1,151 @@
+---
+title: "Authenticate Your Requests to the MindClade API"
+sidebarTitle: "Authentication"
+description: "MindClade uses API keys for authentication. Learn how to create keys, pass them in requests, rotate them, and handle auth errors."
+---
+
+Every request to the MindClade API must include an API key. Keys are long-lived bearer tokens that you create in the dashboard, scoped to either the sandbox or production environment. There are no OAuth flows or session cookies to manage — attach the key to the `Authorization` header and MindClade handles the rest. This page covers where to find your keys, how to use them in requests, how to keep them safe, and how to rotate them without downtime.
+
+## Getting your API key
+
+Open the [MindClade dashboard](https://app.mindclade.com) and navigate to **Settings → API Keys**. Click **Create key**, enter a descriptive name (e.g., `production-backend` or `ci-pipeline`), and select the environment. The full key value is shown exactly once — copy it to a secure location before closing the dialog.
+
+MindClade issues two types of keys:
+
+| Key prefix | Environment | Base URL |
+|---|---|---|
+| `mk_test_` | Sandbox | `https://sandbox.api.mindclade.com/v1` |
+| `mk_live_` | Production | `https://api.mindclade.com/v1` |
+
+<Tip>
+  Create separate keys for each service or deployment that needs API access. Granular keys make it easy to revoke a single service's access without disrupting others.
+</Tip>
+
+## Making authenticated requests
+
+Pass your API key as a Bearer token in the `Authorization` header of every request. The header value must be exactly `Bearer <your-key>` — note the space between `Bearer` and the key.
+
+<CodeGroup>
+  ```bash curl
+  curl https://api.mindclade.com/v1/resources \
+    -H "Authorization: Bearer mk_live_xxxxxxxxxxxxxxxxxxxx"
+  ```
+
+  ```javascript JavaScript
+  import MindClade from "@mindclade/sdk";
+
+  const client = new MindClade({
+    apiKey: process.env.MINDCLADE_API_KEY,
+  });
+
+  // The SDK attaches the Authorization header automatically on every request.
+  const resources = await client.resources.list();
+  ```
+
+  ```python Python
+  import mindclade
+  import os
+
+  client = mindclade.Client(api_key=os.environ["MINDCLADE_API_KEY"])
+
+  # The SDK attaches the Authorization header automatically on every request.
+  resources = client.resources.list()
+  ```
+</CodeGroup>
+
+Both SDKs read the key once at client construction and inject the `Authorization` header on every subsequent request. You never need to set the header manually when using an SDK.
+
+## Key security
+
+<Warning>
+  **Never expose your API key in client-side code, public repositories, or logs.** A leaked `mk_live_` key gives anyone full API access under your account. If you suspect a key has been compromised, rotate it immediately — see [Rotating keys](#rotating-keys) below.
+</Warning>
+
+Follow these practices to keep your keys secure:
+
+- **Use environment variables.** Store keys in environment variables and read them at runtime. Never hard-code a key directly in source code.
+- **Keep keys out of version control.** Add `.env` files to `.gitignore`. Use secret managers (AWS Secrets Manager, HashiCorp Vault, GitHub Actions secrets) in CI/CD pipelines.
+- **Restrict key usage by service.** Issue one key per service or environment, not a single shared key. This limits blast radius if one key is exposed.
+- **Prefer `mk_test_` keys during development.** Sandbox keys can't affect production data. Reserve `mk_live_` keys for production deployments only.
+
+<CodeGroup>
+  ```bash .env file
+  # .env (add this file to .gitignore)
+  MINDCLADE_API_KEY=mk_live_xxxxxxxxxxxxxxxxxxxx
+  ```
+
+  ```javascript JavaScript (read from env)
+  import MindClade from "@mindclade/sdk";
+
+  // process.env.MINDCLADE_API_KEY is set at deploy time — never in source code.
+  const client = new MindClade({
+    apiKey: process.env.MINDCLADE_API_KEY,
+  });
+  ```
+
+  ```python Python (read from env)
+  import mindclade
+  import os
+
+  # os.environ["MINDCLADE_API_KEY"] is set at deploy time — never in source code.
+  client = mindclade.Client(api_key=os.environ["MINDCLADE_API_KEY"])
+  ```
+</CodeGroup>
+
+## Rotating keys
+
+Rotate a key when it may have been exposed, when a team member with access leaves, or on a regular schedule as part of your security policy. MindClade supports zero-downtime rotation: create the replacement key before you deactivate the old one, then update your services one at a time.
+
+<Steps>
+  <Step title="Create a new key">
+    In the dashboard, go to **Settings → API Keys** and click **Create key**. Give the new key a descriptive name that distinguishes it from the old one (e.g., append the date: `production-backend-2024-06`). Copy the new key value to a secure location.
+  </Step>
+  <Step title="Deploy the new key to your services">
+    Update the environment variable or secret store entry for each service that uses the old key. Deploy or restart each service so it picks up the new key. Verify in your logs or monitoring that requests are succeeding with the new key before you proceed.
+  </Step>
+  <Step title="Revoke the old key">
+    Back in the dashboard, find the old key and click **Revoke**. Any requests still using the old key will immediately receive `401 Unauthorized`. Once you've confirmed all services are using the new key, this step is safe to take.
+  </Step>
+</Steps>
+
+<Info>
+  The MindClade dashboard shows the **last used** timestamp for each key. Use this to confirm a key is no longer in active use before revoking it.
+</Info>
+
+## Authentication errors
+
+If a request fails authentication or authorization, the API returns one of the following errors:
+
+<AccordionGroup>
+  <Accordion title="401 Unauthorized — missing or invalid key">
+    The `Authorization` header was absent, malformed, or contained a key that doesn't exist or has been revoked.
+
+    ```json
+    {
+      "error": {
+        "code": "unauthorized",
+        "message": "API key is missing or invalid.",
+        "details": {}
+      }
+    }
+    ```
+
+    **Fix:** Verify that the `Authorization` header is present and follows the format `Bearer <key>`. Check that the key exists and hasn't been revoked in the dashboard.
+  </Accordion>
+
+  <Accordion title="403 Forbidden — insufficient permissions">
+    The key is valid, but it doesn't have permission to perform the requested action. This typically occurs when a sandbox key (`mk_test_`) is used against the production base URL, or vice versa.
+
+    ```json
+    {
+      "error": {
+        "code": "forbidden",
+        "message": "This API key does not have permission to access this resource.",
+        "details": {}
+      }
+    }
+    ```
+
+    **Fix:** Confirm the key prefix (`mk_test_` vs. `mk_live_`) matches the base URL you're calling (`sandbox.api.mindclade.com` vs. `api.mindclade.com`).
+  </Accordion>
+</AccordionGroup>

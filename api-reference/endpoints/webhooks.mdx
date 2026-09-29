@@ -1,0 +1,167 @@
+---
+title: "Webhooks API: Register and Manage Webhook Endpoints"
+sidebarTitle: "Webhooks"
+description: "Register webhook endpoints to receive real-time MindClade event notifications. Full reference for creating and deleting webhooks via the API."
+---
+
+Webhooks let your server receive real-time notifications whenever something changes in your MindClade account. Instead of polling the Events API, you register an HTTPS endpoint and MindClade sends a signed `POST` request to that URL each time one of your subscribed event types fires. Use webhooks to trigger downstream workflows, keep external systems in sync, or build reactive dashboards that update the moment a resource changes state.
+
+---
+
+## Register a webhook
+
+`POST /webhooks`
+
+Register a new webhook endpoint. You specify the URL MindClade should deliver payloads to and the list of event types you want to subscribe to. On success, MindClade returns a webhook object that includes a `secret` — a signing key used to verify that incoming requests genuinely originate from MindClade.
+
+<Warning>
+  The webhook `secret` is **shown only once**, at the moment of creation. Copy it to a secure location immediately — your secrets manager, environment variable store, or vault. You cannot retrieve it again through the API. If you lose it, delete the webhook and create a new one.
+</Warning>
+
+### Body parameters
+
+<ParamField body="url" type="string" required>
+  The HTTPS endpoint where MindClade should deliver event payloads. Plain HTTP URLs are rejected. Make sure the endpoint is publicly reachable and returns a `2xx` status within 10 seconds to acknowledge receipt.
+</ParamField>
+
+<ParamField body="events" type="array" required>
+  List of event types this webhook should subscribe to. Each entry must be one of: `resource.created`, `resource.updated`, `resource.deleted`, `event.triggered`. Pass `["*"]` to subscribe to all current and future event types.
+</ParamField>
+
+### Request example
+
+<CodeGroup>
+```bash cURL
+curl -X POST https://api.mindclade.com/v1/webhooks \
+  -H "Authorization: Bearer mk_live_4xKz9mPqRtL2vNwY8cJdB3sH" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "url": "https://app.example.com/hooks/mindclade",
+    "events": [
+      "resource.created",
+      "resource.updated",
+      "resource.deleted"
+    ]
+  }'
+```
+
+```javascript JavaScript
+import MindClade from "@mindclade/sdk";
+
+const client = new MindClade({ apiKey: "mk_live_4xKz9mPqRtL2vNwY8cJdB3sH" });
+
+const webhook = await client.webhooks.create({
+  url: "https://app.example.com/hooks/mindclade",
+  events: ["resource.created", "resource.updated", "resource.deleted"],
+});
+
+// Store webhook.secret securely — it will not be returned again
+console.log(webhook.id);     // "wh_7cRmXtPsNqLkY2eA"
+console.log(webhook.secret); // "whsec_Kd9fTzR4mW1xQ8vN3bYpL5cJsH6oEu2a"
+```
+</CodeGroup>
+
+### Response example
+
+```json
+{
+  "id": "wh_7cRmXtPsNqLkY2eA",
+  "url": "https://app.example.com/hooks/mindclade",
+  "events": [
+    "resource.created",
+    "resource.updated",
+    "resource.deleted"
+  ],
+  "secret": "whsec_Kd9fTzR4mW1xQ8vN3bYpL5cJsH6oEu2a",
+  "created_at": "2025-06-14T12:00:45Z"
+}
+```
+
+### Response fields
+
+<ResponseField name="id" type="string">
+  Unique identifier for the webhook, prefixed with `wh_`. Use this ID to delete or reference the webhook later.
+</ResponseField>
+
+<ResponseField name="url" type="string">
+  The HTTPS endpoint URL where MindClade delivers event payloads.
+</ResponseField>
+
+<ResponseField name="events" type="array">
+  The list of event types this webhook is subscribed to. Reflects exactly what was provided at creation.
+</ResponseField>
+
+<ResponseField name="secret" type="string">
+  HMAC-SHA256 signing secret for this webhook. Use it to verify the `X-MindClade-Signature` header on incoming requests. **Returned only at creation time** — subsequent retrievals of this webhook will not include this field.
+</ResponseField>
+
+<ResponseField name="created_at" type="string">
+  ISO 8601 timestamp of when the webhook was registered.
+</ResponseField>
+
+---
+
+## Delete a webhook
+
+`DELETE /webhooks/{id}`
+
+Remove a registered webhook endpoint. Once deleted, MindClade immediately stops delivering payloads to that URL. In-flight deliveries that were already dispatched before deletion may still arrive at your endpoint — account for this in your handler logic.
+
+### Path parameters
+
+<ParamField path="id" type="string" required>
+  The unique identifier of the webhook to delete, for example `wh_7cRmXtPsNqLkY2eA`.
+</ParamField>
+
+### Request example
+
+```bash cURL
+curl -X DELETE https://api.mindclade.com/v1/webhooks/wh_7cRmXtPsNqLkY2eA \
+  -H "Authorization: Bearer mk_live_4xKz9mPqRtL2vNwY8cJdB3sH"
+```
+
+### Response example
+
+```json
+{
+  "deleted": true,
+  "id": "wh_7cRmXtPsNqLkY2eA"
+}
+```
+
+### Response fields
+
+<ResponseField name="deleted" type="boolean">
+  Always `true` on a successful deletion.
+</ResponseField>
+
+<ResponseField name="id" type="string">
+  The ID of the webhook that was deleted.
+</ResponseField>
+
+---
+
+## Webhook security
+
+Every payload MindClade delivers to your endpoint is signed using **HMAC-SHA256** with the webhook's `secret`. The signature is included in the `X-MindClade-Signature` request header. You must verify this signature on every incoming request to confirm the payload originated from MindClade and has not been tampered with in transit.
+
+<Info>
+  For a complete walkthrough of signature verification — including example implementations in JavaScript and Python — see the [Webhook Security guide](/guides/webhooks).
+</Info>
+
+The verification flow in brief:
+
+<Steps>
+  <Step title="Read the raw request body">
+    Capture the raw, unparsed request body as bytes before any JSON parsing. Parsers that re-serialize the body can produce a different byte sequence and cause verification to fail.
+  </Step>
+  <Step title="Compute the expected signature">
+    Calculate `HMAC-SHA256(secret, rawBody)` using the webhook secret you stored at creation time.
+  </Step>
+  <Step title="Compare signatures">
+    Compare your computed signature against the value in the `X-MindClade-Signature` header using a constant-time comparison function to prevent timing attacks. Reject the request if they don't match.
+  </Step>
+  <Step title="Acknowledge with 2xx">
+    Return any `2xx` HTTP status code within 10 seconds to acknowledge receipt. MindClade retries unacknowledged deliveries with exponential backoff.
+  </Step>
+</Steps>

@@ -1,0 +1,54 @@
+---
+title: "Core Concepts: How MindClade Works"
+sidebarTitle: "Overview"
+description: "Understand the fundamental building blocks of MindClade: resources, events, webhooks, environments, and how they fit together."
+---
+
+MindClade is built around three core primitives that work together to give your application a consistent, event-driven integration layer. Once you understand how **resources**, **events**, and **webhooks** relate to each other, every API call, SDK method, and webhook payload will follow a predictable pattern — making it faster to build, debug, and scale your integration.
+
+## The Three Core Primitives
+
+Every interaction with MindClade traces back to one of three building blocks.
+
+### Resources
+
+Resources are the primary data objects in MindClade. Think of them as the "nouns" of the platform — the things your application creates, reads, updates, and deletes. Each resource has a unique prefixed ID (e.g., `res_4kQx9mZpLwT2`), a name, a status, and an open-ended metadata object you control. All mutations to a resource are recorded as events.
+
+### Events
+
+Events are immutable records of state changes on resources. Whenever a resource is created, updated, or deleted, MindClade generates an event automatically. Events carry a typed `type` field (e.g., `resource.created`), a reference back to the originating resource, and a snapshot payload of what changed. You can query the events log at any time via `GET /events`.
+
+### Webhooks
+
+Webhooks are the outbound notification layer. When an event occurs, MindClade POSTs a signed payload to every webhook endpoint you have registered for that event type. This lets your backend react to changes in real time without polling. Payloads are signed with HMAC-SHA256 so you can verify they genuinely originated from MindClade.
+
+## How They Fit Together
+
+<Steps>
+  <Step title="Your app creates or modifies a resource">
+    You call `POST /resources` or `PATCH /resources/{id}`. MindClade persists the change and returns the updated resource object.
+  </Step>
+  <Step title="MindClade records an event">
+    An event of the appropriate type (e.g., `resource.created`) is written to the immutable events log, capturing what changed and when.
+  </Step>
+  <Step title="Registered webhooks are triggered">
+    MindClade fans out an HTTP POST to every webhook endpoint subscribed to that event type, including a signed payload so your server can verify authenticity.
+  </Step>
+  <Step title="Your backend processes the notification">
+    Your webhook handler validates the signature, reads the payload, and takes whatever action your application requires — all in real time, with no polling needed.
+  </Step>
+</Steps>
+
+## Explore Each Concept in Depth
+
+<CardGroup cols={3}>
+  <Card title="Data Model" icon="database" href="/concepts/data-model">
+    Learn about resource and event object shapes, ID prefixes, and how cursor-based pagination works across list endpoints.
+  </Card>
+  <Card title="Environments" icon="flask" href="/concepts/environments">
+    Understand the difference between sandbox and production, how to switch between them, and why environment isolation matters.
+  </Card>
+  <Card title="Webhooks" icon="webhook" href="/guides/webhooks">
+    Register endpoints, verify HMAC-SHA256 signatures, and handle every webhook event type MindClade emits.
+  </Card>
+</CardGroup>

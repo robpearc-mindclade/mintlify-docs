@@ -1,0 +1,56 @@
+---
+title: "API Error Codes and HTTP Status Reference"
+sidebarTitle: "Errors"
+description: "MindClade returns structured JSON error objects for every failure. This page lists all error codes, HTTP statuses, and recommended handling for each."
+---
+
+When a request cannot be completed, MindClade returns a structured JSON error object alongside the appropriate HTTP status code. Every error response follows the same predictable shape, so you can write a single error-handling path in your integration and branch on the `code` field when you need to handle specific cases differently.
+
+## Error Object Structure
+
+Every failed response includes an `error` object at the top level. The `code` field is a stable, machine-readable string you can match against in code. The `message` field is a human-readable explanation suitable for logging. The `details` field provides additional context that varies by error type — it may be an empty object or contain fields like `resource_id`, `field`, or `retry_after`.
+
+```json
+{
+  "error": {
+    "code": "resource_not_found",
+    "message": "The requested resource does not exist.",
+    "details": {
+      "resource_id": "res_abc123"
+    }
+  }
+}
+```
+
+## HTTP Status Codes
+
+MindClade uses standard HTTP status codes consistently. The table below lists every status code you may encounter, what it means, and how you should respond.
+
+| Status | Meaning | Recommended Handling |
+|--------|---------|----------------------|
+| `400 Bad Request` | The request was malformed, contained invalid parameter values, or was missing required fields. | Do not retry. Fix the request payload and resend. |
+| `401 Unauthorized` | The API key was missing, invalid, or revoked. | Do not retry. Verify your key in the dashboard and update your client. |
+| `403 Forbidden` | The key is valid but you used it against the wrong environment, or it lacks the required scope for this action. | Do not retry. Check the key environment and permissions. |
+| `404 Not Found` | The specified resource ID does not exist, or you do not have access to it. | Do not retry. Confirm the ID is correct and the resource has not been deleted. |
+| `409 Conflict` | A resource with the same unique identifier or attribute already exists. | Do not retry. Retrieve the existing resource instead, or use a different identifier. |
+| `429 Too Many Requests` | You have exceeded your rate limit for the current window. | Retry after the timestamp in `X-RateLimit-Reset`. See [Rate Limits](/api-reference/rate-limits). |
+| `500 Internal Server Error` | An unexpected error occurred on MindClade's servers. | Retry with exponential backoff. If the issue persists, contact [support](https://app.mindclade.com). |
+
+## Error Codes Reference
+
+The `code` field in the error object is the most reliable way to handle errors programmatically. The table below lists all common error codes and their meanings.
+
+| Code | Description |
+|------|-------------|
+| `invalid_request` | The request structure is malformed — for example, invalid JSON or an unsupported content type. |
+| `missing_required_field` | A required field was omitted from the request body. The `details` object identifies the missing field. |
+| `resource_not_found` | No resource exists for the given ID, or it has been deleted. Check `details.resource_id`. |
+| `resource_already_exists` | A resource with a conflicting unique attribute already exists. This accompanies a `409` response. |
+| `rate_limit_exceeded` | The per-minute request limit for your API key has been exceeded. Read `X-RateLimit-Reset` to determine when to retry. |
+| `missing_api_key` | The `Authorization` header was not included in the request. |
+| `invalid_api_key` | The provided API key is not recognized, may be malformed, or has been revoked. |
+| `internal_error` | An unexpected server-side error occurred. Retry with exponential backoff; if the problem persists, contact support. |
+
+<Note>
+  The `details` field is present on every error object but its contents vary by error type. For `missing_required_field` it includes the name of the offending field; for `resource_not_found` it includes the `resource_id`; for `rate_limit_exceeded` it includes a `retry_after` Unix timestamp. Always inspect `details` for additional context before surfacing errors to end users or writing them to logs.
+</Note>

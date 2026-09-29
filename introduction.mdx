@@ -1,0 +1,52 @@
+---
+title: "MindClade: The Developer Platform for Fast Integrations"
+sidebarTitle: "Introduction"
+description: "MindClade gives developers a REST API, JavaScript and Python SDKs, and webhooks to build and ship integrations in minutes, not days."
+---
+
+MindClade is a developer platform built to eliminate the friction between idea and integration. Whether you're connecting your product to third-party services, automating workflows, or building new features on top of a reliable API, MindClade gives you the primitives — REST endpoints, first-class SDKs, real-time webhooks, and clear documentation — to move fast without breaking things. Sign up, grab an API key, and make your first call in under five minutes.
+
+<CardGroup cols={2}>
+  <Card title="Quickstart" icon="bolt" href="/quickstart">
+    Make your first API call in under 5 minutes. Create a resource, fetch it, and verify the response.
+  </Card>
+  <Card title="Authentication" icon="key" href="/authentication">
+    Learn how API keys work, how to pass them in requests, and how to rotate them safely.
+  </Card>
+  <Card title="SDKs" icon="code" href="/sdks/overview">
+    Explore the official JavaScript and Python SDKs with full type support and sensible defaults.
+  </Card>
+  <Card title="API Reference" icon="book" href="/api-reference/introduction">
+    Browse every endpoint, parameter, and response schema in the full API reference.
+  </Card>
+</CardGroup>
+
+## How it works
+
+Getting from zero to a working integration takes three steps. Follow them in order the first time, then revisit individual sections as your needs grow.
+
+<Steps>
+  <Step title="Create your account and get an API key">
+    Head to the [MindClade dashboard](https://app.mindclade.com) and sign up for a free account. Once you're in, navigate to **Settings → API Keys** and create your first key. You'll get a `mk_test_` key for the sandbox environment right away — no credit card required.
+  </Step>
+  <Step title="Make your first API call">
+    Use the key to hit `GET /resources` on the sandbox base URL (`https://sandbox.api.mindclade.com/v1`). You can use curl, our JavaScript SDK (`@mindclade/sdk`), or our Python SDK (`mindclade`) — whichever fits your workflow. The [Quickstart](/quickstart) walks you through all three.
+  </Step>
+  <Step title="Set up webhooks">
+    Register a webhook endpoint with `POST /webhooks` to start receiving real-time event notifications — `resource.created`, `resource.updated`, and more. Every payload is signed with HMAC-SHA256 so you can verify it came from MindClade. See the [Webhooks guide](/guides/webhooks) for a complete walkthrough.
+  </Step>
+</Steps>
+
+## Explore the docs
+
+<CardGroup cols={3}>
+  <Card title="Core Concepts" icon="lightbulb" href="/concepts/overview">
+    Understand resources, events, environments, and pagination before you build.
+  </Card>
+  <Card title="First Integration" icon="puzzle-piece" href="/guides/first-integration">
+    A step-by-step guide to building and shipping your first real integration with MindClade.
+  </Card>
+  <Card title="FAQ" icon="circle-question" href="/help/faq">
+    Answers to the most common questions about rate limits, billing, key management, and more.
+  </Card>
+</CardGroup>

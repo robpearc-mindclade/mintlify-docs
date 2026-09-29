@@ -1,0 +1,161 @@
+---
+title: "MindClade Data Model: Resources and Events Explained"
+sidebarTitle: "Data Model"
+description: "Learn how MindClade structures data with Resources and Events. Understand IDs, timestamps, status fields, and metadata across the platform."
+---
+
+Every object you work with in MindClade — whether you're calling the REST API directly, using one of the SDKs, or inspecting a webhook payload — follows the same underlying data model. Understanding the shape and semantics of **resources** and **events** up front will make every other part of the platform immediately familiar.
+
+## Resources
+
+A resource is the primary data object in MindClade. You create, read, update, and delete resources through the `/resources` endpoints. Each resource carries the following fields:
+
+<ResponseField name="id" type="string" required>
+  A unique, immutable identifier prefixed with `res_`. Example: `res_4kQx9mZpLwT2`. IDs are safe to store and use as foreign keys in your own database.
+</ResponseField>
+
+<ResponseField name="name" type="string" required>
+  A human-readable label for the resource. Names do not need to be unique across your account.
+</ResponseField>
+
+<ResponseField name="status" type="string" required>
+  The current lifecycle state of the resource. Common values are `active`, `inactive`, and `archived`. Status transitions are recorded as events.
+</ResponseField>
+
+<ResponseField name="metadata" type="object">
+  A flat key-value object you can use to attach arbitrary string data to a resource — for example, your own internal IDs, feature flags, or display hints. Keys and values must both be strings.
+</ResponseField>
+
+<ResponseField name="created_at" type="string (ISO 8601)">
+  The UTC timestamp at which the resource was created. Set by MindClade and never modified.
+</ResponseField>
+
+<ResponseField name="updated_at" type="string (ISO 8601)">
+  The UTC timestamp of the most recent modification to the resource. Updated automatically on every `PATCH` operation.
+</ResponseField>
+
+Here is a complete example of a resource object as returned by the API:
+
+```json
+{
+  "id": "res_4kQx9mZpLwT2",
+  "name": "Primary Analytics Pipeline",
+  "status": "active",
+  "metadata": {
+    "team": "data-engineering",
+    "environment_tag": "us-east",
+    "internal_ref": "proj_8821"
+  },
+  "created_at": "2024-11-03T09:15:42Z",
+  "updated_at": "2025-01-18T14:33:07Z"
+}
+```
+
+<Note>
+  Metadata is entirely user-defined. MindClade does not interpret or index metadata values. Use it freely to store any string data your application needs to associate with a resource — internal IDs, display labels, routing hints, or anything else that helps your system stay in sync.
+</Note>
+
+## Events
+
+Events are immutable records that MindClade writes automatically whenever the state of a resource changes. You can never create or delete an event directly; they are always a by-product of resource operations. Query the full event log at any time using `GET /events`.
+
+<ResponseField name="id" type="string" required>
+  A unique identifier prefixed with `evt_`. Example: `evt_7rNv2cBsYpX9`. Like resource IDs, event IDs are stable and safe to store.
+</ResponseField>
+
+<ResponseField name="type" type="string" required>
+  Describes what happened. One of `resource.created`, `resource.updated`, `resource.deleted`, or `event.triggered`.
+</ResponseField>
+
+<ResponseField name="resource_id" type="string" required>
+  The `id` of the resource this event relates to. Use this to correlate events back to the resource that changed.
+</ResponseField>
+
+<ResponseField name="payload" type="object">
+  A snapshot of the data at the time of the event. For `resource.updated` events this includes both `before` and `after` representations of the changed fields.
+</ResponseField>
+
+<ResponseField name="created_at" type="string (ISO 8601)">
+  The UTC timestamp at which the event was recorded. Events are ordered chronologically and this field is immutable.
+</ResponseField>
+
+Here is an example event object produced when a resource is updated:
+
+```json
+{
+  "id": "evt_7rNv2cBsYpX9",
+  "type": "resource.updated",
+  "resource_id": "res_4kQx9mZpLwT2",
+  "payload": {
+    "before": {
+      "status": "inactive",
+      "name": "Primary Analytics Pipeline"
+    },
+    "after": {
+      "status": "active",
+      "name": "Primary Analytics Pipeline"
+    }
+  },
+  "created_at": "2025-01-18T14:33:07Z"
+}
+```
+
+## IDs and Pagination
+
+### Prefixed IDs
+
+All MindClade object IDs use a short type prefix followed by an alphanumeric string:
+
+| Prefix | Object type |
+|--------|-------------|
+| `res_` | Resource    |
+| `evt_` | Event       |
+| `wh_`  | Webhook     |
+
+The prefix makes it immediately clear what kind of object you're working with — useful when IDs appear in logs, database columns, or webhook payloads without additional context.
+
+### Cursor-Based Pagination
+
+All list endpoints (`GET /resources`, `GET /events`) use cursor-based pagination rather than page numbers. This approach is stable under concurrent writes — inserting or deleting records while you paginate will not cause items to be skipped or duplicated.
+
+Every list response includes:
+
+<ResponseField name="data" type="array">
+  The array of objects for the current page, up to the requested `limit`.
+</ResponseField>
+
+<ResponseField name="next_cursor" type="string | null">
+  An opaque string you pass as the `cursor` query parameter on your next request to fetch the following page. `null` when you have reached the last page.
+</ResponseField>
+
+<ResponseField name="has_more" type="boolean">
+  `true` if there are additional pages available beyond the current response.
+</ResponseField>
+
+Pass `limit` (maximum `100`) and `cursor` as query parameters to control pagination:
+
+```http
+GET https://api.mindclade.com/v1/resources?limit=25&cursor=res_cursor_mQ7tXz
+Authorization: Bearer mk_live_9sT3kVwPqL8nZdR2
+```
+
+A paginated response looks like this:
+
+```json
+{
+  "data": [
+    {
+      "id": "res_4kQx9mZpLwT2",
+      "name": "Primary Analytics Pipeline",
+      "status": "active",
+      "metadata": {},
+      "created_at": "2024-11-03T09:15:42Z",
+      "updated_at": "2025-01-18T14:33:07Z"
+    }
+  ],
+  "next_cursor": "res_cursor_pB2aKy",
+  "has_more": true
+}
+```
+
+To fetch all pages, keep requesting with the returned `next_cursor` until `has_more` is `false`.

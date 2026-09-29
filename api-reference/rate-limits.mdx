@@ -1,0 +1,117 @@
+---
+title: "API Rate Limits and How to Handle Them"
+sidebarTitle: "Rate Limits"
+description: "MindClade enforces per-key rate limits of 1,000 req/min in production and 100 req/min in sandbox. Learn to read limit headers and handle 429 errors."
+---
+
+MindClade enforces rate limits on every API key to protect platform stability and ensure fair usage across all customers. Limits are tracked in one-minute rolling windows on a per-key basis. If your integration approaches or exceeds these limits, you can use the rate limit headers returned on every response to implement proactive throttling and graceful retry logic.
+
+## Limits by Environment
+
+Rate limits differ between environments. The sandbox intentionally has a lower limit to encourage efficient testing patterns before you move to production.
+
+| Environment | Base URL | Rate Limit |
+|-------------|----------|------------|
+| Production  | `https://api.mindclade.com/v1` | 1,000 requests / minute |
+| Sandbox     | `https://sandbox.api.mindclade.com/v1` | 100 requests / minute |
+
+## Rate Limit Headers
+
+Every API response — including successful ones — includes the following headers so you can monitor your usage in real time.
+
+| Header | Type | Description |
+|--------|------|-------------|
+| `X-RateLimit-Limit` | integer | The maximum number of requests allowed per minute for your key. |
+| `X-RateLimit-Remaining` | integer | The number of requests remaining in the current one-minute window. |
+| `X-RateLimit-Reset` | integer | A Unix timestamp (in seconds) indicating when the current window resets and your limit is restored. |
+
+A typical response header block looks like this:
+
+```http
+HTTP/1.1 200 OK
+X-RateLimit-Limit: 1000
+X-RateLimit-Remaining: 834
+X-RateLimit-Reset: 1730462460
+```
+
+## Handling 429 Responses
+
+When you exceed your rate limit, the API returns a `429 Too Many Requests` response. The response body follows the standard error format, and the `X-RateLimit-Reset` header tells you exactly when you can safely retry.
+
+```json
+{
+  "error": {
+    "code": "rate_limit_exceeded",
+    "message": "You have exceeded the rate limit for this key. Please retry after the reset timestamp.",
+    "details": {
+      "retry_after": 1730462460
+    }
+  }
+}
+```
+
+Read the `X-RateLimit-Reset` header, calculate the wait time relative to the current time, pause execution for that duration, then retry. The examples below implement this pattern in JavaScript and Python:
+
+<CodeGroup>
+
+```javascript JavaScript
+async function requestWithRetry(url, options, maxRetries = 3) {
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
+    const response = await fetch(url, options);
+
+    if (response.status !== 429) {
+      return response;
+    }
+
+    const resetTimestamp = parseInt(response.headers.get("X-RateLimit-Reset"), 10);
+    const now = Math.floor(Date.now() / 1000);
+    const waitSeconds = Math.max(resetTimestamp - now, 1);
+
+    console.warn(`Rate limited. Retrying in ${waitSeconds}s (attempt ${attempt + 1}/${maxRetries})`);
+    await new Promise((resolve) => setTimeout(resolve, waitSeconds * 1000));
+  }
+
+  throw new Error("Exceeded maximum retries due to rate limiting.");
+}
+
+// Usage
+const response = await requestWithRetry("https://api.mindclade.com/v1/resources", {
+  headers: {
+    "Authorization": "Bearer mk_live_xxxxxxxxxxxx",
+  },
+});
+const data = await response.json();
+```
+
+```python Python
+import time
+import requests
+
+def request_with_retry(url, headers, max_retries=3):
+    for attempt in range(max_retries):
+        response = requests.get(url, headers=headers)
+
+        if response.status_code != 429:
+            return response
+
+        reset_timestamp = int(response.headers.get("X-RateLimit-Reset", 0))
+        wait_seconds = max(reset_timestamp - int(time.time()), 1)
+
+        print(f"Rate limited. Retrying in {wait_seconds}s (attempt {attempt + 1}/{max_retries})")
+        time.sleep(wait_seconds)
+
+    raise Exception("Exceeded maximum retries due to rate limiting.")
+
+# Usage
+response = request_with_retry(
+    "https://api.mindclade.com/v1/resources",
+    headers={"Authorization": "Bearer mk_live_xxxxxxxxxxxx"},
+)
+data = response.json()
+```
+
+</CodeGroup>
+
+<Tip>
+  Don't wait for a `429` to slow down. Read `X-RateLimit-Remaining` on every response and introduce a short delay when it drops below a threshold — for example, below 50 remaining requests. This proactive throttling prevents bursts from triggering hard limits and keeps your integration running smoothly without interruptions.
+</Tip>

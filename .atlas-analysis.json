@@ -1,30 +1,11 @@
 {
-  "$schema": "https://mintlify.com/docs.json",
+  "projectType": "saas",
+  "projectName": "MindClade",
+  "projectDescription": "A developer-focused platform providing APIs, SDKs, and tools to help teams build, integrate, and ship products faster.",
   "theme": "luma",
-  "name": "MindClade",
-  "colors": {
-    "primary": "#ef7025",
-    "light": "#eec9bc",
-    "dark": "#4fa1ab"
-  },
-  "favicon": "/favicon.svg",
-  "logo": {
-    "light": "/logo/light.svg",
-    "dark": "/logo/dark.svg"
-  },
-  "navbar": {
-    "links": [
-      {
-        "label": "Support",
-        "href": "mailto:support@mindclade.com"
-      }
-    ],
-    "primary": {
-      "type": "button",
-      "label": "Dashboard",
-      "href": "https://app.mindclade.com"
-    }
-  },
+  "primaryColor": "#ef7025",
+  "lightColor": "#eec9bc",
+  "darkColor": "#4fa1ab",
   "navigation": {
     "tabs": [
       {
@@ -97,11 +78,24 @@
       }
     ]
   },
-  "footer": {
-    "socials": {
-      "x": "https://x.com/mindclade",
-      "github": "https://github.com/mindclade",
-      "linkedin": "https://linkedin.com/company/mindclade"
-    }
-  }
+  "keyFeatures": [
+    "REST API with comprehensive endpoint coverage",
+    "Webhook event system for real-time notifications",
+    "JavaScript and Python SDKs",
+    "Multi-environment support (sandbox and production)",
+    "API key and OAuth authentication",
+    "Detailed error responses and status codes",
+    "Pagination for list endpoints",
+    "Rate limiting with clear headers"
+  ],
+  "publicApiSurface": [
+    "GET /resources",
+    "POST /resources",
+    "GET /resources/{id}",
+    "PATCH /resources/{id}",
+    "DELETE /resources/{id}",
+    "GET /events",
+    "POST /webhooks",
+    "DELETE /webhooks/{id}"
+  ]
 }

@@ -1,0 +1,203 @@
+---
+title: "MindClade API and SDK Changelog"
+sidebarTitle: "Changelog"
+description: "Stay up to date with MindClade API changes, SDK releases, new features, deprecations, and breaking changes across all versions."
+---
+
+The MindClade changelog documents every API revision, SDK release, behavioral change, and deprecation. Breaking changes are always called out explicitly so you can plan upgrades. Patch releases that fix only internal bugs or security issues without affecting the public API surface may not appear here, but are tracked in the individual SDK repositories on GitHub.
+
+<Note>
+  Subscribe to the changelog via the [RSS feed](https://mindclade.com/changelog/rss.xml) to receive updates in your feed reader, or follow [@MindClade](https://x.com/mindclade) on X for announcements.
+</Note>
+
+---
+
+## v1.2.0 <span style={{color: "#ef7025"}}>— Latest</span>
+
+<Info>
+  Released with full backward compatibility. No breaking changes. Upgrade by running `npm install @mindclade/sdk@latest` or `pip install --upgrade mindclade`.
+</Info>
+
+### Added
+
+<AccordionGroup>
+  <Accordion title="Metadata filtering on GET /resources">
+    You can now filter resources by metadata key-value pairs directly in the query string using the `metadata[key]` parameter. This eliminates the need to fetch all resources and filter client-side.
+
+    ```bash
+    # Return only resources where metadata.environment = "production"
+    curl "https://api.mindclade.com/v1/resources?metadata[environment]=production" \
+      -H "Authorization: Bearer mk_live_abc123"
+    ```
+
+    Multiple `metadata[]` filters are combined with **AND** logic. You can filter on up to five metadata keys per request.
+  </Accordion>
+
+  <Accordion title="AsyncMindClade async client in the Python SDK">
+    The Python SDK now ships an `AsyncMindClade` client built on `asyncio` and `httpx`. Use it in FastAPI, async Django, or any other async Python application without blocking the event loop.
+
+    ```python
+    import asyncio
+    from mindclade import AsyncMindClade
+
+    async def main():
+        client = AsyncMindClade(api_key="mk_live_abc123")
+        resources = await client.resources.list(limit=50)
+        for resource in resources.data:
+            print(resource.id, resource.metadata)
+
+    asyncio.run(main())
+    ```
+
+    The synchronous `MindClade` client is unchanged and continues to work exactly as before.
+  </Accordion>
+</AccordionGroup>
+
+### Improved
+
+- **Webhook delivery retries now use exponential backoff.** Previously, failed deliveries were retried on a fixed 5-second interval, which caused thundering-herd behavior under sustained endpoint outages. Retries now follow an exponential schedule (30 s → 2 min → 10 min → 1 h → 6 h → 24 h) with per-attempt jitter.
+
+### Fixed
+
+- **Cursor pagination returning duplicate items in edge case.** Under high write throughput, resources created between two paginated requests could appear in both a page and the following page when using small `limit` values. The cursor is now anchored to a server-side snapshot, eliminating duplicates.
+
+---
+
+## v1.1.0
+
+### Added
+
+<AccordionGroup>
+  <Accordion title="GET /events endpoint">
+    A new `GET /events` endpoint returns a chronological list of all events across your organization. Use it to build audit logs, activity feeds, or replay pipelines.
+
+    ```bash
+    curl "https://api.mindclade.com/v1/events?limit=25" \
+      -H "Authorization: Bearer mk_live_abc123"
+    ```
+
+    The response follows the standard cursor-based pagination shape (`data[]`, `next_cursor`, `has_more`). You can filter by `type` (e.g., `resource.created`) and `created_after` (ISO 8601 timestamp).
+  </Accordion>
+
+  <Accordion title="Python SDK on PyPI">
+    The official MindClade Python SDK is now available on PyPI. Install it with:
+
+    ```bash
+    pip install mindclade
+    ```
+
+    ```python
+    from mindclade import MindClade
+
+    client = MindClade(api_key="mk_live_abc123")
+    resources = client.resources.list(limit=10)
+    print(resources.data)
+    ```
+
+    Requires Python 3.9 or later. Full type annotations are included for use with mypy and Pyright.
+  </Accordion>
+
+  <Accordion title="TypeScript generics for ListResponse">
+    The JavaScript SDK now exposes a `ListResponse<T>` generic type, giving you full type safety when working with paginated results.
+
+    ```typescript
+    import MindClade, { Resource, ListResponse } from "@mindclade/sdk";
+
+    const client = new MindClade({ apiKey: process.env.MINDCLADE_API_KEY! });
+    const page: ListResponse<Resource> = await client.resources.list({ limit: 50 });
+
+    // page.data is typed as Resource[]
+    // page.next_cursor is typed as string | null
+    // page.has_more is typed as boolean
+    ```
+  </Accordion>
+</AccordionGroup>
+
+### Changed
+
+<Warning>
+  **Breaking change for anyone reading rate-limit headers directly.** Rate limit response headers were renamed from the `X-Rate-*` prefix to `X-RateLimit-*` to align with the emerging IETF draft standard. If you read these headers manually in your code, update your header names:
+
+  | Old header | New header |
+  |---|---|
+  | `X-Rate-Limit` | `X-RateLimit-Limit` |
+  | `X-Rate-Remaining` | `X-RateLimit-Remaining` |
+  | `X-Rate-Reset` | `X-RateLimit-Reset` |
+
+  SDK users are not affected — the SDK handles header parsing internally.
+</Warning>
+
+---
+
+## v1.0.0 — Initial Release
+
+The first public release of MindClade, establishing the core REST API and JavaScript SDK.
+
+### Added
+
+<AccordionGroup>
+  <Accordion title="REST API for resource CRUD operations">
+    Five endpoints covering the full lifecycle of a resource:
+
+    | Method | Path | Description |
+    |---|---|---|
+    | `GET` | `/resources` | List all resources (paginated) |
+    | `POST` | `/resources` | Create a resource |
+    | `GET` | `/resources/{id}` | Get a single resource |
+    | `PATCH` | `/resources/{id}` | Partially update a resource |
+    | `DELETE` | `/resources/{id}` | Delete a resource |
+
+    All endpoints require `Authorization: Bearer <key>` and return JSON. Resource IDs are prefixed `res_`.
+  </Accordion>
+
+  <Accordion title="JavaScript SDK on npm">
+    The `@mindclade/sdk` package is available on npm. Install it with:
+
+    ```bash
+    npm install @mindclade/sdk
+    ```
+
+    ```javascript
+    import MindClade from "@mindclade/sdk";
+
+    const client = new MindClade({ apiKey: process.env.MINDCLADE_API_KEY });
+
+    const resource = await client.resources.create({
+      name: "My first resource",
+      metadata: { env: "production" },
+    });
+
+    console.log(resource.id); // res_a1b2c3d4e5
+    ```
+
+    Requires Node.js 18 or later.
+  </Accordion>
+
+  <Accordion title="Webhook registration and HMAC-SHA256 signature verification">
+    Register webhook endpoints to receive real-time event notifications for four event types:
+
+    - `resource.created`
+    - `resource.updated`
+    - `resource.deleted`
+    - `event.triggered`
+
+    Every delivery is signed with HMAC-SHA256. The signature is included in the `X-MindClade-Signature` header. Manage endpoints via the API or the [dashboard](https://app.mindclade.com).
+
+    ```bash
+    # Register a webhook endpoint
+    curl -X POST https://api.mindclade.com/v1/webhooks \
+      -H "Authorization: Bearer mk_live_abc123" \
+      -H "Content-Type: application/json" \
+      -d '{
+        "url": "https://your-app.example.com/webhooks/mindclade",
+        "events": ["resource.created", "resource.updated"]
+      }'
+    ```
+  </Accordion>
+
+  <Accordion title="Sandbox environment">
+    A fully isolated sandbox environment is available at `https://sandbox.api.mindclade.com/v1` for development and testing. Use `mk_test_` keys against this URL. Sandbox data never affects production.
+
+    The sandbox enforces a 100 req/min rate limit per organization.
+  </Accordion>
+</AccordionGroup>
