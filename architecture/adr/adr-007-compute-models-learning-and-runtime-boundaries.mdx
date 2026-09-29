@@ -1,0 +1,38 @@
+---
+title: "ADR-007: Compute, Models, Learning, Runtime Boundaries"
+sidebarTitle: "ADR-007 Boundaries"
+description: "Defines the separation of concerns across compute, models, learning, and runtime in Mindclade."
+---
+
+ADR-007 separates compute, models, learning, and runtime into distinct domains with clear boundaries and ownership. Each domain answers a different question and must not absorb the responsibilities of the others.
+
+| Status | Date | Related |
+| :-- | :-- | :-- |
+| Accepted | 2026-09-22 | Not stated |
+
+## Context
+
+Without clear boundaries, production inference, kernel optimization, model training, and mathematical definitions can become entangled, producing operational risk and authority confusion.
+
+## Decision
+
+Compute, models, learning, and runtime answer different questions.
+
+- Compute owns execution mechanics, tensors, operators, kernels, TileLang, generated C ABI, distributed topology, and numerical parity.
+- Models own mathematical model definitions.
+- Learning owns training, posttraining, optimization, checkpointing, and evaluation.
+- Runtime owns production inference and model execution.
+
+## Consequences
+
+- No Triton or `tch-rs` baseline dependency is introduced.
+- Optimized kernels must remain behind semantic operator contracts.
+- Production runtime does not become model-development authority.
+
+## Related
+
+<CardGroup cols={2}>
+  <Card title="Architecture" icon="sitemap" href="https://github.com/Mindclade-org/mindclade-internal-monorepo/blob/main/docs/architecture">
+    Architecture documentation directory.
+  </Card>
+</CardGroup>

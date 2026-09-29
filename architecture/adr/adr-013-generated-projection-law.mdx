@@ -1,0 +1,47 @@
+---
+title: "ADR-013: Generated Projection Law"
+sidebarTitle: "ADR-013"
+description: "Declares that all generated output (Protobuf, OpenAPI, SDKs, docs, Terraform, CDK, C ABI) is a projection, not source authority."
+---
+
+This architecture decision record establishes that generated output is always a downstream projection, never an authoritative source. It is for engineers working with generated code, documentation, or infrastructure, and reviewers assessing whether a file may be hand-edited.
+
+## Status
+
+| Attribute | Value |
+| --- | --- |
+| Status | Accepted |
+| Date | 2026-09-22 |
+| Related | Not stated |
+
+## Context
+
+Generated files are often treated as editable source, leading to drift between contract and projection, and making regeneration dangerous or impossible.
+
+## Decision
+
+Generated output is a projection, not source authority.
+
+Generated surfaces include Protobuf, OpenAPI, JSON Schema, SDKs, MCP, docs, Terraform, CDK, architecture views, and generated C ABI surfaces.
+
+## Consequences
+
+- Generated files are never edited manually.
+- Generation must be reproducible and provenance-bound.
+- Dirty regeneration blocks qualification.
+
+## Alternatives
+
+Not stated.
+
+## Related
+
+<CardGroup cols={2}>
+  <Card title="ADR-002 Codegen" icon="code" href="/architecture/adr/adr-002-codegen-is-the-sole-semantic-compiler">
+    The sole semantic compiler that produces all projections.
+  </Card>
+
+  <Card title="ADR-012 Synthesis and GitOps" icon="code-merge" href="/architecture/adr/adr-012-synthesis-qualification-signing-promotion-gitops">
+    How generated projections flow through the deployment pipeline.
+  </Card>
+</CardGroup>

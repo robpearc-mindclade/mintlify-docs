@@ -1,0 +1,87 @@
+---
+title: "VS-001 B2a Checked Products (2026-09-23)"
+sidebarTitle: "B2a Products"
+description: "Seven-file B2a implementation and reviewed target/publication corrections, with observed commands, fail-closed rules and preserved source checkpoint."
+---
+
+This page records the 2026-09-23 B2a product boundary and evidence. The seven-file B2a implementation and reviewed target/publication corrections are present on the real-vertical candidate. This recovery record distinguishes focused evidence from the final integration/remote gates. RuntimeKit, PostgreSQL durability, independent acceptance and production readiness remain open.
+
+## Product boundary
+
+The official TypeSpec frontend and sole Rust Codegen build one sealed graph. Compiler-private target lowering borrows that snapshot, checks public audience closure and returns the bounded VS-001 transport profile. The profile has an inclusive 65536-byte serialized request limit; standalone domain DTOs do not inherit that transport limit.
+
+Codegen owns exactly seven files under `generated/vs001/`:
+
+| File | Purpose |
+| --- | --- |
+| `public/client.ts` | public checked HTTP client and correlated error types |
+| `rust/mod.rs` | DTO module composition without a Codegen dependency |
+| `rust/public.rs` | public DTOs, capability trait and domain errors |
+| `rust/internal.rs` | checked internal models, enums, union and typed references |
+| `rust/wire.rs` | generated validation algorithms, not another schema authority |
+| `graph.json` | the complete immutable semantic snapshot |
+| `manifest.json` | source/lock/compiler/profile identities and six output hashes |
+
+Compiled JavaScript is a Bazel output, not another tracked generated surface. Authored consumer fixtures live under `tests/conformance/vs001/`. Protobuf, OpenAPI, MCP and contract documentation remain B2b projections from TypeSpec; no parallel authored `.proto` interface has been added.
+
+## Commands and observed scope
+
+The integration owner uses the pinned shell:
+
+```bash
+nix develop --no-write-lock-file -c just generate-vs001
+nix develop --no-write-lock-file -c bazel test //tests/conformance/vs001:client //tests/conformance/vs001:types //tests/conformance/vs001:dto --lockfile_mode=error
+nix develop --no-write-lock-file -c just verify-generated
+```
+
+The parent observed missing-product RED before generation. The first generated consumer checks then passed 20 JavaScript cases, strict TypeScript positive/nine negative fixtures, 13 Rust DTO cases and two Cargo compile-fail doctests. Actual Bazel actions use the pinned compilers and declared runfiles; a source-only filegroup does not count as a compiled consumer.
+
+Independent review exposed stale-owned-file cleanup, case-insensitive path aliases, unsupported literal shapes, generated-name capture, unsafe routes/methods and bodyless response alternatives. Parent-retained behavioral failures precede their corrections: four case-alias failures, 80 target failures, then 10 final binding/status failures. The last RED run had 105 passing and 10 failing projection cases; two additional 204/205 error mutations already failed closed under the existing one-success rule and are not newly demonstrated failures.
+
+The final focused run on 2026-09-23 at 22:12-22:13 UTC passed all five targets:
+
+- 115 projection cases
+- 39 publisher cases
+- 20 JavaScript runtime cases
+- strict TypeScript positive/nine negative fixtures
+- 13 Rust DTO cases
+
+Publisher and Rust DTO results were reused by Bazel from unchanged inputs; three targets ran fresh. Its parent source-inventory digest is `783ff26c91eb977afe5239350c1b2f1577069101ccecfd47b4504f95a779bf78` and command-log digest is `d948b8825e40912d0f5bae59c9e3cc08129024be2510413a7a923a18d143859f`. Both catalogs were subsequently regenerated through Codegen. These are focused source observations; final aggregate, whole-candidate review and Linux evidence must bind the resulting actual candidate through [PR #9](https://github.com/robpearc-mindclade/mindclade-vnext/pull/9).
+
+## Fail-closed target and publication rules
+
+The bounded projection accepts a POST with one required component-pattern path, a public model body and one supported JSON success alternative. Safe static route segments and a single whole-segment placeholder are checked before interpolation. Unsupported optional/array literals, reserved/capturing target names and duplicate error-model variants fail with located diagnostics before any output changes. Required model literals, ordinary optional primitives, model-valued arrays and body-bearing status 201 remain supported controls.
+
+Every promised response is terminal and body-bearing. Informational 1xx, 204, 205 and 304 alternatives fail before publication, consistent with [HTTP content semantics](https://www.rfc-editor.org/rfc/rfc9110.html#section-6.4.1), [205 semantics](https://www.rfc-editor.org/rfc/rfc9110.html#section-15.3.6) and [Fetch null-body statuses](https://fetch.spec.whatwg.org/#null-body-status). The general graph can represent a broader HTTP vocabulary; this consumer profile must reject what its generated API cannot represent.
+
+The shared publisher validates prior and new inventories, digests and overlapping or case-folded alias paths before mutation. It removes only exact, previously owned obsolete regular files; modified files, symlinks and unknown content are preserved by rejection. A recovery journal retains the previous manifest and deletion plan, with all preflight checks before mutation and the manifest installed last. Existing v1 journals without the optional deletion fields retain their canonical format. No separate cleanup process or recursive deletion path was introduced.
+
+<Warning>
+  Continue from the preserved B2a checkpoint below to B3a strict descriptor and architecture compilation, B2b protocol conformance, B3b bounded RuntimeKit, B4 resolved dependency enforcement, C durability and D artifacts/replay. Preserve non-passing compatibility evidence and pending contract-owner baseline acceptance.
+</Warning>
+
+## Preserved B2a source checkpoint
+
+The reviewed tree was committed and pushed as `041b62ee68b395844d644b5a830205533e19c578` (tree `c40fcd8b333e089201712e81de8dbc6ebd585d47`). The local aggregate passed 349 Python tests plus five toolchain checks, 135 Cargo tests, seven doctests and nine Bazel test targets; scaffold/tree and both read-only drift checks passed. Its 969-file source inventory digest is `7d7ab728e5ff61c456689e0073a44be1e7e4323517c39293f06744adc573420f`. Fresh task and whole-candidate source reviews found no remaining bounded blocker. [Linux PR run 35927852602](https://github.com/robpearc-mindclade/mindclade-vnext/actions/runs/35927852602) passed for that source checkpoint. Later B3 contract documentation is distinct from this assessed implementation; it does not imply descriptor/runtime code.
+
+The next bounded source task is B3a under the tracked descriptor, architecture and configuration contracts. Baseline-owner compatibility approval, protected operation, the remaining vertical and independent acceptance are still open.
+
+## Related
+
+<CardGroup cols={2}>
+  <Card title="VS-001 wire values" icon="code-branch" href="/architecture/reviews/2026-09-23-vs001-wire-values">
+    B1a wire values, source sequencing and compatibility transitions.
+  </Card>
+
+  <Card title="B composition plan" icon="diagram-project" href="/superpowers/plans/2026-09-23-vs001-b-composition">
+    B1-B4 task breakdown and interfaces.
+  </Card>
+
+  <Card title="Local bootstrap" icon="play" href="/architecture/reviews/2026-09-23-vs001-local-bootstrap">
+    B1a local bootstrap review with scalar-intersection findings.
+  </Card>
+
+  <Card title="Agent handoff" icon="handshake" href="/developer/agent-handoff">
+    Current task register and source-status register.
+  </Card>
+</CardGroup>

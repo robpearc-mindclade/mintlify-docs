@@ -1,0 +1,116 @@
+---
+title: "VS-001 B3a Service Compilation Checkpoint Review"
+sidebarTitle: "B3a Compilation"
+description: "Integrated source checkpoint review for VS-001 B3a service compilation. Includes exact-commit evidence, recovery corrections, and remaining C/D vertical work."
+---
+
+This page records the integrated source checkpoint for VS-001 B3a service compilation, reviewed 2026-09-24 with head `06d0e10` and main `06a903f`. It is a recovery and evidence record, not an acceptance report or a claim that all foundation TODOs are complete.
+
+## Scope and outcome
+
+| Date | Scope | Outcome |
+| --- | --- | --- |
+| 2026-09-24 | B3a service compilation source, integration, and exact-commit evidence | Integrated with no blocking findings; operational admission remains absent |
+
+## Implemented source boundary
+
+The official TypeSpec frontend inventories explicitly declared descriptor paths and exact bytes. The Bazel action supplies declared inputs; it does not interpret YAML. Rust Codegen alone owns the bounded event-based YAML parser, architecture ownership validation, closed Foundation Echo TestAdmission descriptor profile, operation resolution, and immutable final graph binding. Architecture and service views borrow the same graph rather than creating another semantic authority.
+
+The parser checks decoded duplicate keys, document count, scalar/key types, forbidden aliases/anchors/tags/merge keys, UTF-8/NUL, and input/depth/node/scalar limits. Diagnostics are located and redact authored scalar values and vendor messages. Exact input rules remain at [ServiceDescriptor@v1](../service-descriptor-v1) and the [architecture profile](../architecture-source-profile).
+
+The explicit `compile-vs001-services` route accepts SemanticInput, an architecture source path, source root, and output path. It verifies descriptor inventory and byte digests, binds source ownership, and validates the candidate before publication. Bounded Unix file reads require regular files within the declared source root; source directories must remain stable during the build. These checks do not claim to sandbox adversarial concurrent ancestor-directory replacement.
+
+The service profile extends the five checked language products plus graph and manifest with `service/descriptor.json` and `service/config.rs`: nine files total, with eight non-manifest output digests. The manifest also binds architecture and descriptor input digests. The descriptor-free route retains seven files for isolated compatibility tests. Both routes use the existing recoverable owned publisher. Missing service outputs are failures, not an accepted partial catalog.
+
+The inspection projection and checked RuntimeKit constructor do not implement RuntimeKit, generated HTTP transport, a listener, readiness, or finite shutdown. The reviewed [configuration ABI](../service-config-v1) is the integration contract for later B3b work. RuntimeKit, TestKit, and the service remain planned in implementation maturity. Other original blueprint descriptors remain sealed stubs.
+
+## Toolchain and integration changes
+
+The source adds pinned `saphyr-parser` and a direct Unix `libc` dependency for safe file-open constants. The Darwin Nix linker wrapper locates locked `libiconv`; Bazel watches both flake source and lock contents through declared repository inputs so a changed wrapper is actually rebuilt. No host-tool substitution or new flake input revision is required by this correction.
+
+The aggregate source gate includes strict-YAML, architecture/descriptor, projection, and real service-driver tests; both official frontend targets feed Cargo tests and configured-action inspection. `just generate-vs001` and the drift recipe select the explicit service route. CI retention includes both service outputs. These are source wiring changes until their actual candidate execution and retained artifacts are verified.
+
+## Historical intermediate verification
+
+The following observations were supplied by the integration owner at dispatch. They are intermediate results, superseded by the corrected candidate evidence below:
+
+| Observation | Result and limit |
+| --- | --- |
+| Focused Python suite | Parent reported 365 tests passed on an earlier working snapshot; later edits require fresh applicable evidence. |
+| Nine focused Bazel targets | Eight passed; `service_driver` exposed missing destination parents during pending-transaction recovery, plus disk exhaustion and bounded frontend timeouts. The parent applied a reviewed recovery fix; the corrected candidate evidence below records the rerun. |
+| Diagnostic review | Independent regressions reproduced three failures with 45 passing tests. The centralized reporting-boundary correction preserves invalid-input rejection; the corrected candidate evidence below records the rerun. |
+| Aggregate at dispatch | Not yet run at dispatch; subsequently passed as recorded below. |
+| Exact-candidate Linux CI and cross-host outputs | BLOCKED — not run for this B3a candidate. |
+| Review at dispatch | Pending at dispatch; corrected source and documentation subsequently reviewed as recorded below. |
+| Commit, push, PR, main parity and branch/worktree cleanup | PENDING parent reconciliation; no completion claim is made here. |
+
+Do not carry earlier checkpoint PASS results onto this candidate. Preserve failed attempts, bind new receipts to exact source inventories/revisions, and update this record only from observed parent evidence. Regenerate outputs through Codegen; never repair the catalog by hand. The parent refreshes mechanical repository inventory after reviewed source paths are staged, without resealing stubs.
+
+## Exact-commit integration evidence (2026-09-24)
+
+The dispatch-time table above is historical; these later observations supersede its BLOCKED/PENDING rows for committed head `06d0e10dd7790bf951abc571eb81805564078ca2`.
+
+| Observation | Result and limit |
+| --- | --- |
+| Pre-closeout local aggregates | Two parent runs on dirty pre-commit snapshots, both retained: 02:50 UTC (inventory `2239223605dbea6d…`, log `43ab98388d8edd94…`, recorded below) and 02:53 UTC after final documentation edits (inventory `6fed488fc7d007a3400db03315735c559f1b8483a5b764489b9803e4ed5a8ada`, log `07aa91f8da62e4aa9c13138333a186ff5585513ad96033b466107035a2d3386e`, cited in the PR body). |
+| Exact-commit Apple Silicon aggregate | PASS on clean `06d0e10`: 365 Python, 197 Rust including doctests, 16 Bazel targets, scaffold/tree/format and generated drift. |
+| Exact-commit Linux CI | PASS: `linux-foundation` push run [35949172031](https://github.com/robpearc-mindclade/mindclade-vnext/actions/runs/35949172031) and pull-request run [35949211866](https://github.com/robpearc-mindclade/mindclade-vnext/actions/runs/35949211866). Cross-host output byte comparison was not refreshed. |
+| Fresh whole-candidate review | No blocking findings. Minor: the stage ignore pattern covered only `entry-0`–`entry-6` (corrected with a regression test in the follow-up reconciliation change); the legacy seven-file route can still downgrade a live nine-file catalog (assigned to B2b profile-downgrade rejection). |
+| Integration | [PR #11](https://github.com/robpearc-mindclade/mindclade-vnext/pull/11) merged as `06a903f8bb04c993d5a6282c07ae1a8fa25ad262` under a dated one-time owner exception; merge tree equals `06d0e10`; local, tracking, and remote main matched. |
+
+Operational admission, protected review, and independent acceptance remain absent.
+
+## Decisions
+
+- Exactly nine files form the service profile: graph, manifest, TypeScript client, Rust modules, OpenAPI, Proto, MCP metadata, descriptor, and checked config.
+- The descriptor-free route retains seven files for isolated compatibility tests.
+- Missing service outputs are failures, not accepted partial catalog submissions.
+- Both `just generate-vs001` and the drift recipe select the explicit service route.
+
+## Follow-ups
+
+B3a is integrated; continue in this order:
+
+1. B2b public Proto/OpenAPI/MCP/docs products.
+2. B3b RuntimeKit/TestKit composition.
+3. B4 actual configured dependency enforcement.
+4. C1–C5 must demonstrate real PostgreSQL state, atomic admission/outbox, idempotency, leases/fencing, recovery/cancellation, and the generated-client path.
+5. D1–D4 adds artifact/capsule binding, replay, and independently controlled assessment and acceptance.
+
+The [TODO](../vs001-todo) and existing plans retain the exact scope; none is closed by adding scaffold or this document.
+
+Rob will manually transfer the existing private company monorepo to `Mindclade-org`. Migration, effective protections, queue observation, accepted policy/evaluator custody, and shared retention still need operator evidence. Source integration and an agent review do not create a bot bypass or independent scientific/release qualification. Preserve all unique branch/worktree content until the parent proves inclusion and retains recovery copies.
+
+## Corrected candidate evidence
+
+The parent reran all 17 real service-driver cases after the recovery correction; they passed in 276.8 seconds, with all 48 compiler unit tests passing. The earlier disk/timeout failures did not recur. The duplicate-descriptor analysis probe loaded its Bazel package successfully and failed on the intended custom duplicate-file diagnostic. Both catalogs were regenerated through Codegen.
+
+The full pinned `just verify` passed on 2026-09-24 02:50 UTC: 365 Python tests, five toolchain tests, 190 Rust tests, seven doctests, all 16 configured Bazel test targets, scaffold/tree checks, formatting, and exact-byte generated drift. The parent receipt records unchanged dirty source inventory `2239223605dbea6dece935fef50043858e9273156753cada7d7272725de37d2a` and log SHA-256 `43ab98388d8edd94e70485f3f87afc9716b1e23b70efd1254432df955cbb840a`. This identifies the tested pre-closeout source snapshot; subsequent documentation updates require their own checks and exact-commit remote evidence.
+
+The independent closeout reviewer found no remaining actionable source findings after recovery, diagnostic, and documentation corrections. The reviewed layout transition recognizes only the real Foundation Echo compiler input; existing scaffold hashes and runtime maturity remain unchanged. Linux CI, merge, and main observations are recorded in the exact-commit integration section above.
+
+Preserved next-task decisions are in [foundation next steps](../../developer/foundation-next-steps).
+
+## Evidence
+
+No JSON evidence files are produced by this checkpoint. Evidence is exact-commit CI runs, source inventory digests, and log hashes as recorded above.
+
+## Related
+
+<CardGroup cols={2}>
+  <Card title="VS-001 Wire Values" icon="network-wired" href="/architecture/reviews/2026-09-23-vs001-wire-values">
+    B1a wire values, compatibility reports, and source sequencing
+  </Card>
+
+  <Card title="VS-001 Products" icon="box" href="/architecture/reviews/2026-09-23-vs001-products">
+    Checked product record for the implemented target IR
+  </Card>
+
+  <Card title="Compiler Completion Plan" icon="list-check" href="/superpowers/plans/2026-09-23-foundation-compiler-completion">
+    Exact B3a task scope, frontend inventory, and driver catalog
+  </Card>
+
+  <Card title="VS-001 TODO" icon="clipboard-list" href="/architecture/vs001-todo">
+    Remaining VS-001 tasks and dependencies
+  </Card>
+</CardGroup>

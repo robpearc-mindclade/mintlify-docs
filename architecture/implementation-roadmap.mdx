@@ -1,0 +1,111 @@
+---
+title: "Implementation Roadmap and Acceptance Gates"
+sidebarTitle: "Roadmap"
+description: "Consolidated implementation roadmap with gate sequence, foundation acceptance criteria, VS-001 milestones, and evidence contracts for Mindclade engineering."
+---
+
+This page documents the consolidated implementation roadmap and acceptance gate sequence for Mindclade engineering. It lists the architecture baseline, foundation acceptance, VS-001 milestones, and work-packet evidence contracts. Use the [current handoff](/developer/agent-handoff) for the verified integrated checkpoint and the [remaining work checklist](/architecture/vs001-todo) for current slice status.
+
+The architecture baseline is consolidated, but implementation is not complete. The [master blueprint](https://github.com/Mindclade-org/mindclade-internal-monorepo/blob/main/docs/architecture/MASTER_BLUEPRINT.md) and [maturity](https://github.com/Mindclade-org/mindclade-internal-monorepo/blob/main/docs/architecture/maturity.yaml) define scope. ADR-015 authorizes the original blueprint scaffold.
+
+## Gate sequence
+
+| Gate | Scope | Observable exit | Current state |
+| --- | --- | --- | --- |
+| A0 — Architecture baseline | Constitution, shared laws, blueprints, ownership, present/planned tree, source review | Complete cross-linked package; inventory/link checks and their regression tests pass | Source checks available; not independent platform qualification |
+| F0 — Reproducible foundation | Nix pins, Rust/TypeSpec tools, executable Bazel rules and CI | Clean checkout resolves exact tools and executes real compile/test actions with independently accepted evidence and protected review | Cross-host source execution evidenced; independent acceptance/protected review open |
+| VS-001 — Semantic development loop | Official frontend → Codegen → graph → projections → RuntimeKit/TestKit → PostgreSQL/outbox → fake worker → evidence/decision/replay | Full required path, deterministic canonical output, negative conformance and recovery tests, separately owned assessment | A1–A3, B1a, B2a, B3a, B2b and B3b source checkpoints exist (B1 partial; B3b Stages C/D at `72b762d` are non-durable partial VS-001); B4 is integrated at `b7f69c0` (PR #22); C/D, the full loop and independent acceptance remain open |
+| F1 — Qualified engineering factory | Work packets, admission, ownership, policy, budgets, combined integration and release sets | Applicable Q01–Q24 cases pass for a named work class under exact policy; restricted identities and audited effects | Planned |
+| S1 — Protein-first semantics/data | Biological identities, units/context, pinned local data/literature fixtures, splits and lineage | Cross-binding semantics, deterministic ingestion, validated leakage controls and source-permitted use | Planned |
+| S2 — Shared representation | Clade representation / Clade-Embed plus a bounded molecular baseline | Frozen independent evaluation, held-out baselines, measured quality/cost and reproducible artifacts | Planned |
+| C1 — Optimized compute/runtime | Operator ABI, CPU references, TileLang only for measured need, real model executor | Forward/gradient and compatibility matrix plus qualified runtime eligibility; cancellation and paid-effect recovery | Planned |
+| S3 — Extended science | Explicit cellular/systems bridges, protocols, closed-loop agents | Matched held-out improvement with uncertainty, controlled interventions, independent evidence and bounded authority | Planned |
+
+Gate IDs are planning labels, not existing workflow engines or automation jobs. A gate can have multiple reviewed slices. No gate passes solely because its directory, schema, BUILD file, test name or design document exists.
+
+## Foundation acceptance
+
+| Item | Accountable role | Current base and remaining acceptance |
+| --- | --- | --- |
+| Locked Nix and exact tools | Build engineering | Genuine committed pins and Apple Silicon/Linux execution exist; new revisions require fresh receipts, and Intel Mac remains untested |
+| Executable Bazel targets | Build engineering + module owners | Real Rust and official TypeSpec compile/test targets exist; retain execution evidence for the accepted candidate |
+| Official TypeSpec dependencies | Contract/compiler owners | Lockfile and Echo HTTP frontend exist; broader semantics require separately reviewed conformance cases |
+| Independent acceptance and protected review | Repository assurance + Rob | Linux CI has passed; restricted identities, effective main protection, separate review and connected acceptance remain required |
+| Kernel contracts | Kernel/compiler owners | Checked identities/digests/typed references, immutable graph and canonical serialization exist for the foundation; wider contract and compatibility coverage remains future work |
+| Generated retention/provenance | Compiler + assurance | Retained foundation graph/manifest and separate variable receipts exist; broader projections and independent product qualification remain future work |
+
+The foundation compiler/kernel now implement checked identity and reference invariants, an immutable typed graph, official Echo HTTP semantics, and canonical projections. Their negative tests and real compile/test actions have passing Apple Silicon source receipts and Linux CI for historical checkpoint `bef879d2d5d9e72cc36fec82ec8e17e0ffa1b976`; this evidence is not automatically valid for a later implementation candidate. The current checkpoint is recorded in the agent handoff.
+
+Authored public/internal v1 contracts and expanded declaration comparison have since been integrated as partial B1, followed by the VS-001 generated products, the non-durable runtime composition and B4 dependency enforcement (see the task register). F0 is still open pending independently controlled acceptance and protected review.
+
+F0 is still open pending independently controlled acceptance and protected review, not missing cross-host execution for that revision. The audit reconciliation records the evidence scope. Source checks cannot establish remote protection or identity separation.
+
+VS-001 A1 adds recoverable owned publication, permanent writer locking and strict read-only verification. Tests cover first and subsequent generation, writer termination, concurrent writers, partial writes and preserved corrupt or unowned state. A1 passed on Apple Silicon and Linux at `43e1259`.
+
+VS-001 A2 adds directional graph comparison with strict response decoding, recursive resources, opaque revisions and fail-closed unsupported changes. Its clean candidate `5a79f926f4b756935e1cf8c7aebd82899ce5a305` passed on Apple Silicon and Linux (attempt 1), with exact graph/manifest byte parity. Neither result closes F0, full VS-001 or independent acceptance. See the foundation hardening plan.
+
+A3 adds explicit source-evidence export/readback and CI lifecycle checks. Its candidate `b6f3f33bc9e57ae49bb1d1dfbfc34ea0163af5b1` passed clean Apple Silicon checks and Linux attempt 1, with exact output parity. The remaining-work checklist records every unstarted task and unresolved acceptance gate. The archive gate stays blocked: there is no supplied owner-controlled shared destination or retention/access policy. Separate acceptance ownership, trust custody and protected review also remain unresolved; CI upload retention is not a substitute.
+
+## VS-001 delivery milestones
+
+1. Freeze one representative contract and its independently authored expected behavior, compatibility cases, error semantics and source provenance.
+2. Pin the official frontend and extract complete versioned SemanticInput@v1. Reject unsupported versions, unresolved references and ambiguous lowering.
+3. Build and seal MindcladeGraph with typed views; compare relevant compatibility. A generated manifest is an intermediate compiler milestone only.
+4. Emit the required protocol/API/client/MCP/docs surfaces for the representative capability. Exercise at least one real generated consumer against TestKit's deterministic service using independent expected results.
+5. Compose RuntimeKit service and deterministic worker from ServiceDescriptor@v1. Commit Run state and outbox atomically in PostgreSQL and enforce duplicate, stale-ownership, crash/retry, artifact-integrity and cancellation behavior.
+6. Seal the replay capsule with exact source, tools, graph, manifest, run, artifact, evidence, evaluator, policy and decision identities. Changed inputs invalidate affected evidence. A separate assurance owner assesses the declared claim.
+
+The detailed plan and failure checks remain in the VS-001 spec. Additional languages, real model training, cloud deployment, paid campaigns and laboratory execution do not enter its exit criteria through this roadmap.
+
+The current foundation covers bounded official frontend extraction, immutable typed graph construction, graph/manifest projection, checked B2a TypeScript/Rust consumers and B3a service descriptor/configuration compilation. Public protocol products, a RuntimeKit/TestKit service, dependency enforcement, PostgreSQL/outbox execution and replay remain planned. The audited compiler/governance branches are integrated at the checkpoint in the current handoff. Preserve later concurrent work and do not advance maturity merely because a plan or path exists.
+
+## Work packet and evidence contract
+
+Before activation, each slice records the following across its reviewed specification, packet, acceptance descriptions, stop conditions and operator environment controls. This checklist does not add fields to WorkPacket@v1:
+
+- Objective, exclusions, source/base revision and exact contract versions.
+- Owned paths, allowed dependencies, implementation owner and independent reviewer.
+- Acceptance criteria/evaluator revision fixed before candidate implementation.
+- Capabilities, permitted callers, network/credential scope and mutation ceiling.
+- Budget, reservations, retry/cancel/recovery rules and stopping conditions.
+- Required artifacts, evidence scope, provenance, policy and decision references.
+
+Evidence records the exact command or evaluator, inputs, environment, candidate, integration base, output digests, observed results and limitations. A source pass, runtime pass, numerical result, scientific claim, release and deployment each need their own evidence and decision.
+
+WorkPacket@v1 and GovernanceReport@v1 are non-semantic records, not locks, capabilities or grants. Bootstrap admission remains BLOCKED until operator-approved accepted-policy and packet digests exist. Independent criteria precede candidate implementation; changed packet/specification/policy/base/candidate inputs require fresh admission, affected checks and review. A candidate cannot authorize itself with its own policy changes. See the supervised development guide.
+
+## Supervised governance rollout
+
+[MIN-14](https://linear.app/mindclade/issue/MIN-14/vnext-establish-supervised-engineering-authority-and-enterprise) was last recorded In Progress; its live state/ownership was not refreshed by this handoff update. Linear is the single work authority, Notion retains context and outcome links, and Git retains technical authority. One integrator owns the combined candidate and all parent-assigned commands, jobs and Git operations. Fresh task/whole-candidate review and Rob's acceptance support supervised engineering only, not independent scientific or release assurance.
+
+The operator runbook sequences private GitHub.com transfer preflight for Mindclade-org, restricted App access, protected PR/CODEOWNER review, verified merge-group checks before one-at-a-time queue activation, main verification and downloaded immutable private evidence checks. Earlier destination preflight returned SAML HTTP 403; source main was observed unprotected during source closeout. Rob transferred the repository on 2026-09-26, and main protection, the dedicated App and the merge queue are now live; governance status records that evidence separately from source evidence and dated external observations. The full connected loop remains BLOCKED. No Linear closure or evidence publication is due until the actual loop passes.
+
+n8n coordination and Mintlify documentation are follow-on pilots after their governance and Echo-consumer prerequisites. They introduce no installation or second tracker here. The Eve evaluation is candidate analysis only; vendor adoption requires its own reviewed decision.
+
+## Completion and failure
+
+Use only PASS, FAIL or BLOCKED for GovernanceReport@v1 and its check statuses. A required unexecuted check is BLOCKED with "not run" in detail or prose, never a fourth enum value. Keep operational state and claim assessment separate. Unknown remote state is not a pass.
+
+A successful fake proves engineering behavior only. Missing GPU, provider, license, reviewer, credentials or protected holdout access blocks the applicable claim rather than being replaced with a host substitute or mocked result.
+
+Implementers may prepare checks and candidate evidence. This repository's author-written regression tests do not establish independent assurance by themselves. Qualification requires the separately controlled acceptance and review path specified in ADR-009.
+
+## Related
+
+<CardGroup cols={2}>
+  <Card title="VS-001 TODO" icon="list-check" href="/architecture/vs001-todo">
+    Detailed remaining tasks, checklists and historical evidence for VS-001.
+  </Card>
+
+  <Card title="Agent Handoff" icon="handshake" href="/developer/agent-handoff">
+    Current verified checkpoint, source evidence and task register.
+  </Card>
+
+  <Card title="ADR-015" icon="file-lines" href="/architecture/adr">
+    Architecture decision record authorizing the original blueprint scaffold.
+  </Card>
+
+  <Card title="Governance Status" icon="shield-check" href="/operations/github-governance">
+    Operator runbook and protected review status.
+  </Card>
+</CardGroup>

@@ -1,0 +1,226 @@
+---
+title: "DX2 Criteria: Fresh Human and Agent Development Rehearsal"
+description: "Frozen criteria for the DX2 gate proving fresh human and agent development workflows from a clean clone, including command matrix, receipt validation, isolation checks, and graded handoff. Grants no admission or execution authority."
+sidebarTitle: "DX2 Criteria"
+---
+
+DX2 is the last local gate before Rob's manual Enterprise transfer. These criteria govern the rehearsal of fresh human and agent development workflows from a clean clone of the reviewed candidate. They grant no operational admission, acceptance or qualification, and authorize no implementation, test execution, build, Git or network action.
+
+**Status:** Frozen 2026-09-24. Independent criteria review returned APPROVE WITH CHANGES; all required changes are applied. Rob approved these criteria: agent half performed before transfer; human half recorded BLOCKED, not run until a non-implementer performs it after transfer and before O4. Reviewer recommendations are adopted.
+
+**Sources:** [developer-readiness plan §DX2](/superpowers/plans/2026-09-23-foundation-developer-readiness#task-dx2-prove-fresh-human-and-agent-development-workflows), [v1-integration-readiness plan, success criterion 1](/superpowers/plans/2026-09-23-v1-integration-readiness), [pre-migration plan, Task 6](/superpowers/plans/2026-09-24-pre-migration-foundation-completion#task-6-dx2--fresh-human-and-agent-local-rehearsal-after-task-5), [AGENTS.md](https://github.com/Mindclade-org/mindclade-internal-monorepo/blob/main/AGENTS.md), [CLAUDE.md](https://github.com/Mindclade-org/mindclade-internal-monorepo/blob/main/CLAUDE.md), [start here](/developer/start-here), [agent handoff](/developer/agent-handoff), [development-handoff eval](https://github.com/Mindclade-org/mindclade-internal-monorepo/blob/main/.agents/evals/development-handoff.md), [justfile](https://github.com/Mindclade-org/mindclade-internal-monorepo/blob/main/justfile), [scripts/doctor.py](https://github.com/Mindclade-org/mindclade-internal-monorepo/blob/main/scripts/doctor.py) and [scripts/test_doctor.py](https://github.com/Mindclade-org/mindclade-internal-monorepo/blob/main/scripts/test_doctor.py).
+
+## Context and sequencing
+
+DX2 depends on generated products, the composed RuntimeKit/TestKit service and `//services/foundation_echo:composition_tests` (B3b), on `just verify-boundaries` (B4), and on reviewed G3 admission source. As of this worktree (`claude/dx2-rehearsal` at `4af79df`), none of B2b, G2, B3b, B4 or G3 is merged: `justfile` has no `verify-boundaries` or `verify-developer` recipe, and `services/foundation_echo` contains only `service.descriptor.yaml` and an `exports_files` `BUILD.bazel` — no `composition_tests` target exists. Every criterion below that names `//services/foundation_echo:composition_tests` or `just verify-boundaries` is marked **[reconcile after B3b/B4/G3 merge]**: the implementer must re-verify the exact target/recipe name and any interface change those gates introduce before writing `REQUIRED_COMMANDS`, and criteria review must re-run if those names differ from what is frozen here.
+
+## Scope
+
+- Prove that a fresh clone plus tracked instructions let an authorized human and a separately started agent run the exact local check matrix, exercise generated Echo, recover a deliberate interruption and produce a graded handoff — entirely from the reviewed DX2 candidate SHA, whose base is `main` after B2b/G2/B3b/B4/G3 merge, with no plugin or conversation memory.
+- Deliver `scripts/verify_developer_workflow.py`, `scripts/test_verify_developer_workflow.py`, `docs/developer/contributor-rehearsal.md`, and reviewed edits to `justfile`, `docs/developer/start-here.md`, `docs/developer/agent-handoff.md` and `docs/architecture/maturity.yaml`.
+- Record the rehearsal's own result (PASS/FAIL/BLOCKED per check) as a tracked report with receipt identities and digests; raw logs stay outside Git.
+
+## Non-goals
+
+- No WorkPacket/GovernanceReport admission or qualification output. `run_checks` returns a local rehearsal result, never an admission or acceptance decision.
+- No connected O4 demonstration: no App-authored PR, CI, queue admission or Rob acceptance. DX2 is a local, source-side checkpoint.
+- No network-isolation claim unless the isolated-clone procedure actually observed and recorded it. Absence of an explicit block is not evidence of isolation.
+- No change to accepted policy, `.agents/policies/supervised.v1.json`, CODEOWNERS or `.github` protection semantics.
+- No O1–O4, C1–C5 or D1–D4 work. DX2 does not claim development-foundation complete; it hands its candidate and receipts to O4.
+
+## Owned vs. parent-owned paths
+
+| Owner | Paths | Notes |
+| --- | --- | --- |
+| DX2 implementer (authored) | `scripts/verify_developer_workflow.py`, `scripts/test_verify_developer_workflow.py`, `docs/developer/contributor-rehearsal.md` | New files only; no hand-edited generated output. |
+| DX2 implementer (modify, reviewed) | `justfile` (add `verify-developer`), `docs/developer/start-here.md`, `docs/developer/agent-handoff.md`, `docs/architecture/maturity.yaml` | Matches the task's `Files:` list; no other file is in scope. |
+| Parent/integrator only | Refreshing `docs/architecture/REPOSITORY_TREE.md` and declared test inventory; running any command; Git staging/commit/push; process launch, waiting and monitoring; creating/naming the evidence directory; the isolated fresh clone itself | Per AGENTS.md Validation and the supervised roles; workers return edits and reports, never receipts. |
+| Excluded from this task | `.agents/policies/supervised.v1.json`, CODEOWNERS, `.github/*` (including `.github/workflows/foundation.yaml`, policy-bound per `supervised.v1.json:13`), accepted-policy documents, anything owned by B2b/G2/B3b/B4/G3 | Changing these is a distinct reviewed task, not DX2; `verify-developer` CI wiring is a separate reviewed task. |
+
+## Interfaces (frozen, per the plan)
+
+```python
+def run_checks(root: Path, runner: Callable) -> dict:
+    """Fixed ordered matrix; no shell; check=True; no skip flag."""
+```
+
+- `root` is the explicitly owned fresh-clone directory, not a worktree and not the parent's own checkout.
+- `runner` is `subprocess.run`-compatible (distinct from DX1's `run_read_only` diagnostic runner in `scripts/doctor.py`; the two are never interchanged). `runner` is called only for `REQUIRED_COMMANDS` members, and only as `runner(list(argv), cwd=root, check=True, capture_output=True, text=True,
+  timeout=1800)`, never with `shell=True` and never with any other keyword combination. The preflight Git reads (root/HEAD/status; DX2-04, DX2-09) use a real, direct Git invocation, never `runner`; `runner` exists solely to run the fixed four-command matrix.
+- All tests in `scripts/test_verify_developer_workflow.py` use a fixture or recording stub for `runner`; none invokes the real `subprocess.run` or an actual `just`/`bazel` binary.
+- Return value has exactly these top-level fields, no more:
+  - `candidate`: the fresh clone's resolved Git revision (40-hex, or the 40+24 extended form `scripts/doctor.py` already tolerates).
+  - `tree_clean`: boolean; `false` if any candidate-relative path is dirty at the start of the matrix (mirrors doctor's `candidate` check, but is evaluated inside the isolated clone, not the parent's own tree).
+  - `platform`: the same `{"aarch64-darwin", "x86_64-linux"}` baseline string doctor already computes; `null` on an unsupported host, which is `BLOCKED`, not silently ignored.
+  - `commands`: an ordered list, one entry per `REQUIRED_COMMANDS` member, each carrying `argv`, `exit` (the process return code), `status` (from post-run validation of that command — e.g. DX2-08's zero-exit-but-no- evidence case — never a bare copy of `exit`), and `receipt`: separate SHA-256 digests of the captured stdout bytes and stderr bytes, each written to the evidence directory by exclusive creation (never overwritten, never appended).
+  - `status`: `PASS | FAIL | BLOCKED`, computed the same way doctor's `result()` does — the first of `FAIL`, `BLOCKED` present in `commands` wins over `PASS`.
+  - `limitations`: an ordered list of plain-language caveats (cached test results, single-host execution, human half not run, etc.) that a consumer must read before treating `status: PASS` as more than a local rehearsal result.
+- A dirty tree (DX2-09) or an unsupported platform short-circuits before the matrix starts: `status: BLOCKED`, `commands: []`, `platform: null`, and `runner` is never called.
+- Git HEAD and status inside the clone are re-read once, after the last `REQUIRED_COMMANDS` entry completes; any difference from the preflight snapshot flips the overall result to `FAIL` — a required command must not be allowed to leave the candidate mutated without that being reported.
+- Each command's captured stdout/stderr is bounded (mirroring `scripts/doctor.py`'s `LIMIT`); output that exceeds the bound is `FAIL` for that command, never silently truncated and accepted.
+- `run_checks` never emits an `admission`, `qualification`, `packet` or `policy` field. Any caller that infers admission from `status: PASS` is misusing the interface, and no wrapper in this task may relabel it.
+- `REQUIRED_COMMANDS` is fixed at import time; there is no CLI flag, env var or constructor argument that skips, reorders or substitutes any of its four members. Criteria review rejects any interface draft that adds one.
+
+```python
+REQUIRED_COMMANDS = (
+    ("just", "doctor"),
+    ("just", "verify"),
+    ("bazel", "test", "//tests/conformance/vs001:all",
+     "//services/foundation_echo:composition_tests", "--lockfile_mode=error"),
+    ("just", "verify-boundaries"),
+)
+```
+
+The third and fourth entries are **[reconcile after B3b/B4/G3 merge]**: their literal names, and whether `bazel test` needs additional targets once B3b lands, must be re-confirmed against the merged source before implementation starts, not assumed from this plan excerpt.
+
+- `--repo` and `--evidence` are both required CLI arguments with no default value; the CLI never guesses a repository root or an evidence location. `--repo` must name the explicitly owned fresh-clone directory; passing the parent's own worktree, an ancestor, a symlink-containing path or a path outside the owned clone is rejected before any command runs — see DX2-04 for the exact reject list. "Not the parent's own checkout" is a procedural record kept by DX2-10's isolated-clone accounting; it is not a fact `run_checks` can independently verify from inside the clone alone.
+- Evidence output uses **exclusive creation** of the evidence directory (e.g. `Path.mkdir(parents=False, exist_ok=False)` or an `O_EXCL` open) — a pre-existing directory at the target path is a hard failure, never silently reused or overwritten. This prevents one attempt's evidence from mixing with, or clobbering, another attempt's.
+- The CLI entry point mirrors `scripts/doctor.py`'s exit-code contract: 0 for `PASS`, 2 for `FAIL`, 3 for `BLOCKED` — including a timeout on any command, which is `BLOCKED` (exit 3), not a distinct code and not exit 2.
+- `just verify-developer` runs this local matrix, forwarding the owned clone and evidence directory as explicit arguments (e.g. `just verify-developer <owned-clone> <new-evidence-dir>`). It is added to the `justfile` in this task but is **not** wired into `verify` (the default aggregate) and **not** wired into CI until its underlying targets exist and the recipe itself has passed at least once against a real fresh clone; `.github/workflows/foundation.yaml` is out of this task's scope entirely (see Owned vs. parent-owned paths).
+- Human/agent rehearsal identity (who ran which half, when) is operator evidence recorded in `docs/developer/contributor-rehearsal.md` and the handoff; it is never inferred from `run_checks`'s return value, which carries no identity field.
+
+## Acceptance criteria
+
+### Command matrix and failure propagation
+
+**DX2-01.** The following negative test exists in `scripts/test_verify_developer_workflow.py` and is RED before implementation, GREEN after:
+
+```python def test_missing_boundary_execution_cannot_pass(self):
+    def runner(argv, **kwargs):
+        if argv == ["just", "verify-boundaries"]:
+            raise subprocess.CalledProcessError(1, argv)
+        return subprocess.CompletedProcess(argv, 0, stdout="", stderr="")
+    with self.assertRaises(subprocess.CalledProcessError):
+        run_checks(self.root, runner)
+```
+
+`self.root` is an owned temporary Git fixture at a known commit, not the real repository. `run_checks` must execute the matrix with `check=True` and must not validate any collected receipt — including an empty-output receipt — as if it were a passing rehearsal after a required command has already failed. The fixture `runner` used here and in every matrix test is a recording stub that asserts it is invoked with exactly `cwd=root, check=True,
+capture_output=True, text=True, timeout=1800` for each call; a stub that returns a nonzero `CompletedProcess` without raising (violating `check=True` semantics) is also exercised and must produce a non-`PASS` result, never be silently accepted as success.
+
+**DX2-02.** Each of the four `REQUIRED_COMMANDS` has its own failure-mode test: a `subprocess.CalledProcessError` (nonzero exit) and a `subprocess.TimeoutExpired` for that command each propagate out of `run_checks` (mirroring DX2-01), and `main()`'s corresponding CLI wrapper turns each propagated exception into the exit-code contract above — exit 2 for a `CalledProcessError`-derived `FAIL`, exit 3 for a `TimeoutExpired`-derived `BLOCKED` — with the failing command identified in its output; never a bare traceback presented as if it were diagnostic JSON, and never a swallowed exception that reports `PASS`. A cold-cache run that genuinely hits the fixed 1800s timeout is `BLOCKED` for that command and is never silently retried with a longer timeout or a warmed cache substituted without recording it.
+
+**DX2-03.** `run_checks` executes `REQUIRED_COMMANDS` strictly in the declared order and stops at the first failure; commands after a failure are never invoked. A test asserts the exact call list stops short when an earlier command fails. The recording runner used by this test also asserts each call's kwargs match the fixed contract above, and treats a non-raising nonzero return from any one stub as non-`PASS` rather than letting the loop continue past it.
+
+**DX2-04.** The root identity / owned-path preflight runs and passes **before** the `REQUIRED_COMMANDS` loop starts, rejecting: `--repo` that does not resolve to the actual Git top level; any symlink component anywhere in `--repo`'s resolved path; a linked worktree, or more than one `git worktree list` entry visible from `--repo`; an `--evidence` path located inside `--repo`, or `--repo` located inside `--evidence`; and an already-existing evidence leaf (see the exclusive-create rule above). A test proves each rejection fires before any `runner` call is made (no command in the fixed matrix is silently attempted against the wrong directory). "Not the parent's own checkout" is a procedural record kept by DX2-10's isolated-clone accounting, not a claim `run_checks` itself can verify from inside the clone.
+
+**DX2-05.** No selectable command argument, `--skip`, environment variable or config file can remove, reorder or replace a member of `REQUIRED_COMMANDS`; a test asserts that passing an unrecognized CLI argument is rejected by `argparse` rather than silently ignored.
+
+### Receipts, caching and honesty
+
+**DX2-06.** Receipt-hash validation is tested against complete, immutable fixture bytes — real captured stdout/stderr from an actual run of each command, checked in as literal fixture text with its origin and content digest recorded in a comment (the same pattern `scripts/test_doctor.py` uses for `LINUX_JAVA_VERSION`), not synthesized or truncated approximations. An empty-output fixture must not, by itself, satisfy the receipt check.
+
+**DX2-07.** When the `bazel test` entry in `REQUIRED_COMMANDS` reports a cached (not freshly executed) test result — detectable from Bazel's own build-event or summary output, not inferred from a bare `exit == 0` — `run_checks` labels that command's entry honestly (e.g. a `cached: true`-equivalent marker in `commands` and a corresponding entry in `limitations`). A cached result is never presented as equivalent to a fresh execution, and in particular a cached `composition_tests` result must not be allowed to substitute for the human or agent rehearsal actually exercising generated Echo end to end in DX2-15/DX2-17.
+
+**DX2-08.** A returned zero exit code with no artifact/test-summary evidence behind it (e.g. `bazel test` reporting success with zero tests selected, or a truncated/garbled receipt that still happens to exit 0) is treated as `FAIL`, not `PASS`; a test constructs this case explicitly for at least the `bazel test` and `just verify-boundaries` entries.
+
+**DX2-09.** `tree_clean` is computed from the isolated clone's own Git status at matrix start, independent of and never copied from any status the parent observed in its own worktree; a test seeds a dirty file only in the fixture clone and asserts `tree_clean is False` while an unrelated parent-tree fixture remains unread.
+
+### Isolated fresh-clone procedure
+
+**DX2-10.** The isolated clone is created with Git's ordinary `clone`/`archive` path from the reviewed revision, into a genuinely separate working directory — never a worktree of, and never inside, any existing checkout. All original checkouts (the parent's worktree, other agents' worktrees under the shared repo family) are left untouched; a check confirms their tips are unchanged after the rehearsal. The clone uses `git clone --no-hardlinks` (so it never shares objects with another checkout via hardlinks), is left in detached-HEAD state pinned at the exact candidate SHA, and has its `origin` remote removed immediately after cloning, so no later rehearsal step can accidentally fetch or push.
+
+**DX2-11.** The isolated clone's isolation is evidenced, not merely asserted: the retained Bazel receipt's `--announce_rc` output lines are inspected to show only the clone's own `.bazelrc` in effect (no `~/.bazelrc` or system rc contributing flags); `git config --list --show-scope` inside the clone shows no `global`- or `system`-scoped entries; the clone's environment is built from an explicit allowlist, and the recorded environment-name list is checked to exclude `GH_TOKEN`, `GITHUB_TOKEN`, `SSH_AUTH_SOCK` and any `*_API_KEY`-suffixed name; Bazel's own `output_base`, `repository_cache` and `install_base` paths are recorded, and any cache sharing with another checkout is named in `limitations` rather than left implicit. If a global or system rc cannot be neutralized without changing the fixed `REQUIRED_COMMANDS` argv, the rehearsal stops and escalates to the integrator rather than silently accepting contamination.
+
+**DX2-12.** The procedure records exactly which immutable Nix store paths / caches were reused by the isolated clone (e.g. by diffing `/nix/store` references touched, or recording the Nix substituter's own reuse report) rather than asserting cache behavior from silence. It never claims network isolation unless a concrete observation (e.g. a blocked-network run that still succeeded) backs the claim; absent that observation, `limitations` says so explicitly.
+
+**DX2-13.** The parent's own home directory is never repurposed as the isolated clone's location, and no shared cache (Nix store, Bazel disk cache, Cargo registry cache, pnpm store) is erased, relocated, or has any pre-existing entry modified by the rehearsal; new, content-addressed additions to those caches are expected (per start-here's Provisioning section) and are recorded rather than treated as contamination. A check compares each shared cache's presence/identity before and after, distinguishing additions from mutations of what was already there.
+
+### Agent rehearsal (performed now)
+
+**DX2-14.** A fresh agent subagent, given only the tracked entry route — `CLAUDE.md` → `AGENTS.md` → `docs/developer/start-here.md` → `docs/developer/agent-handoff.md`'s current task register — locates its assigned task, owner and blocked/implemented boundary in **at most three tracked-document hops**, matching the DX1 exit bar and the development-handoff eval's "Follow README and CLAUDE entry routes" row. No hidden chat context, ignored file or installed plugin substitutes for that route. The parent records the agent's launch mode and every harness-injected untracked input reaching the agent — prior user/session memory, any skill or plugin listing, and any `CLAUDE.md` (or other tracked-named file) that is not byte-identical to the one actually committed in the isolated clone — and either excludes each one from the agent's context or lists it explicitly in `limitations`; the DX2-18 grader FAILs any rehearsal step that is traceable to an unlisted, unexcluded injected input.
+
+**DX2-15.** The agent runs with its working directory inside the isolated clone (never the parent's own checkout), and is supplied exactly: the tracked entry point, its exact owned paths (a small, independently meaningful regression touching generated Echo), a budget, frozen acceptance criteria and the allowed command set — no conversation memory from prior sessions, no credentials, and no second dispatch route. The parent — not the agent — introduces one deliberately forbidden dependency (a B4-style negative case — **[reconcile after B3b/B4/G3 merge]** for the exact mechanism) for the agent to diagnose. The agent names the commands it wants run; the parent alone launches, waits for and records exactly those named commands, never substituting or adding its own. The regression's own verification exercises generated Echo over a real local socket, and its receipt is confirmed non-cached (per DX2-07) — a cached result never substitutes for this step. The agent adds the regression, regenerates through Codegen, diagnoses the forbidden dependency and runs the checks it was given; it returns edits and a report.
+
+**DX2-16.** The parent induces an interruption **after** a saved source checkpoint (a committed or otherwise durably recorded intermediate state) — not before one — and records the interrupted attempt's identity. A test/rehearsal step proves the interruption does not discard the checkpoint.
+
+**DX2-17.** On resume, the parent reconciles the retained attempt record before dispatching anything new (per `.agents/policies/supervised.md` and `docs/developer/supervised-development.md`), and completed checks/effects from before the interruption are **not** replayed merely because reporting is retried — a reporting-only retry reuses the completed attempt's retained result. No `(candidate, argv)` pair with a retained completed receipt is rerun for a reporting retry; a changed candidate requires fresh execution and marks old receipts stale; duplicate resume signals produce exactly one dispatch, never two; and a process whose exit was not directly observed stays pending, never reported as stopped.
+
+**DX2-18.** The agent's final handoff is graded against every row of `.agents/evals/development-handoff.md` by a reviewer distinct from the rehearsed agent, with each row recorded PASS/FAIL/BLOCKED ("not run" for anything not executed) rather than a single pass/fail summary. Where the eval document's own text is stale relative to the current task register (e.g. its "Identify next task and order" row's expectations lagging the actual register), the grader records that staleness as a finding against the eval, not as a failure of the agent that correctly followed the current register instead.
+
+### Human rehearsal (owner decision: BLOCKED, not run)
+
+**DX2-19.** The human half — an authorized person who did not implement the slice, given only `start-here.md`, the bounded task contract and normal read access, per plan Step 4 — is explicitly recorded as **BLOCKED — not run** in `docs/developer/contributor-rehearsal.md` and in the DX2 handoff section, until Rob supplies such a person. This is an owner decision stated directly, not an inference from schedule pressure or agent availability; the record names the blocking condition ("no non-implementer human yet assigned") rather than a generic "pending."
+
+**DX2-20.** No criterion in this document is satisfied by the agent half standing in for the human half, and no combined "one of two rehearsals passed" status is reported as if it were the full DX2 exit condition; the plan's exit ("Two fresh contexts complete local lifecycle") requires both, and DX2's own commit only proceeds under the explicit local-only, human-half-blocked scope Rob approved in the pre-migration plan.
+
+### Deliberate-failure matrix (plan Step 6)
+
+**DX2-21.** Each scenario below is exercised in its own fresh clone of the candidate — never a reset, stash or cleanup applied to a shared clone — and every clone used for this matrix, including the failing ones, is retained (not deleted) alongside the DX2-22 control, so a reviewer can re-inspect the exact failing state. Each yields `FAIL`, `BLOCKED`, or a pending-cancellation state — never a silent `PASS` — while preserving all files involved and naming the next actor responsible for it:
+
+| Scenario | Injection | Produced by | Expected non-passing result |
+| --- | --- | --- | --- |
+| Generated drift | Parent hand-edits one generated output byte after a clean generation | Verifier (`just verify-generated --check`) | `FAIL`, surfaced through the matrix |
+| Invalid public data **[reconcile after B3b/B4/G3 merge]** | Malformed request sent to generated Echo over the real socket | Echo test / RuntimeKit boundary | Rejected at the public boundary; not silently coerced — exact rejection path depends on B3b |
+| Internal import **[reconcile after B3b/B4/G3 merge]** | A public path is edited to reach an internal module | B4 checker | `FAIL` from boundary enforcement — exact checker entrypoint depends on B4 |
+| Missing collector **[reconcile after B3b/B4/G3 merge]** | A required Cargo/Bazel/TS dependency collector's config entry is removed | B4 checker | `BLOCKED`, not a false `PASS` from partial coverage — exact collector set depends on B4 |
+| Failed required command | Parent forces one `REQUIRED_COMMANDS` member to a nonzero exit / timeout | Verifier (`run_checks`) | `FAIL`/`BLOCKED` per DX2-01/DX2-02, matrix halts |
+| Stale candidate receipt | Parent reuses a receipt from a prior clone, or advances HEAD inside the clone after the matrix completes | Verifier (HEAD re-read, per the Interfaces section) | `FAIL`; a stale receipt is defined as either (a) the clone's HEAD differing from its preflight snapshot after the matrix runs, or (b) a reused/retained receipt whose recorded `candidate` does not equal the current clone's HEAD — either condition is detected, never silently reused |
+| Worktree overlap | Parent points `--repo`/`--evidence` at a path already registered in `git worktree list` | Verifier (DX2-04 preflight) | Rejected before the matrix runs |
+| Owned service not yet exited | Parent leaves a prior attempt's test-server process running | Parent (reconciliation) | Pending cancellation; the parent reconciles and stops it, never force-kills a shared/foreign process |
+
+**DX2-22.** A **valid unchanged-run control** is included alongside the eight failure scenarios: the same matrix run against an unmodified, clean candidate clone, expected to reach `PASS` (modulo DX2-07's honest cache labelling). Rejecting every one of the eight failure scenarios is not credited as passing DX2-21 unless this control also produces `PASS` — proving the matrix can pass at all, not merely that it never does. If the control run itself fails or times out, the matrix cannot be trusted and the rehearsal stops (see Stop conditions).
+
+### Report and register state
+
+**DX2-23.** `docs/architecture/maturity.yaml`, the current task register in `docs/developer/agent-handoff.md`, and `docs/developer/contributor-rehearsal.md` all record the same tri-state result: agent half `PASS` (local, `aarch64-darwin`, at the rehearsed candidate SHA); human half `BLOCKED — not run`; overall DX2 exit `BLOCKED` (both halves are required per the plan's "Two fresh contexts complete local lifecycle" exit, and per DX2-20). The diff between the rehearsed candidate SHA and the finally committed candidate is limited to the rehearsal record itself and the doc-gap fixes the rehearsal found (per the plan's Step 7 exit); any post-rehearsal edit to `start-here.md`, `agent-handoff.md` or the entry-route documents beyond that is explicitly listed as unrehearsed in the handoff, never silently folded into the `PASS`. A gap found in a file DX2 does not own is reported to the integrator as a reviewed scope-amendment proposal, never fixed inline by this task.
+
+## Checks the parent runs
+
+1. `python3 -B -m unittest discover -s scripts -p test_verify_developer_workflow.py` — retain the DX2-01 RED, then confirm full GREEN including DX2-02 through DX2-09.
+2. `nix develop --no-write-lock-file -c just verify-developer <owned-clone> <new-evidence-dir>` — only after its four underlying commands exist and pass on their own; **[reconcile after B3b/B4/G3 merge]** for when this becomes runnable at all.
+3. The isolated-clone procedure (DX2-10 through DX2-13) executed once for real, with its evidence directory and `limitations` output retained.
+4. The agent rehearsal (DX2-14 through DX2-18), graded per `.agents/evals/development-handoff.md`, with a fresh grading reviewer distinct from the rehearsed agent.
+5. `just verify-scaffold` and `just verify-tree` after `docs/developer/contributor-rehearsal.md` and other new/changed paths land, and a mechanical tree refresh.
+6. A fresh whole-candidate review before commit, per the foundation workflow's Integrate step.
+7. Full `nix develop --no-write-lock-file -c just verify` on the final candidate, plus a green `linux-foundation` CI run at that same SHA, before this task's own commit lands.
+8. Commit subject `test(dev): prove fresh contributor and agent workflows`, only after all of the above and after independent review — this criteria document authorizes none of that execution itself.
+
+## Stop conditions
+
+- B2b, G2, B3b, B4 or G3 is not yet merged to the branch DX2 implementation starts from — stop and reconcile names/interfaces per the markers above before writing `REQUIRED_COMMANDS`.
+- `//services/foundation_echo:composition_tests` or `just verify-boundaries` do not exist, or exist with a different name/signature than assumed here.
+- Any criterion in this document conflicts with the merged B3b/B4/G3 source; the merged source wins per AGENTS.md's authority order, and this document is revised, not silently reinterpreted.
+- A dirty worktree at candidate time, in either the parent's checkout or the isolated clone.
+- The isolated clone cannot be created without touching a shared cache, the home directory, or another checkout.
+- The human-rehearsal half is reported as anything other than BLOCKED without Rob having actually supplied a qualifying person.
+- A required command's failure is swallowed, retried silently, or relabeled as `PASS`.
+- Budget exhaustion, ownership conflict, or missing authority for any owned path outside the list above.
+- Any edit to `.github/*` is needed to make this task's own checks pass — that is B2b/G2/B3b/B4/G3/O2 territory, not DX2.
+- A harness-injected context input (DX2-14) can neither be excluded from the agent nor honestly recorded in `limitations`.
+- The DX2-22 unchanged-run control itself fails or times out — the matrix cannot be trusted to ever pass.
+- Any step of the rehearsal needs `git reset`, `git stash` or a cleanup operation on a clone or checkout to proceed.
+
+Any of these routes the issue to the integrator/Rob rather than broadening this task's scope or improvising a substitute interface.
+
+## Reviewer recommendations, pending Rob
+
+These are recommendations for Rob's decision, not frozen criteria; criteria review must record his answers before implementation proceeds on any of the five.
+
+1. **Cache detection.** Detect cached rather than force fresh: keep `REQUIRED_COMMANDS[2]` byte-identical — do not add `--nocache_test_results`. Parse the real Bazel summary output: `Executed X out of Y` with `Y == 0` or the summary line missing → `FAIL`; `X < Y` → `cached: true` plus a `limitations` entry; lines matching `(cached) PASSED` corroborate this. A build-event-JSON-based detector would require changing `REQUIRED_COMMANDS[2]`'s argv and needs Rob's approval first. Note: Bazel tests run inside plain `just verify` (outside this matrix) are not classified this way and remain unclassified.
+2. **Single- vs. two-host DX2.** Two-host at the source level — Linux CI already runs `doctor` and `verify`, and will run the new `test_verify_developer_workflow.py` unit tests as part of `verify-fast`'s test discovery — plus a one-host rehearsal, explicitly labelled `aarch64-darwin`, satisfies DX2. A second physical Linux rehearsal of the full isolated-clone procedure is not required.
+3. **Evidence-directory location and lifecycle.** Evidence lives at `<operator root>/dx2/<candidate>/<utc>-<attempt>/`, outside any checkout, with an exclusive-create leaf per attempt; no automatic pruning before O4/Rob decides retention. The tracked report (`docs/developer/contributor-rehearsal.md`) lists attempt IDs and manifest digests, never absolute local paths.
+4. **Forbidden-dependency fixture.** Reuse a B4-merged negative fixture: a Cargo/Bazel edge for DX2-15's agent diagnosis, a source-import case for DX2-21's internal-import row. Any category B4 does not cover stays `BLOCKED`; re-review this recommendation once B4 merges.
+5. **Human-half timing.** After Rob's manual Enterprise transfer, before O4, with fresh receipts taken at that time (not reused from the agent-half rehearsal). O4 and any "development foundation ready" claim stay `BLOCKED` until the human half actually runs.
+
+## Amendment 1 (2026-09-26): isolated disk cache and the human-half performer
+
+Rob decided these items in chat on 2026-09-26, after the pre-migration closeout, by answering explicit option questions (Rob, 2026-09-26, chat). The [agent handoff](/developer/agent-handoff#owner-decisions-recorded-2026-09-26-after-the-closeout) records them as D-1, D-2 and D-15. This amendment adds to the criteria above and rewrites none of them.
+
+**D-1. The rehearsal clone uses an isolated disk cache.** The closeout added a shared Bazel disk cache, `build --disk_cache=~/.cache/mindclade-bazel-disk` in `.bazelrc`.
+
+- The isolated rehearsal clone neither reads nor writes `~/.cache/mindclade-bazel-disk`. It runs with its own empty disk cache.
+- The DX2 implementer chooses the mechanism and records it, and it is reviewed. Examples: a scratch `HOME`, so that `~` resolves inside the rehearsal directory, or a reviewed override.
+- The criteria's fixed command lines otherwise stand.
+- DX2-07, DX2-11 and DX2-13 are unchanged.
+
+**D-2. Rob performs the human half.** Rob did not implement the slice, so he qualifies as the non-implementer that DX2-19 requires. He has seen the design and the handoffs; that is recorded as a limitation of the human-half evidence. The timing is unchanged: after the transfer, before O4. Until he performs it, the human half stays BLOCKED — not run, and DX2-20 still applies.
+
+**Sequencing (D-15, recorded here for completeness).** Rob's order for the work after the transfer is H1 Stage 2 W4 and W6 first (W4 forces a regeneration, so it lands before the DX2 recapture), then the DX2 rehearsal, then C1–C5. The agent half therefore runs after the transfer, not before it as the status line and the context section above say.
+
+## Parent cache-isolation repair (2026-09-27)
+
+The integration owner separately scopes a D-1 repair to the pinned Bazel launcher in `flake.nix` and focused launcher regression tests. This is not a silent expansion of the DX2 implementer's original owned paths. Independent criteria review approved this repair before implementation. An attempted standalone-clone capture on `22ed1f5` used a scratch process home but observed only 5 of 15 tests execute and 208 disk-cache hits: Bazel's tilde cache path resolved through the JVM's account home. That attempt is cached source evidence, not an isolated or fresh rehearsal.
+
+The repair expands the existing cache path from the invoking process home and passes the absolute directory for Bazel action commands. The pinned binary, startup flags and fixed four DX2 command lines remain unchanged. Normal shells retain their existing shared cache; a scratch home selects its own cache. B4 already uses a temporary process home for its collector, so the repair must isolate that nested build without adding environment variables to B4's exact three-variable allowlist or to repository-rule forwarding.
+
+Acceptance: preserve version and non-action commands; reject an absent, relative or non-directory process home before an action; preserve startup options and insert the cache flag before any target separator; verify the precedence of a later explicit cache option. The parent must observe 15/15 fresh C3 tests, no cached test markers or disk-cache hits, writes only to the expected scratch cache, and unchanged pre-existing shared-cache entries, then record the identical-command repeat as cached. Refresh generator provenance and run the focused and whole-candidate gates. This repair grants no human rehearsal, connected acceptance or qualification.

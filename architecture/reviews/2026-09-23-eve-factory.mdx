@@ -1,0 +1,29 @@
+---
+title: "Eve Software Factory Evaluation"
+sidebarTitle: "Eve Factory Evaluation"
+description: "Source inspection of the Eve Foreman template, assessing required adaptations before pilot use and retaining it as a candidate coding-dispatch adapter."
+---
+
+Status: Source inspection only, 2026-09-23Status: Source inspection only, 2026-09-23. Not installed, deployed or qualified. Inspected upstream revision: `0d630a284b84e5be38fe7eceec7b231a7e79bfd0`.
+
+## Fit
+
+The [Eve Foreman template](https://eve.dev/templates/eve-software-factory-template) accepts Linear and GitHub work, separates classification, analysis, implementation and review, and delivers draft PRs. Its reviewer operates from the pushed branch without the implementer's reasoning. This makes it a candidate execution adapter for a future qualified engineering work class, rather than another technical authority or project tracker. The published pipeline/memory documentation links currently redirect back to the template page; they are not additional evidence. The published pipeline/memory documentation links currently redirect back to the template page; they are not additional evidence.
+
+Keep Linear as the sole engineering intake. If Foreman is selected later, use one registered dispatcher for that work class. n8n may handle reporting/integration, but must not independently dispatch the same coding task. Mintlify remains the developer-docs publishing adapter. Mindclade Codegen is unchanged.
+
+Keep Linear as the sole engineering intake. If Foreman is selected later, use one registered dispatcher for that work class. n8n may handle reporting/integration, but must not independently dispatch the same coding task. Mintlify remains the developer-docs publishing adapter. Mindclade Codegen is unchanged.
+
+## Required adaptations before any pilot
+
+- Freeze the accepted work packet and acceptance criteria before implementation; bind the reviewer to their digests and exact base/candidate/policy revisions.
+- Treat factory memory as retrieved context, never policy. Require reviewed source changes for authority updates and keep untrusted tasks from granting capabilities or changing evaluation criteria.
+- Tighten upstream issue lifecycle permissions. At the inspected revision, [closeIssuePolicy](https://github.com/vercel-labs/eve-software-factory-template/blob/0d630a284b84e5be38fe7eceec7b231a7e79bfd0/agent/lib/github/approval.ts) allows closing/reopening issues without an approval card. Mindclade work may close only after accepted merge/main/archive evidence, not agent judgment alone.
+- Constrain publication to the assigned repository and owned branch, not merely non-main branches. Inspect broker scope and the actual destination at execution. The inspected [push tool](https://github.com/vercel-labs/eve-software-factory-template/blob/0d630a284b84e5be38fe7eceec7b231a7e79bfd0/agent/subagents/implementer/tools/push_branch.ts) restores `allow-all` network policy after push. Replace this with the approved restricted policy and test token cleanup on failure before granting access.
+- Prove the pinned Nix/Bazel/Rust/TypeSpec build works in the actual sandbox. A successful JavaScript template setup does not establish Mindclade portability.
+- Qualify duplicate intake, concurrent ownership, cancelled/stale workers, ambiguous PR creation, CI retry storms, budget exhaustion and reporting failure.
+- Require protected GitHub checks, human approval and merge-group verification outside Foreman's own review. No App bypass and no worker administrator token.
+
+## Decision
+
+Retain Eve/Foreman as a concrete candidate for the later coding-dispatch pilot, not a dependency of the current supervised-governance milestone. Evaluate it on the same frozen tasks and independently authored expectations as other executors. Measure accepted outcomes, failure/retry cost and human intervention, not PR count. Do not import the template wholesale, add GitHub Issues as a competing backlog, or deploy/connect vendor credentials on the strength of this source review. Do not import the template wholesale, add GitHub Issues as a competing backlog, or deploy/connect vendor credentials on the strength of this source review.

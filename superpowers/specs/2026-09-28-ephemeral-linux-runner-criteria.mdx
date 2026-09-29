@@ -1,0 +1,181 @@
+---
+title: "Ephemeral Linux runner criteria"
+sidebarTitle: "Ephemeral Runner"
+description: "Acceptance criteria for replacing the Ubuntu 22.04 compatibility lane with an operator-controlled ephemeral x86_64 Linux runner that proves linux-sandbox without weakening governance."
+---
+
+This document defines the criteria for replacing the GitHub-hosted Ubuntu 22.04 R2 compatibility lane with an operator-controlled, maintained, ephemeral x86_64 Linux runner. The new runner must prove the frozen `linux-sandbox` network-denial criterion without weakening any repository governance. Owner direction was approved on 2026-09-28; independent criteria review and live Azure execution are pending.
+
+<Info>
+  **Current evidence:** PR #54 uses Ubuntu 22.04 only as a bridge because runner qualification run 36451562318 proved the pinned R2 collector can PASS there while observed GitHub-hosted 24.04/26.04 images did not register `linux-sandbox`. The permanent runner must reproduce the same semantic evidence before workflow cutover.
+</Info>
+
+## Authority and non-goals
+
+This task activates a new infrastructure surface only after criteria review. It does not redefine R2, C1, B4, G3, admission, deployment authority, secrets authority, or repository protection.
+
+- `infra/ci_runners/self_hosted/` is the authored runner-topology boundary reserved by the canonical blueprint.
+- Terraform/Bicep/CDK or other deployment material remains synthesis/projection; no CI job gets direct production-apply authority.
+- The monorepo PR-author App `mindclade-monorepo-engineer` is not the runner controller and receives no organization runner-administration permission.
+- A separate runner-controller identity owns JIT runner registration. Its GitHub App permission is organization `Self-hosted runners: write` only, plus metadata implied by GitHub. It receives no repository Administration.
+- Azure credentials and GitHub JIT material are never committed, emitted in workflow logs, copied into artifacts, or stored in a reusable VM image.
+- No standing self-hosted runner, long-lived registration token, inbound SSH/RDP path, public IP, or reused mutable worker is accepted.
+
+## Target architecture
+
+One workflow job request produces one disposable VM and one JIT runner registration:
+
+```text
+workflow_job queued -> trusted controller -> GitHub org JIT config -> Azure ephemeral VM -> one job -> evidence export -> VM deletion
+```
+
+The controller scales from zero and keeps no idle registered worker solely for R2.
+
+### GitHub boundary
+
+Use `POST /orgs/Mindclade-org/actions/runners/generate-jitconfig`, not the repository endpoint. The organization endpoint supports a GitHub App installation token with organization `Self-hosted runners: write`; the repository endpoint requires broader repository Administration write and is rejected.
+
+A dedicated runner group must permit only `Mindclade-org/mindclade-internal-monorepo`. Initial custom labels are exactly `mindclade-ephemeral`, `mindclade-r2`, and `x64-linux`.
+
+The controller supplies a unique non-secret runner name bound to an immutable request/attempt identifier. JIT configuration is single-use startup material and is never persisted after bootstrap.
+
+### Azure boundary
+
+The initial target is one x86_64 Azure VM per job, not a nested job container. The image must support Trusted Launch and use a maintained Ubuntu LTS or equivalent Linux baseline approved by the owner.
+
+The VM must have:
+
+- No public IP and no inbound NSG rule.
+- Outbound connectivity only through the reviewed subnet/NAT/egress path required by GitHub Actions, GitHub source/artifact endpoints, Nix inputs/caches and approved package sources.
+- Trusted Launch with Secure Boot and vTPM where supported.
+- Ephemeral/local OS storage where the selected VM SKU supports it, otherwise an encrypted disposable OS disk deleted with the VM.
+- No reusable data disk, snapshot-on-delete, or persisted Actions `_work` directory.
+- A dedicated Azure managed identity with minimum bootstrap/telemetry permissions and no GitHub App private key or installation token.
+
+The runner archive and checksum are pinned by reviewed source or immutable image metadata. Automatic runner binary mutation during qualification is not accepted unless the updated binary was separately qualified and its digest retained.
+
+## Immutable-image qualification
+
+Before an image carries `mindclade-r2`, the following evidence must be retained:
+
+1. Image identifier/version/digest and Azure source-image identity.
+2. Kernel release and architecture.
+3. GitHub Actions runner version and archive digest.
+4. The three approved namespace/AppArmor sysctl observations.
+5. An unprivileged user/mount/network namespace smoke test under the runner account.
+6. The frozen R2 result with uncached `linux-sandbox`, loopback success, accepted TEST-NET denial, distinct action/parent network namespaces and complete cleanup.
+7. Twenty consecutive fresh-VM R2 PASS repetitions with zero fallback strategy, cleanup uncertainty, reused worker, or leaked registration.
+8. A negative image/policy mutation that prevents user namespaces and is observed as BLOCKED.
+9. VM deletion and runner deregistration/offline confirmation after every repetition.
+
+A kernel, runner binary, base image, AppArmor policy, bootstrap program, or relevant Azure security-setting change invalidates qualification until rerun.
+
+## Controller contract
+
+The controller is fail-closed and accepts only an allowlisted request for the canonical repository and approved workflow/job identity.
+
+For each request it must:
+
+1. Bind repository ID, workflow path, workflow run ID/attempt, job ID, candidate SHA and labels.
+2. Reject any repository other than ID `1382446493` / `Mindclade-org/mindclade-internal-monorepo`.
+3. Mint a short-lived token from the dedicated runner-controller App.
+4. Request organization-level JIT config for the approved runner group and exact labels.
+5. Provision a new VM from the qualified immutable image with a hard TTL.
+6. Deliver JIT config through a protected bootstrap channel absent from ARM history, cloud-init logs and console output.
+7. Observe runner connection and exactly one assigned job.
+8. On completion, cancellation, timeout, provisioning failure or controller restart, discard owned transient credentials and delete the owned VM.
+9. Reconcile orphaned VMs and registrations by immutable ownership IDs/tags, never broad name matching.
+10. Export only bounded non-secret lifecycle evidence.
+
+The initial VM TTL is at most 60 minutes. A runner that has not accepted its bound job within 15 minutes is deleted. Bounds may tighten after measurement but cannot silently widen.
+
+## Secrets and custody
+
+The runner-controller App private key remains in the operator-controlled secret boundary. Prefer workload/federated identity or a protected secret service for the controller rather than placing the key on workers.
+
+The worker receives only encoded single-run JIT config and ordinary job-scoped credentials supplied by GitHub Actions. It receives no standing PAT, App private key, Azure owner credential, SSH private key, or reusable deploy key.
+
+Logs redact authorization headers, JIT config, registration material and job credentials. Evidence stores hashes/IDs and lifecycle outcomes, never secret values.
+
+## Networking and sandbox behavior
+
+The host image deliberately supports Bazel's unprivileged Linux sandbox. This is an immutable-image design decision, not a runtime `sudo sysctl` workaround. Namespace/AppArmor configuration is reviewed as security source and proven by qualification.
+
+The job still runs the exact frozen R2 command. Host egress control does not substitute for sandbox network denial; R2 must prove action isolation while its loopback control succeeds.
+
+## Workflow rollout
+
+No protected-check identity changes in the first rollout.
+
+1. Bring up the controller and qualified runner group without changing `.github/workflows/foundation.yaml`.
+2. Exercise the runner through a non-required manual qualification workflow and retain twenty fresh-VM PASS receipts.
+3. Run hosted Ubuntu 22.04 and the managed runner in parallel on the same R2 source candidate for at least three candidates.
+4. In a separately reviewed workflow PR, change only the R2 prerequisite `runs-on` selector to the approved runner group/labels. Keep `linux-foundation` on GitHub-hosted Ubuntu 24.04 and preserve its required check name.
+5. After protected PR and merge-group evidence passes, remove hosted 22.04 from the required R2 path. Keep the hosted-runner canary until owner-approved retirement.
+
+Rollback is a reviewed workflow change to the last qualified runner class. A failed managed runner never automatically falls through to a less isolated strategy.
+
+## Evidence schema
+
+Each controller attempt retains bounded JSON with:
+
+- Repository/workflow/run/attempt/job/candidate bindings
+- Controller revision/config digest
+- Controller App and installation IDs without tokens
+- Runner group/labels
+- Azure VM/image identifiers
+- Lifecycle timestamps
+- Runner ID/name/version
+- Final runner state
+- VM deletion result
+- R2 artifact hashes when applicable
+- Explicit PASS/FAIL/BLOCKED status/reason
+
+An undeleted VM, reusable runner, missing candidate binding, uncertain job ownership, missing teardown observation, or secret-bearing field cannot PASS.
+
+## Tests and acceptance criteria
+
+**ELR-01 Identity separation.** Source/tests prove the runner-controller App is distinct from App 5090624 and requests only organization `Self-hosted runners: write` for runner lifecycle. No repository Administration permission is accepted.
+
+**ELR-02 Exclusive JIT lifecycle.** Tests cover one request to one JIT config to one VM to one job to deletion, including duplicate event, controller restart, cancellation, provisioning failure, timeout and deletion retry.
+
+**ELR-03 No standing worker.** After each acceptance scenario, Azure reports no owned VM and GitHub reports no online/idle owned runner. Deliberately preventing deletion is non-PASS.
+
+**ELR-04 Secret hygiene.** Sentinel tokens/JIT material never appear in logs, receipts, retained deployment parameters, VM tags, artifacts or errors.
+
+**ELR-05 Network/host boundary.** No public IP/inbound path; immutable-image qualification proves unprivileged Linux namespaces and frozen R2 PASS. A blocked namespace mutation is non-PASS.
+
+**ELR-06 Repository scope.** Runner group is restricted to the canonical repository; a second repository cannot schedule it. Fork/public-repository execution is prohibited.
+
+**ELR-07 Deterministic infrastructure.** Authored topology passes static validation and produces a deterministic reviewed deployment plan/projection. CI never applies Azure resources directly.
+
+**ELR-08 Runtime qualification.** Twenty fresh-VM R2 repetitions PASS on one image, then three candidate dual-runs PASS before cutover.
+
+**ELR-09 Protected integration.** Cutover preserves `linux-foundation`, CODEOWNER review and merge-group semantics. PR candidate, merge-group and resulting-main evidence remain distinct.
+
+**ELR-10 Cost/lifecycle bound.** Initial service scales to zero, has no idle pool, VM TTL less than or equal to 60 minutes and bounded retries. Cost telemetry identifies VM lifetime without storing job secrets.
+
+## Current Azure inventory and blockers
+
+Tenant-scoped Azure authentication was repaired in an isolated `AZURE_CONFIG_DIR`, leaving the user's existing global Azure CLI cache unchanged. Read-only inventory on subscription `d4b958d3-4860-4186-92a6-25a77af01282` shows:
+
+- `rg-mindclade-prod-platform` and `rg-mindclade-prod-ai` already exist in East US 2.
+- No Mindclade workload VNet, VM, VM scale set, Key Vault, or user-assigned managed identity currently exists in this subscription.
+- The only observed VNet is `aadds-vnet` in `mc-entra-id`; it is an Entra Domain Services boundary and is explicitly excluded from runner use.
+- East US 2 has 10 total regional vCPUs available, but observed Dv5/DSv5-family quota is zero. Older D-family quotas exist; exact SKU capability/availability remains a Wave-0 selection and must not be guessed from quota alone.
+
+The proposed isolated landing zone is a new East US 2 resource group and VNet dedicated to ephemeral CI runners, separate from Entra Domain Services and existing product resource groups. Proposed names are `rg-mindclade-ci-runners-eus2`, `vnet-mindclade-ci-eus2`, and `snet-runners`; names remain reviewable source, not deployed facts.
+
+Remaining blockers:
+
+- **Runner-controller GitHub identity:** create a separate App/installation with organization `Self-hosted runners: write`, restrict its runner group to the canonical repository, and record IDs. Do not reuse `mindclade-monorepo-engineer`.
+- **Criteria review:** independent review must settle Azure topology format, bootstrap secret channel, egress policy, image build, and exact VM SKU before `infra/ci_runners/self_hosted/` is activated.
+- **Capacity selection:** choose an East US 2 SKU with positive subscription quota plus verified Trusted Launch and disposable-OS support; request quota only through a separately approved operator action if no acceptable existing-quota SKU qualifies.
+
+No blocker above may be converted into a deployment or qualification claim.
+
+## External references
+
+- [GitHub Actions REST API: self-hosted runners](https://docs.github.com/en/rest/actions/self-hosted-runners)
+- [GitHub Actions: self-hosted runners](https://docs.github.com/en/actions/concepts/runners/self-hosted-runners)
+- [Azure Trusted Launch](https://learn.microsoft.com/en-us/azure/virtual-machines/trusted-launch)

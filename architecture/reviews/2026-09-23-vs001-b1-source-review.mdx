@@ -1,0 +1,58 @@
+---
+title: "Partial B1 Source Review (2026-09-23)"
+sidebarTitle: "B1 Source Review"
+description: "Fresh agent source review of VS-001 B1 scope, with three P1/P2 findings on HTTP body normalization, graph edges and field roles, and their resolution."
+---
+
+This page records the 2026-09-23 partial B1 source review. Scope: `a561f18` relative to product base `0d5bba1`, then the combined candidate against governance main `86d125c`. This is fresh agent source review, not independent acceptance, protected review or qualification. The reviewer (Erdos) performed read-only inspection; the parent integration owner authored fixes and executed tests. Governance source/policies/CI are unchanged from main; only the mechanical inventory conflicted during merge.
+
+## Findings and resolution
+
+| Finding | Severity | Resolution and regression |
+| --- | --- | --- |
+| R1: HTTP body normalization discarded internal response-envelope ownership | P1 | Check resolved return types, including union alternatives, before envelope erasure. Frontend regression rejects an internal envelope around a public body with a located diagnostic. |
+| R2: Explicit public-to-internal graph edges bypassed payload-reference checks | P1 | Sealing validates explicit edges against declaration visibility, with the source declaration location. Direct-builder regression rejects the edge. |
+| R3: Serialized field roles were not checked against types and bindings | P2 | Validate status/body roles, required model bodies, numeric status literals, unique model metadata, internal value parameters and exact HTTP parameter roles. Hostile-input and valid-envelope regressions cover rejection and supported behavior. |
+
+The parent observed the R1 frontend test fail by producing semantic input when rejection was expected. The R2/R3 Rust tests failed by successfully sealing the hostile input. A test-only type inference error was corrected before observing those behavioral failures; compilation failure was not counted as reproduction.
+
+After the fixes, all ten declaration-focused Rust tests and all 30 frontend tests passed through the pinned Nix toolchain. The Rust body fixture now uses the official frontend's `body` role instead of the previously unchecked `value`. No expectations were relaxed and no v2 API/schema was introduced.
+
+## Observed verification
+
+The initial combined aggregate passed before these findings:
+
+- 243 Python tests
+- 74 Rust tests
+- five doctests
+- five cached Bazel targets
+- unchanged locks
+- exact output checks
+
+It is historical pre-fix evidence, not a final candidate pass. The corrected tree requires fresh aggregate verification and exact-candidate Linux CI.
+
+The same fresh reviewer subsequently re-inspected R1-R3 and the whole candidate relative to governance main: all three findings resolved, no remaining actionable source findings. The reviewer also checked the handoff/TODO scope. This conclusion is read-only source review; execution remains parent-owned.
+
+<Warning>
+  Source review does not establish the unfinished authored-contract CLI path, expanded directional compatibility, generated consumers, RuntimeKit/TestKit, durable execution, replay, trusted assessment or independently controlled acceptance. These remain B1-D4 tasks, not passing gates. Current unprotected main and missing governance bootstrap inputs remain explicit operational blockers.
+</Warning>
+
+## Related
+
+<CardGroup cols={2}>
+  <Card title="VS-001 wire values" icon="code-branch" href="/architecture/reviews/2026-09-23-vs001-wire-values">
+    B1a wire values, compatibility impact and remaining vertical.
+  </Card>
+
+  <Card title="Local bootstrap" icon="play" href="/architecture/reviews/2026-09-23-vs001-local-bootstrap">
+    Local bootstrap review with two P2 scalar-intersection findings.
+  </Card>
+
+  <Card title="VS-001 handoff" icon="handshake" href="/developer/vs001-handoff">
+    Current scope and retained evidence for VS-001.
+  </Card>
+
+  <Card title="B composition plan" icon="diagram-project" href="/superpowers/plans/2026-09-23-vs001-b-composition">
+    B1-B4 tasks and interfaces.
+  </Card>
+</CardGroup>

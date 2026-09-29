@@ -1,0 +1,174 @@
+---
+title: "PR #54 Current-Main Reconciliation Plan (2026-09-28)"
+sidebarTitle: "PR54 Reconciliation"
+description: "Bounded integration plan to reconcile PR #54 with protected main while preserving qualified prerequisites, fail-closed behavior, and runner qualification evidence."
+---
+
+This page documents the PR #54 current-main reconciliation plan from 2026-09-28. It is intended for implementers, reviewers, and operators who need to understand the technical integration authority, evidence boundaries, and required outcomes for this bounded reconciliation.
+
+<Warning>
+  This plan is technical integration authority for this bounded reconciliation only. It does not approve, queue, merge, deploy, qualify C1, or replace the accepted architecture/ADRs.
+</Warning>
+
+## Summary
+
+| Attribute | Value |
+| --- | --- |
+| **Status** | Active bounded integration plan, 2026-09-28 |
+| **Repository** | `Mindclade-org/mindclade-internal-monorepo` |
+| **Owner-supplied protected base** | `5239ccff30e23992f50e800b4b0ae4b339426d32` |
+| **Current protected base after concurrent PR #68** | `ae1d83cae6d226685ae9ea74c1aedafc13ecd050` |
+| **Original PR #54 head** | `579395f59e5f549ed3db1ffb86d8f83692c23121` |
+| **Planning checkpoint before this documentation tranche** | `5d1d33d4773d3b7cee2ca8bda87d5b4ba51dcc46` |
+| **Concurrent remote publication base integrated before publication** | `ac9fb71a33d145f63d6bf118e3e84d64c2d22346` |
+
+Purpose: reconcile PR #54 with the owner-supplied PR #64 protected-main state and preserve any subsequent protected-main changes already integrated into the branch, then establish whether the refreshed PR is eligible for human CODEOWNER review and merge-queue admission.
+
+## 1. Required Outcome
+
+The refreshed PR must preserve all of the following simultaneously:
+
+1. PR #54's qualified Ubuntu 22.04 R2 compatibility prerequisite.
+2. The protected `linux-foundation` workload on Ubuntu 24.04, including its fail-closed dependency on the R2 prerequisite.
+3. PR #53's guarded failure-evidence behavior and regression coverage.
+4. PR #58's reviewed ephemeral Azure/JIT runner criteria and implementation plan.
+5. PR #64's resulting-main/manual exact-candidate R2 isolation workflow and its policy tests/documentation.
+6. Current-main documentation and mechanical repository inventory.
+7. Stale-review semantics: any head refresh invalidates prior CODEOWNER approval.
+8. The existing one-change merge queue and strict required `linux-foundation` context. No bypass, protection relaxation, auto-approval or auto-merge.
+
+The Ubuntu 22.04 lane is a compatibility bridge. The durable target remains the reviewed ephemeral managed runner described in the [runner plan](/superpowers/plans/2026-09-28-ephemeral-linux-runner) and its linked criteria.
+
+## 2. Authority and Evidence Boundaries
+
+- [AGENTS.md](https://github.com/Mindclade-org/mindclade-internal-monorepo/blob/main/AGENTS.md), ADRs, architecture metadata and the master blueprint keep their existing precedence.
+- This plan sequences reconciliation; it does not alter architecture law.
+- Git source identities, CODEOWNER review, PR checks, merge-group checks and resulting-main receipts are distinct evidence. None substitutes for another.
+- A green older head never transfers to a refreshed head.
+- `REPOSITORY_TREE.md` is mechanical inventory only; regenerate it after semantic conflict resolution rather than hand-merging counts or paths.
+- PR #64's `r2-isolation.yaml` is a separate exact-candidate/resulting-main evidence lane. Exact-main run `36470976479` on `5239ccf...` retained semantic `PASS / denied`, but its receipt still says `qualification=not-qualified`. Protected main later advanced to `ae1d83c...`; that historical receipt remains bound to `5239ccf...` and is not relabeled as a pass for the newer main. The lane complements, and does not replace, PR #54's PR-bound R2 prerequisite plus protected Ubuntu 24.04 foundation aggregate.
+- Source/policy checks establish source consistency only. They do not establish C1 eligibility, scientific assurance, release acceptance or deployment.
+- The concurrent App publication-permission drift recorded on the remote branch is preserved as a separate governance issue. This reconciliation does not broaden, normalize or bypass App permissions.
+
+## 3. Conflict Map
+
+The main delta overlaps exactly four PR #54 files. Reconcile only these semantic or mechanical overlaps; inherit all other current-main files unchanged.
+
+| File | Conflict class | Required resolution |
+| --- | --- | --- |
+| `docs/architecture/REPOSITORY_TREE.md` | Mechanical | Keep either merge side temporarily, then regenerate from the reconciled Git-visible inventory with `just update-tree`; verify with `just verify-tree`. |
+| `docs/developer/agent-handoff.md` | Semantic status | Preserve PR #54 runner qualification, split/fail-closed behavior, canary, PR #53 hardening and PR #58 managed-runner direction **and** PR #64's separate resulting-main R2 workflow/current-main status. State that refreshed-head approval/checks are required. |
+| `docs/superpowers/specs/2026-09-28-c1-prerequisite-reconciliation.md` | Semantic criteria/status | Describe both R2 evidence paths without converting either into C1 qualification. Preserve the Ubuntu 22.04 qualification evidence, Ubuntu 24.04 protected aggregate, PR #58 durable replacement direction and PR #64 exact-SHA evidence lane. |
+| `scripts/test_ci_policy.py` | Behavioral policy tests | Preserve PR #53 failure-evidence assertions, PR #54 split-runner/fail-closed assertions and PR #64 exact-candidate R2-isolation policy assertions. Do not weaken action pins, permissions, event restrictions or artifact retention. |
+
+Current-main-only files such as `.github/workflows/r2-isolation.yaml` and `docs/developer/linear-task-template.md` remain inherited from main. PR #54-only files such as `.github/workflows/r2-runner-canary.yaml`, the ephemeral-runner plan/criteria and `scripts/test_r2_runner_canary_policy.py` remain preserved.
+
+## 4. Execution Sequence
+
+### Phase A: Freeze and Document
+
+1. Confirm protected `main`, record the live PR head, and if main advanced from the owner-supplied base, verify the new main is already an ancestor or perform a new bounded overlap assessment before continuing.
+2. Write this plan and update the durable repository blueprints before further CI qualification.
+3. Update dated status/handoff documents so a new agent can distinguish:
+   - PR-bound R2 prerequisite evidence,
+   - exact-candidate/resulting-main R2 evidence,
+   - the managed-runner replacement path,
+   - required fresh review/checks after a head change.
+
+**Exit:** documentation is internally consistent and does not claim acceptance.
+
+### Phase B: Reconcile Source
+
+1. Merge the named protected base into the PR branch without force-pushing.
+2. Resolve only genuine overlaps from the conflict map.
+3. Preserve all non-overlapping files from both histories.
+4. Regenerate `REPOSITORY_TREE.md` mechanically after all tracked-path changes.
+5. Run `git diff --check` and inspect the PR-to-main file list for accidental additions/removals.
+
+**Exit:** branch is a descendant of both the original PR head and protected base; no conflict markers, stale tree or unrelated source changes remain.
+
+### Phase C: Focused Source Verification
+
+Run, at minimum:
+
+```bash
+python3 scripts/test_ci_policy.py
+python3 scripts/test_r2_runner_canary_policy.py
+python3 scripts/test_postgres_substrate_policy.py
+python3 scripts/test_r2_diagnostic.py
+python3 scripts/test_governance_binding.py
+python3 scripts/validate_scaffold.py
+python3 scripts/validate_bootstrap.py
+just verify-tree
+git diff --check
+```
+
+Any changed documentation that adds/removes paths requires a fresh tree regeneration before the final verification pass.
+
+**Exit:** all focused checks pass on the exact source head to be pushed.
+
+### Phase D: Publish Refreshed Head and Exact-Head CI
+
+1. Fetch the remote PR branch immediately before push.
+2. Abort rather than overwrite if a concurrent remote head is not an ancestor of the local candidate.
+3. Push the normal fast-forward successor using `robpearc@mindclade.com` commit identity.
+4. Treat every approval and CI result from an older head as stale for admission.
+5. Observe the new `Executable Foundation` pull-request run.
+6. Require both:
+   - `Linux sandbox prerequisite` SUCCESS with semantic R2 PASS, and
+   - protected `linux-foundation` SUCCESS on the refreshed exact candidate.
+7. Inspect retained R2 evidence/result, not only the job conclusion.
+
+**Exit:** exact-head required CI is green and semantically valid.
+
+### Phase E: Readiness Assessment Only
+
+After Phase D, report merge-queue readiness. Do **not** approve, enqueue or merge.
+
+Ready for human approval/queue admission requires all of:
+
+- PR is Git-mergeable against the current protected base.
+- Required exact-head `linux-foundation` is green.
+- R2 prerequisite receipt is semantically PASS.
+- No unresolved review threads or source-policy failures remain.
+- Prior CODEOWNER approval is not counted after the head refresh.
+- A fresh CODEOWNER approval is still required.
+- Queue admission remains a separate human action and will create a new synthetic merge-group identity requiring its own required check.
+- Resulting-main evidence remains future evidence until an authorized merge occurs.
+
+If `main` advances again before queue admission, repeat the delta/conflict assessment and invalidate affected exact-head evidence as required by repository policy.
+
+## 5. Stop Conditions
+
+Stop and report rather than paper over any of the following:
+
+- protected `main` changes beyond the assessed base in a way that overlaps the PR;
+- the remote PR head advances concurrently with non-ancestor changes;
+- Ubuntu 22.04 no longer exposes the required `linux-sandbox`;
+- `linux-foundation` is skipped or made non-required instead of failing closed;
+- action pins, permissions, branch protection, queue rules or security settings would need relaxation;
+- the R2 receipt is missing, BLOCKED or FAIL even if a surrounding job appears green;
+- repository-tree regeneration introduces unexplained paths;
+- a requested action would constitute approval, queue admission or merge without a fresh human decision.
+
+## 6. Completion Record
+
+The final reconciliation report must name:
+
+- protected base and refreshed PR head;
+- exact changed-file set versus main;
+- focused local/source check results;
+- exact GitHub Actions run and job conclusions;
+- retained R2 semantic status and artifact reference when available;
+- Git mergeability and ruleset-required context state;
+- review state, explicitly identifying stale vs fresh CODEOWNER approval;
+- one of: **ready for fresh human approval/queue admission**, **BLOCKED**, or **requires another current-main reconciliation**.
+
+This plan intentionally stops before approval or merge.
+
+## Related
+
+- [Ephemeral Linux Runner Plan](/superpowers/plans/2026-09-28-ephemeral-linux-runner)
+- [R2 Linux Diagnostic Criteria](/superpowers/specs/2026-09-28-r2-linux-diagnostic-criteria)
+- [C1 Prerequisite Reconciliation](/superpowers/specs/2026-09-28-c1-prerequisite-reconciliation)
+- [Developer Agent Handoff](/developer/agent-handoff)

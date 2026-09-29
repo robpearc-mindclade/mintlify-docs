@@ -1,0 +1,165 @@
+---
+title: "Regenerate generated outputs"
+sidebarTitle: "Regenerate Outputs"
+description: "When Codegen-owned outputs must be regenerated, which commands do it, how drift checks work, and what goes into the change. For parent-owned execution only."
+---
+
+Purpose: say when the Codegen-owned outputs must be regenerated, which commands do it, how the drift check works and what goes into the change.
+
+Audience: the authorized parent or integrator. Regeneration and Git operations are parent-owned; a worker edits authored inputs and asks the parent to regenerate.
+
+Status: matches `justfile`, `scripts/generate_foundation.py`, `scripts/generate_vs001.py` and `codegen/src/generator.rs` at `main` `1fe3c1a` (B4, K1, G3 and H1 Stage 2 merged), plus the closeout's `.gitattributes` merge driver and `just git-setup`.
+
+Use it when: an authored input or generator input changed, `just verify-generated` reports drift, or `docs/architecture/REPOSITORY_TREE.md` is stale or conflicted.
+
+Prerequisites: the pinned shell ([start here](/developer/start-here)), a local filesystem with advisory locks and directory sync (section 5), and `just git-setup` once per clone for tree merges (section 7).
+
+**Never hand-edit anything under `generated/`.** Generated files are projections of authored contracts through one Codegen and one immutable MindcladeGraph. Fix drift by changing the authored input and regenerating, never by editing output ([generated output policy](/architecture/generated-output-policy), [`generated/README.md`](https://github.com/Mindclade-org/mindclade-internal-monorepo/blob/main/generated/README.md)). Scaffold placeholders under `generated/` stay planned; regeneration does not activate them.
+
+## 1. The two owned catalogs
+
+| Catalog | Owned files | Frontend target | Codegen subcommand |
+| --- | --- | --- | --- |
+| Foundation (manifest schema `FoundationManifest@v1`) | `generated/foundation/graph.json`, `generated/foundation/manifest.json` | `//codegen/frontend/typespec:echo` | `compile` |
+| VS-001 (manifest schema `Vs001Manifest@v1`, product profile `VS001CompositionProducts@v1`) | The fourteen files under `generated/vs001/`: `graph.json`, `manifest.json`, `public/{client.ts,openapi.json,echo.proto,mcp.json,README.md}`, `rust/{mod.rs,public.rs,internal.rs,wire.rs}`, `service/{descriptor.json,config.rs,http.rs}` | `//codegen/frontend/typespec:vs001_services` | `compile-vs001-composition` |
+
+Both manifests record `policy.version` `foundation-projection@v1`, the `POLICY_VERSION` in [`codegen/src/generator.rs`](https://github.com/Mindclade-org/mindclade-internal-monorepo/blob/main/codegen/src/generator.rs).
+
+## 2. When regeneration is required
+
+Regenerate when any input bound into a manifest changes. `just verify-generated` then fails until you do.
+
+**Contract and model inputs:**
+
+| Input | Catalog |
+| --- | --- |
+| `contracts/fixtures/foundation/echo.tsp` | Foundation |
+| `contracts/typespec/public/echo.tsp`, `contracts/typespec/internal/main.tsp`, `execution.tsp`, `assurance.tsp` | VS-001 |
+| `services/foundation_echo/service.descriptor.yaml` | VS-001 |
+| `docs/architecture/model/architecture.yaml` (passed as `--architecture`) | VS-001 |
+| `contracts/registries/vs001-proto-fields.yaml` and `vs001-proto-fields.previous.yaml` | VS-001. Authored only; Codegen never writes them |
+
+**Build-bound generator inputs (both catalogs).** Each manifest's `generator` block binds a source fingerprint over the `GENERATOR_INPUTS` list in [`codegen/src/generator.rs`](https://github.com/Mindclade-org/mindclade-internal-monorepo/blob/main/codegen/src/generator.rs). A change to any of these files changes both manifests:
+
+- `core/src/**/*.rs`, `codegen/src/**/*.rs` (including `codegen/src/emit/`), `codegen/frontend/typespec/src/*.mjs`;
+- `tools/build/*.bzl`, `tools/build/*.nix`, `tools/build/frontend_action.py`, `tools/build/vs001_action.py`, `tools/build/BUILD.bazel`;
+- the B4 collectors `tools/validation/dependency_facts.py`, `tools/validation/typescript_facts.mjs` and `tools/validation/typescript_loader.cjs`;
+- `core/BUILD.bazel`, `core/Cargo.toml`, `codegen/BUILD.bazel`, `codegen/Cargo.toml`, `codegen/frontend/typespec/BUILD.bazel`, `codegen/frontend/typespec/package.json`;
+- root files: `.bazelrc`, `.bazelversion`, `BUILD.bazel`, `Cargo.toml`, `Cargo.lock`, `MODULE.bazel`, `MODULE.bazel.lock`, `REPO.bazel`, `flake.nix`, `flake.lock`, `package.json`, `pnpm-lock.yaml`, `pnpm-workspace.yaml`, `rust-toolchain.toml` and `generated/README.md`.
+
+The Bazel filegroups `//:generator_inputs`, `//tools/build:generator_inputs` and `//codegen/frontend/typespec:generator_inputs` supply these files to `//codegen:library` as `compile_data`, so the compiler embeds them.
+
+**Adding or removing one of those files** also means updating the sorted `source!(…)` list in `codegen/src/generator.rs`. `scripts/validate_generator_inputs.py`, part of `verify-fast` and the first step of both generator drivers, fails with `Generator inventory mismatch` until the list matches the files on disk.
+
+**Paths added, removed or renamed anywhere** (including new documentation) also need the mechanical tree refresh in step 5. That refresh is not a Codegen run.
+
+## 3. Commands
+
+Run from the checkout's top level, in order:
+
+```bash
+# 1. Optional: confirm what drifted (read-only).
+nix develop --no-write-lock-file -c just verify-generated
+
+# 2. Foundation catalog.
+nix develop --no-write-lock-file -c just generate-foundation
+
+# 3. VS-001 catalog (fourteen-file composition profile).
+nix develop --no-write-lock-file -c just generate-vs001
+
+# 4. Drift check: must now pass.
+nix develop --no-write-lock-file -c just verify-generated
+
+# 5. Only if paths were added, removed or renamed.
+nix develop --no-write-lock-file -c just update-tree
+nix develop --no-write-lock-file -c just verify-tree
+
+# 6. Full aggregate before handing off.
+nix develop --no-write-lock-file -c just verify
+```
+
+What the recipes run:
+
+- `just generate-foundation` runs `python3 scripts/generate_foundation.py`. It checks the generator inventory, runs `tools/build/toolchain_test.py`, builds `//codegen:codegen` and `//codegen/frontend/typespec:echo` with `--lockfile_mode=error`, then runs `codegen compile --input <bazel-bin>/codegen/frontend/typespec/echo.semantic.json --source-root <root> --out-dir <root>/generated/foundation`.
+- `just generate-vs001` runs `python3 scripts/generate_vs001.py --services
+  --architecture docs/architecture/model/architecture.yaml --protocols
+  --proto-registry contracts/registries/vs001-proto-fields.yaml
+  --previous-proto-registry contracts/registries/vs001-proto-fields.previous.yaml
+  --composition`. It makes the same inventory and toolchain checks, builds `//codegen:codegen` and `//codegen/frontend/typespec:vs001_services`, then runs `codegen compile-vs001-composition` with those inputs and `--out-dir <root>/generated/vs001`.
+- `just update-tree` runs `python3 scripts/validate_repository.py --write-tree`. It rewrites only `docs/architecture/REPOSITORY_TREE.md` from Git-visible paths and the layout model. It never activates a planned component. For merges that touch the tree, see [section 7](#7-merging-branches-that-both-changed-the-tree).
+
+Both drivers fail with `lockfile changed: <name>` if a lock file's bytes change while they run. On failure they print `Foundation projection failed: …` or `VS-001 projection failed: …` and exit 1. The wrapper flags must travel together: `--services` needs `--architecture`, `--protocols` needs both registries, and `--composition` needs `--protocols`. The older thirteen-, nine- and seven-file routes remain only for isolated compatibility tests ([toolchain authority](/architecture/toolchain)). The publisher refuses to downgrade the live composition catalog to them.
+
+## 4. The drift check
+
+`just verify-generated` runs `scripts/generate_foundation.py --check`, then `scripts/generate_vs001.py --check` with the same flags as `generate-vs001`. Codegen compares every expected output byte for byte and double-reads the manifest and journal boundary. It writes nothing: no output, no lock and no receipt. It also fails if a publication journal is active or an owned output is missing, partial or stale. It never repairs anything.
+
+A passing check ends with one line per product after Codegen's own `verified graph=… manifest=…` line: `verified foundation sha256:<manifest digest>` from `generate_foundation.py`, and `verified vs001 sha256:<manifest digest>` from `generate_vs001.py`. The digest is the sha256 of `generated/<product>/manifest.json`. `verify-boundaries` runs the same two checks through `tools/validation/generated-provenance.py`, and the vs001 check alone through `tools/validation/descriptor-lint.py`; each wrapper passes only when its line is printed.
+
+## 5. Publication state and receipts
+
+- A writing run takes the permanent `generated/<catalog>/.publication.lock` and stages bytes under `.publication/` with a hash-bound `journal.json`. It replaces the manifest last. An interrupted run is recovered by the next writing run. A corrupt journal or unknown staging file fails closed and is left for inspection. Do not delete these files by hand; hand them to the integrator. The exact operational patterns are ignored by Git.
+- Each writing run leaves an untracked receipt with wall-clock time, host, executing commit, graph and manifest digests and a `changed` flag: `target/foundation-verification/generation-receipt.json` or `target/vs001-verification/generation-receipt.json`. It is execution metadata, not qualification.
+- Publication needs a local filesystem with advisory locks and directory sync.
+
+## 6. What to commit
+
+The parent commits, in the same change as the authored input edit:
+
+- every changed file in the two owned catalogs, `generated/foundation/` and `generated/vs001/`, exactly as Codegen wrote it;
+- `docs/architecture/REPOSITORY_TREE.md`, if `update-tree` changed it;
+- the updated `codegen/src/generator.rs` inventory, if generator inputs were added or removed.
+
+Do not commit `target/` receipts, `.publication.lock`, `.publication/` journal or staging files, or `bazel-*` symlinks; Git ignores them. CI runs `git diff
+--exit-code` after `just verify`, so uncommitted regeneration fails CI.
+
+A regenerated file shows that Codegen ran. It does not accept the change. Contract changes still need their compatibility report and contract-owner acceptance, and Proto field-number changes need contract-owner approval (Rob accepted the initial numbers on 2026-09-26; see the [owner decisions](/developer/agent-handoff#owner-decisions-recorded-2026-09-26-after-the-closeout)). Never rewrite locks, reseal scaffold stubs or edit outputs to make a check pass.
+
+## 7. Merging branches that both changed the tree
+
+`docs/architecture/REPOSITORY_TREE.md` is regenerated, so two branches that add paths both rewrite it, and a text merge of the two usually conflicts. The root `.gitattributes` assigns it the `repotree` merge driver:
+
+```text
+docs/architecture/REPOSITORY_TREE.md merge=repotree
+```
+
+Git keeps driver definitions out of the repository, so each clone defines it once:
+
+```bash
+nix develop --no-write-lock-file -c just git-setup
+```
+
+That runs `git config merge.repotree.name "keep ours, then just update-tree"` and `git config merge.repotree.driver true`. It writes the clone's shared Git configuration, so its linked worktrees need no second run. The driver keeps our side of the file without a conflict. Without the configuration, Git falls back to its normal text merge, which is the behaviour before this driver existed.
+
+Kept or conflicted, the merged file is stale until it is regenerated. After any merge or rebase that brings in added, removed or renamed paths:
+
+```bash
+nix develop --no-write-lock-file -c just update-tree
+nix develop --no-write-lock-file -c just verify-tree
+```
+
+`verify-tree` fails with `repository tree is stale; run --write-tree` while the inventory is stale, and CI's `just verify` fails the same way, so a stale tree cannot pass unnoticed. GitHub's own merge and conflict check do not run local merge drivers: resolve such a conflict locally the same way. The driver applies only to this one file; generated catalogs under `generated/` are never merged by hand or by a driver. Regenerate them (section 3) instead.
+
+## 8. If it fails
+
+Triage by the message. The [local verification triage](/runbooks/local-verification#5-if-it-fails-host-failure-or-verdict) says whether a failure is a host condition (BLOCKED) or a verdict (FAIL).
+
+| Message | Meaning | Recovery |
+| --- | --- | --- |
+| `Generator inventory mismatch: missing=[…], extra=[…]` | A build-bound generator input was added, removed or renamed without updating the `source!(…)` list | Update the list in `codegen/src/generator.rs` with the change, then regenerate both catalogs (section 2) |
+| `lockfile changed: <name>` | A lock file's bytes changed while the driver ran | Stop; the integrator inspects the lock. Never rewrite a lock to make a check pass |
+| `generator-input` | A build-embedded generator input differs from the checkout | Rebuild, then rerun the driver ([Codegen](https://github.com/Mindclade-org/mindclade-internal-monorepo/blob/main/codegen/README.md#publication-manifests-and-drift)) |
+| `output-drift`, or `verify-generated` fails after an input change | An owned output is missing or stale | Regenerate (section 3); never edit `generated/` |
+| `publication-active`, a corrupt journal or an unknown staging file | A publication is active, or an interrupted one needs recovery | The next writing run recovers an interrupted run; a corrupt journal or unknown file fails closed. Do not delete the lock or `.publication/` by hand; hand them to the integrator (section 5) |
+| `output-unowned` | An entry outside the catalog sits under the output root | Codegen never deletes it; hand it to the integrator |
+| `projection-profile` | The run would downgrade the live composition catalog | Use `just generate-vs001`; the older routes are for compatibility tests only (section 3) |
+| Exit 74 `frontend-action-host` | A host failure in the frontend action | BLOCKED. Free disk or quiet the host, then rerun |
+| `repository tree is stale; run --write-tree` | Paths were added, removed or renamed | `just update-tree`, then `just verify-tree` (sections 3 and 7) |
+
+To back out a change, revert the authored input and regenerate. Escalate anything else to the parent or integrator with the exact command, message and revision, and record an unrun check as BLOCKED.
+
+## Read next
+
+- [Local verification](/runbooks/local-verification) for running and triaging the aggregate.
+- [Generated output policy](/architecture/generated-output-policy) and [generated-surface ownership](/architecture/generated-surface-ownership).
+- [Codebase map](/developer/codebase-map) for where each input lives.

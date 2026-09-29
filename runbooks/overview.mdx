@@ -1,0 +1,21 @@
+---
+title: "Runbooks"
+sidebarTitle: "Overview"
+description: "Operating procedures for the implemented foundation and repository governance. Audience: authorized parent, integrator, and developers reading check receipts."
+---
+
+Operating procedures for the implemented foundation and the repository's governance. Audience: the authorized parent or integrator, who owns execution, and developers reading what a check does. A worker under parent-owned execution asks the parent for receipts instead of running these. No runbook grants admission, acceptance or qualification.
+
+| Runbook | Use it when | Status |
+| --- | --- | --- |
+| [Run local verification](/runbooks/local-verification) | Running `just doctor`, `just check` or `just verify`, finding the right recipe, reading the receipts, and telling a host failure from a verdict | Matches `justfile` and `scripts/` at `main` `9b46b65` plus the closeout recipes |
+| [Regenerate generated outputs](/runbooks/regenerate-generated-outputs) | An authored input or generator input changed, `verify-generated` reports drift, or `REPOSITORY_TREE.md` is stale or conflicted (`just git-setup` merge driver) | Matches the generators at `main` `9b46b65` |
+| [Run Foundation Echo locally](/runbooks/run-foundation-echo) | Building, running (`just run-echo`), calling and stopping the non-durable Echo binary | B3b, non-durable partial VS-001 |
+| [GitHub governance operator runbook](/operations/github-governance) | Preflight and same-ID transfer to `Mindclade-org`, App setup, protecting main, the acceptance loop, evidence archival and migration aftermath | Proposed operating steps; connected acceptance is BLOCKED |
+| [Contributor troubleshooting](/developer/troubleshooting) | A prerequisite, doctor check or repository validator failed and you need the owner and recovery | Symptom table |
+
+## Read next
+
+- [Start here](/developer/start-here) for prerequisites (Nix `2.35.1`, supported hosts, provisioning).
+- [Codebase map](/developer/codebase-map) for where the implemented components live.
+- [Current task register](/developer/agent-handoff#current-task-register) for task status.

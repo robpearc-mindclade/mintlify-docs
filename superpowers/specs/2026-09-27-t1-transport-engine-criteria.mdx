@@ -1,0 +1,276 @@
+---
+title: "T1: RuntimeKit Transport Engine Swap Criteria"
+sidebarTitle: "T1 Transport Engine"
+description: "Frozen acceptance criteria for swapping RuntimeKit's HTTP engine from std::net to hyper 1.x on tokio while preserving B3b byte contract and flaky-free shutdown."
+---
+
+This page defines the frozen acceptance criteria for the T1 transport engine swap. It specifies how RuntimeKit's synchronous `std::net` HTTP/1.1 engine becomes hyper 1.x on tokio, behind the existing `Handler` interface, after C4 and before C5.
+
+<Warning>
+  These criteria are draft and await fresh criteria review and Rob's checkpoint A. Nothing here is implemented or run. It grants no dependency approval, admission, acceptance, or qualification.
+</Warning>
+
+## 1. Scope and non-goals
+
+In scope: the engine only. Accept, connection I/O, framing handoff, response writing, deadlines, admission, and drain move onto hyper's HTTP/1 server connection and a tokio runtime owned by RuntimeKit, plus one additive trace-header accessor pair (section 3.3). The B3b framing, limit, and shutdown tests stay the conformance suite (ADR-017 section 2).
+
+Unchanged unless section 3.5 lists a reviewed amendment (all existing): `serve`, `RunningService::{address, shutdown}` and its draining `Drop`; `Handler`, `Request`'s four accessors, `Response::{json, empty, with_allow}`, `RequestScope::{deadline, cancelled}`; every `RuntimeError` variant, `ShutdownFailure::Overrun` and `OverrunWorkers::{len, is_empty, join}` with its joining `Drop`; `EventKind::ALL` (14), `Reason::ALL` (21) and the seven-field `Event`; `config.rs`; Echo's `Stopped`, receipts and exit codes 0/1/3/4/5; and `max_in_flight` bounding both connections read and concurrent `Handler::handle` calls, with the permit taken before `accept` and released after the terminal event.
+
+Non-goals, each a boundary: keep-alive, pipelining and response streaming (Q1); HTTP/2, h2c, HTTP/3, in-process TLS (ADR-017 section 3), WebSockets, `Upgrade`; MCP or gRPC transport; new `ServiceConfig` fields; any trace field in telemetry (ADR-008 amendment, decided at C0); any change to the Echo contract, the generated adapter or its emitter; consolidating `postgres` onto RuntimeKit's runtime (ADR-017 Consequences).
+
+## 2. Paths
+
+**2.1 Implementer-owned:** `platform/runtimekit/src/{lib,http,lifecycle}.rs`; new `platform/runtimekit/src/engine.rs` or `src/engine/**`; the "Transport behaviour", "Shutdown" and "Dependencies" sections of `platform/runtimekit/README.md`.
+
+**2.2 Test-author-owned (independent; the implementer never edits):** new `t1_*` functions in `platform/runtimekit/tests/transport.rs`; T1 phases in `tests/{shutdown,overrun}.rs`; T1 helpers in `tests/support.rs`; the compile-fail pair of T1-14 in a new `platform/runtimekit/src/t1_doc.md` included by `lib.rs` as `#[cfg(doctest)] #[doc = include_str!("t1_doc.md")] mod t1_doc {}` (the one `lib.rs` line is the implementer's).
+
+**2.3 Parent-owned:** root `Cargo.toml`, `Cargo.lock`, `MODULE.bazel.lock`, `platform/runtimekit/{Cargo.toml,BUILD.bazel}` (deps, `rust_doc_test`, test deps); `docs/architecture/model/architecture.yaml` (section 4.3); the reviewed transitions of frozen B3b tests in section 3.5; the dated B3b amendment text; regeneration of `generated/**`; `REPOSITORY_TREE.md` via `just update-tree`; handoff and receipts; Git and CI.
+
+**2.4 Excluded:** `platform/runtimekit/src/{config,telemetry}.rs`; `platform/testkit/**`; `services/**`; `codegen/**` (the emitter does not change, section 2.5); `core/**`; `contracts/**`; `tests/conformance/**`; every C-owned or C-reserved path; `docs/architecture/service-config-v1.md`; ADR-008; `docs/api/vs001-echo.md` (T1 changes no behaviour it states); `.github/**`; `.agents/policies/**`.
+
+**2.5 Regeneration.** The emitter does not change. `Cargo.toml`, `Cargo.lock` and `MODULE.bazel.lock` are generator sources bound in `generated/{foundation,vs001}/manifest.json`, so after the lock lands the parent runs K7. Only those two manifests may change (S7).
+
+## 3. Interfaces
+
+### 3.1 Contract baseline
+
+`VS001TransportProfile@v1` (`generated/vs001/public/openapi.json` `x-mindclade-transport-profile`, `mcp.json`, generated README, TS client) publishes `max_body_bytes: 65536` and eleven empty-body rejections: 400, 404, 405 (`Allow`), 411, 413, 415, 417, 431, 500, 501, 505. It does not publish `connection: close` or one request per connection; those are "current service behaviour beyond the contract" and frozen B3b behaviour asserted by frozen tests.
+
+### 3.2 Byte-compatibility contract (normative)
+
+Every response the new engine writes equals, byte for byte, what `serialize` writes today for the same `Response`:
+
+```text
+HTTP/1.1 <status> <reason>\r\n
+[content-type: application/json\r\n]          only for Response::json and a valid status
+[allow: <value>\r\n]                          only if with_allow and is_allow_value, valid status
+content-length: <body length>\r\n
+connection: close\r\n
+\r\n
+<body>
+```
+
+- **Reason phrases** are RuntimeKit's table, not `http`'s: 413 is `Content Too Large` (http 1.5.0: `Payload Too Large`), 422 `Unprocessable Content`, and an unlisted status has an empty phrase (`HTTP/1.1 418 \r\n`; hyper writes `<none>`).
+- **Headers** exactly as above: lowercase, in that order, no `date`, nothing else. A status outside 200-599 or a panic gives an empty 500 with `allow` dropped.
+- **Limits, unchanged:** `MAX_HEAD_BYTES = 8192`, `MAX_HEADER_FIELDS = 32`, `LINGER_EXTRA_BYTES = 8192`, `max_body_bytes` 65536; 413 before any body byte; B3b section 3.3's four absolute deadlines on `std::time::Instant`, clipped to drain start + `shutdown_timeout`; the bounded lingering close.
+
+What may change: nothing on the wire. Internally only: thread names after the `mindclade-rt-` prefix, the listen backlog, scheduling inside the B3b tolerances (-50 ms/+1500 ms), and how drain wakes the accept loop.
+
+### 3.3 Trace-header exposure (proposed)
+
+C Amendment 3 (A3.2, seventh C0 item) needs "a RuntimeKit accessor for the raw `traceparent` and `tracestate` fields" feeding `TraceContext::from_fields(traceparent: &[&[u8]], tracestate: &[&[u8]])`. T1 proposes it (Q3):
+
+```rust
+impl Request {
+    /// Every `traceparent` field of the head, in received order, OWS-trimmed.
+    pub fn traceparent_fields(&self) -> Vec<&[u8]>;
+    /// Every `tracestate` field of the head, in received order, OWS-trimmed.
+    pub fn tracestate_fields(&self) -> Vec<&[u8]>;
+}
+```
+
+Names match ASCII case-insensitively. One element per field line: no comma splitting, joining, dedupe, validation or decoding; an absent header gives an empty `Vec`. Validation stays in C's `TraceContext` (A3.1: two parsers never coexist). Values are bounded by the existing head limits and hold only bytes the pre-scan admits. Nothing else widens: no generic `header(name)`, no header map, no hyper, `http`, `tokio` or `bytes` type in a public signature. `Request` retains exactly method, target, content type, body and these two lists. No trace text enters telemetry, `RuntimeError` text or any RuntimeKit-written body. The adapter, `AdmissionPort::execute`, the contract and telemetry stay C0's (A3.2); the emitter does not change in T1.
+
+### 3.4 Engine requirements (normative, each observed by section 5)
+
+- **E1** hyper's `server::conn::http1` connection with `keep_alive(false)` and `auto_date_header(false)`; no `http2`, `server-auto` or upgrades. Handler bodies reach hyper only through RuntimeKit's own `http_body::Body` impl.
+- **E2** RuntimeKit's existing grammar (`Scanner`, `is_origin_form`, `parse_length`, `parse_head`) decides every head before hyper or the handler acts on it, and its frozen unit tests keep calling the functions the engine calls.
+- **E3** Every RuntimeKit thread name starts with `mindclade-rt-` (runtime threads included). `Handler::handle` runs on a RuntimeKit-owned thread outside any async execution context, so a handler may `block_on` its own runtime (the synchronous `postgres` client does, C section 3 OD-2).
+- **E4** Socket deadlines are absolute and derived from `std::time::Instant`; tokio `test-util` and paused time are absent; the injected `Clock` stamps telemetry only.
+- **E5** Workers: the accept task and one worker per accepted connection (its task plus its handler thread, if any). `worker_exit` for a connection is recorded only after both finished, so the B3b-12 count `accepted + 1` is unchanged. A worker alive at drain limit + 250 ms is an overrun, never dropped with the runtime.
+
+Recommended shape (Q5, not normative): one current-thread runtime on `mindclade-rt-io`; a gate judges the head and writes a rejection itself or hands prefix and stream to hyper; each handler call on a `mindclade-rt-conn` thread; `.without_shutdown()` returns the stream for lingering.
+
+### 3.5 Reviewed amendments T1 makes (parent-applied, one dated B3b amendment)
+
+1. B3b section 2.3/3.3 wording "over `std::net`", and section 3.3's `Request` gains section 3.3's two accessors.
+2. B3b-12/B3b-13 observation method: E5 workers; census adds a tokio default-name check.
+3. B3b-26: RuntimeKit's dependency set (section 4.2); `tests/dependencies.rs:176-210` expected sets.
+4. `static_scan_finite_threads_and_dependency_direction` (`tests/transport.rs:947-975`): scan every `src/**/*.rs` (from `:sources`, not four `include_str!`s); replace `spawns == 2` with an allowlist of spawn sites; add `shutdown_background`, `block_in_place`, `spawn_blocking`, `time::sleep(`, `interval(` and `start_paused` to the forbidden set; `shutdown_timeout` may appear only as the config accessor.
+5. If `serialize` stops being the writer, `src/http.rs:714-756` move unchanged in expectation to T1-03's wire check; they are never deleted silently.
+
+## 4. Dependencies and locks
+
+### 4.1 Workspace pins (Rob approves at checkpoint A)
+
+| Crate | Pin | Features | Why |
+| --- | --- | --- | --- |
+| `hyper` | `=1.11.1` | `default-features = false`, `server`, `http1` | the engine |
+| `hyper-util` | `=0.1.20` (Q2) | `default-features = false`, `tokio` | `TokioIo`, `TokioTimer` |
+| `http` | `=1.5.0` | default | request/response types |
+| `http-body` | `=1.1.0` | default | RuntimeKit's body impl |
+| `tokio` | `=1.53.1` | `default-features = false`, `rt`, `net`, `time`, `sync` | runtime, sockets, timers, permits |
+| `bytes` | `=1.12.1` | default | body frame data |
+
+`httparse =1.10.1` stays (E2). Not requested: tokio `macros`, `rt-multi-thread`, `test-util`, `io-util`; `http-body-util`; hyper `client`/`http2`; hyper-util `server-auto`/`server-graceful`/`service`; `h2`, `tower`, `tracing`.
+
+### 4.2 Lock delta against the post-C4 lock
+
+After C1 the lock holds (C Appendix A) `tokio 1.53.1` with `rt`, `time` (postgres), `net`, `io-util` (tokio-postgres `runtime`) and `sync` (tokio-util), and `bytes 1.12.1`, `mio`, `socket2`, `pin-project-lite`, `smallvec`, `futures-channel`/`futures-core 0.3.34`; `httparse` and `itoa 1.0.18` predate C. So T1 adds no tokio feature and exactly **six packages** on both triples (crates.io, 2026-09-27): `hyper 1.11.1` (MIT, MSRV 1.63), `hyper-util 0.1.20` (MIT, 1.64), `http 1.5.0` (MIT OR Apache-2.0, 1.57), `http-body 1.1.0` (MIT, 1.61), `httpdate 1.0.3` (MIT OR Apache-2.0, 1.56), `atomic-waker 1.1.2` (Apache-2.0 OR MIT, 1.36). No proc macro; K3 confirms no build script, `links` key or native link. hyper, hyper-util and atomic-waker hold internal `unsafe`, as httparse does. B3b section 2.1's "about 14" crates predates postgres. Procedure (K3), as C section 3 OD-2 step 6: `cargo fetch` without `--locked`, `--precise` for any drift, a diff that adds exactly the six and changes no version, then `bazel mod deps --lockfile_mode=update`.
+
+### 4.3 B4 model entries (post-approval change: B4 section 8 re-review, then Rob)
+
+In `architecture.yaml` `external`, beside the kept httparse entry: `{ecosystem: cargo, name: <crate>, from: [platform.runtimekit], kinds: [production]}` for `hyper`, `hyper-util`, `http`, `http-body`, `tokio` and `bytes` (`tokio` also `test` if T1 tests name it). No Echo entry. If `just verify-boundaries` wants transitive entries, S2.
+
+## 5. Acceptance criteria
+
+Conventions: B3b section 5's harness bounds (10 s; 60 s for the transfer guard) and tolerance (-50 ms/+1500 ms) apply unchanged. Base is the post-C4 source with the section 4 lock landed. **RED** is a behavioural failure on base; **Regression** is GREEN on base and must stay GREEN; a missing API's compile error is wiring, not RED (B3b C2). Targets exist unless marked.
+
+**T1-01 Engine identity.** RED: base serves on `std::net` with no hyper.
+
+- P: the scanned sources call `hyper::server::conn::http1::Builder` and `serve_connection` with E1's settings, and the serving path has no `std::net::TcpStream` I/O or socket timeouts.
+- N: keeping the `std::net` engine and only adding dependencies fails.
+- Target: `//platform/runtimekit:transport_tests` (section 3.5 item 4 scan).
+
+**T1-02 Idle connections cost no thread.** RED: base spawns a `mindclade-rt-conn` per connection.
+
+- P: at `max_in_flight = 64`, 64 accepted idle connections leave the thread census (Linux `/proc/self/task/*/comm`, macOS `ps -M` count) equal to its value with none; with 8 handlers gated it is at most that value + 8.
+- N: base (+64); runtime threads under tokio's default `tokio-runtime-w` name.
+- Target: `//platform/runtimekit:shutdown_tests` (single-test binary; new phase).
+
+**T1-03 Responses are byte-identical.** Regression.
+
+- P: golden bytes built from section 3.2's template (not recorded from a draft engine) for every row of the table, 404, 405 `allow: POST`, 415, a handler panic (500), status 1000 (500, `allow` dropped), JSON 200/400/409/503, statuses 413 and 422 from a handler, and status 418 (`HTTP/1.1 418 \r\n`). The raw socket bytes up to EOF equal the golden.
+- N: a `date` header; `Payload Too Large`; `<none>`; a reordered or title-cased header; `content-type` on an empty body; missing `connection: close`.
+- Targets: `:transport_tests`; `:unit_tests` (section 3.5 item 5).
+
+**T1-04 HTTP versions.** Regression.
+
+- P: HTTP/1.1 is served; `HTTP/1.0` gets section 3.2's exact 505 and no handler call.
+- N: `HTTP/1.2`, `HTTP/2.0`, `PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n` and `GET /x\r\n` get 400 `malformed`; `Upgrade: h2c` on 1.1 gets 200, never 101; hyper's defaults fail. `:transport_tests`.
+
+**T1-05 Expect never produces an interim response.** Regression.
+
+- P: a head with `Expect: 100-continue` and `Content-Length: 10`, sent without a body, reads exactly the 417 bytes, then EOF; no `HTTP/1.1 100` bytes; telemetry `rejected/expectation`.
+- N: `Expect: foo`, an empty `Expect` and two `Expect` fields get the same; hyper answering `100 Continue` fails. Target: `:transport_tests`.
+
+**T1-06 One request per connection.** Regression.
+
+- P: two pipelined valid requests on one socket give one response with `connection: close`, then EOF, and one handler call; `Connection: keep-alive` still gets `connection: close`.
+- N: hyper's default `keep_alive(true)`; a second handler call from the same socket.
+- Target: `:transport_tests` (with B3b-06's CL 10 + 70 000 bytes case).
+
+**T1-07 Framing no more permissive than today.** Regression over the whole B3b-05/06 corpus, plus the cases where hyper or httparse defaults diverge, each with its section 3.2 status and reason:
+
+- N: a leading empty line and bare LF (httparse skips or accepts them) gives 400; chunked with and without Content-Length (hyper decodes chunked) gives 411; `Transfer-Encoding: identity` gives 501; 33 fields (hyper's default is 100) gives 431; an 8193-byte head gives 431; `CONNECT a:1 HTTP/1.1` gives 400 `target`; `Content-Length: 65537` with the head only gives 413 before any body byte; a header name with a space before the colon gives 400.
+- P: B3b-05's exact 8192-byte, 32-field head is accepted. Target: `:transport_tests`.
+
+**T1-08 Deadlines and admission under async.** Regression: B3b-07/08/09/11/14 as written.
+
+- P, reactor independence: `max_in_flight = 2`; connection A's handler blocks on a test gate, ignoring `scope`; connection B trickles its head one byte per 50 ms with `request_timeout` 300 ms. B closes at `Dh` with `deadline/header` while A is still blocked.
+- N: `Handler::handle` on the runtime thread (B closes only after the gate). `:transport_tests`.
+
+**T1-09 Handler context and the permit bound.** Regression.
+
+- P: a handler that builds a tokio current-thread runtime and `block_on`s an empty future returns 200 (what C5's synchronous `postgres` calls do).
+- P: `max_in_flight = 1`. A's client disconnects while its handler is gated. B connects and sends a full request. B's `accepted` follows A's `write_failed`, which follows the gate opening; at most one handler call is ever in progress.
+- N: a handler inline on the runtime or under `block_in_place` (panics "Cannot start a runtime from within a runtime"); releasing the permit when hyper drops the service future.
+- Target: `:transport_tests`.
+
+**T1-10 Cancellation semantics.** Regression: B3b-10 and B3b-12's cooperative handler.
+
+- P: a client disconnect never sets `scope.cancelled()`; the handler completes once, the write is `write_failed`, no retry. `cancelled()` turns true at drain start, on the lifecycle `ShutdownSignal` and after the handler deadline. Each inbound connection a drain closes records one `deadline/shutdown` and one `worker_exit`. A client that shuts down its write half after a complete request still gets the full response and `completed`.
+- N: aborting tasks (`abort_all`, dropping a `JoinSet`) without that accounting.
+- Target: `:transport_tests`, `:shutdown_tests`.
+
+**T1-11 Finite shutdown; no leaked task or thread.** Regression, with section 3.5 item 2.
+
+- P: B3b-12's five held connections, at capacity and above, plus a backlog connection: `shutdown` is `Ok` within `shutdown_timeout + 1000 ms`; `worker_exit` = `accepted` + 1; one terminal event per `accepted`; a later connect is refused; the backlog connection is never served; the census is back to baseline, with no `mindclade-rt-` or `tokio-` thread on Linux.
+- N: `Runtime::shutdown_background` or `shutdown_timeout`; polling wake-ups (`time::sleep(`, `interval(`); returning before every `worker_exit`; dropping a live task with the runtime.
+- Target: `:shutdown_tests`; static part in `:transport_tests`.
+
+**T1-12 Overrun is truthful.** Regression, with section 3.5 item 2.
+
+- P: a non-cooperative handler makes `shutdown` return `Err(Shutdown(Overrun(w)))` within `shutdown_timeout + 1000 ms`, with no `worker_exit` for it. After the gate opens, `w.join()` returns, `worker_exit` appears, and the census returns to baseline. Dropping `RunningService` instead emits `overrun` and blocks until the handler returns (B3b-13's drop test).
+- N: `Ok`; a detached thread or `mem::forget`; `OverrunWorkers` that no longer owns what keeps the handler running; a `Drop` that returns before it finishes.
+- Target: `:overrun_tests`.
+
+**T1-13 Failures before serving leave nothing running.** Regression: B3b-04.
+
+- P: an occupied port gives `RuntimeError::Bind`, `bind_error`, no `ready`; an identity mismatch gives `RuntimeError::Identity` before binding; after each the census equals its pre-`serve` value. A runtime or thread build failure maps to `transport_failed`/`accept` and `RuntimeError::Transport(kind)` (reviewer; no new variant).
+- N: building the runtime before the identity check and leaving its thread. Targets: `:transport_tests`, `:shutdown_tests`.
+
+**T1-14 Trace fields reach the handler, and nothing else does.** New API: its compile error is wiring, not RED; the negatives below are the discriminating evidence.
+
+- P: one `traceparent` and two `tracestate` fields (mixed-case names, values padded with SP and HTAB) reach a recording handler as the exact trimmed values, in order; none gives empty.
+- N: two `traceparent` fields give two elements; a malformed value arrives unchanged; a 0x80 byte in `traceparent` is still 400 `malformed` with no handler call.
+- N: `traceparent`/`tracestate` canaries appear in no telemetry line, `RuntimeError` `Display`/`Debug` or RuntimeKit-written body (extends B3b-15).
+- N: `request.header("authorization")` does not compile (beside a compiling `traceparent_fields` sibling); no `pub` item in `src/**` names `hyper`, `http::`, `http_body`, `tokio`, `bytes` or `HeaderMap`.
+- Targets: `:transport_tests`; `:unit_tests`; new `//platform/runtimekit:doc_tests` (parent-added).
+
+**T1-15 Closed sets and exit codes unchanged.** Regression.
+
+- P: `EventKind::ALL` and `Reason::ALL` equal B3b section 3.4's lists in order, strings and levels; `config.rs` and `telemetry.rs` are byte-identical to base. N: any new event or reason (for example a hyper error kind). Targets: `:transport_tests`; `//services/foundation_echo:process_tests`.
+
+**T1-16 Dependency direction.** RED once section 3.5 item 3 lands: base lacks the new crates.
+
+- P: `cargo metadata --locked` gives RuntimeKit normal deps exactly `{mindclade-core, httparse, hyper, hyper-util, http, http-body, tokio, bytes}`; Bazel direct deps are `//core:core` plus those seven `@crates//` labels; the closure has no `//services`, `//codegen`, `//platform/testkit`, `//tests`, `//generated` or `saphyr` label; Echo's set is C section 5.6(1)'s.
+- N: `http-body-util`, `tokio-macros`, `h2` or a seventh new package. Target: `:dependency_tests`; K3.
+
+**T1-17 Consumers unchanged end to end.** Regression.
+
+- P: `//services/foundation_echo:composition_tests` (B3b-19-25, 27: generated client, exit 3 probes, process bounds matrix, drain exit 0 within 7 s, no restart state) and `//tests/conformance/vs001:all` (B3b-18, K1-15, K1-30, `connection: close`) pass unmodified; regenerated products are byte-identical except the two manifests. Targets: those; K7.
+
+## 6. Checks the parent runs
+
+- **K1** Fresh, independent criteria review (`.agents/evals/criteria-review.md`); Rob's checkpoint A on section 4 and section 8. Author, reviewer, test author and implementer are distinct.
+- **K2** Rebase the criteria on post-C4 `main`: confirm C Appendix A is in the lock, re-check every cited line, and record changed rows as an amendment. T1 before C1 is S2.
+- **K3** Lock (section 4.2), licences from `cargo metadata --locked`, a RustSec version-range check at a recorded advisory-db commit, exact-source review of the six crates' `unsafe` and build scripts, then the section 4.3 model change and `just verify-boundaries`.
+- **K4** RED on base, after the test author and before the implementer: T1-01, T1-02, T1-16 fail for their stated reason; every Regression criterion passes on base.
+- **K5** GREEN on both hosts: `nix develop --no-write-lock-file -c bazel test //platform/runtimekit:tests //services/foundation_echo:composition_tests //tests/conformance/vs001:all`, then `--runs_per_test=20` on `:transport_tests`, `:shutdown_tests`, `:overrun_tests` and `:composition_in_process`. Zero flakes.
+- **K6** `cargo test --locked -p mindclade-runtimekit -p mindclade-foundation-echo`, `just fmt-check`, `just verify-fast` (clippy `-D warnings`).
+- **K7** `just generate-foundation`, `just generate-vs001`, `just verify-generated`, `just update-tree`; only the manifests change.
+- **K8** After each run `pgrep -fl foundation_echo` is empty and `lsof -nP -iTCP -sTCP:LISTEN` or `ss -ltnp` shows no test listener (B3b C8).
+- **K9** Apple Silicon `nix develop --no-write-lock-file -c just verify` and Linux `linux-foundation` on the exact head. A single-host pass is not PASS.
+- **K10** Fresh task review, whole-candidate review, then Rob's PR approval.
+
+## 7. Stop conditions
+
+- **S1** T1-11 or T1-12 cannot be proven on either host; never weaken it (ADR-017 section 5).
+- **S2** The lock delta differs from section 4.2, an existing version changes, the base lacks C Appendix A, a tokio feature beyond section 4.1 is needed, or B4 needs transitive entries.
+- **S3** A section 3.2 byte cannot be produced under hyper (reason phrase, header order, `date`, version line, interim 100). Do not relax the contract; return with evidence (Q4).
+- **S4** Any change to `Handler`, `Request` beyond section 3.3, `Response`, `RequestScope`, `serve`, `RunningService`, `RuntimeError`, `OverrunWorkers`, the closed sets, `ServiceConfig` or exit codes.
+- **S5** `unsafe` in a repository crate, or a crate not in section 4.1.
+- **S6** A test needs a sleep outside `pace`, a longer harness bound or a wider tolerance.
+- **S7** The emitter must change, or a generated product byte other than a manifest changes.
+- **S8** C0's approved criteria define a different RuntimeKit trace accessor, or C0 lands first.
+- **S9** crate_universe re-splice or `MODULE.bazel.lock` fails on either host.
+- **S10** A frozen B3b test needs an edit that section 3.5 does not list.
+
+## 8. Open questions for Rob
+
+- **Q1 Keep-alive in T1?** Recommend **no**: T1 stays byte-compatible with connection-close. Keep-alive becomes its own amendment (T2) after C5, deciding the pre-scan on reused connections, whether an idle kept-alive connection holds a `max_in_flight` permit, an idle timeout (constant, or a `ServiceConfig` field through C0) and the frozen-test transitions.
+- **Q2 Dependencies.** Recommend approving section 4.1 and the six packages, with `hyper-util =0.1.20` (evaluated in B3b section 2.1, eight months old, MSRV 1.64) over `0.1.21` (2026-09-24, MSRV 1.85) unless K3 finds a fix in 0.1.21 that T1 needs.
+- **Q3 Who adds the trace accessor?** C A3.2 lists it under C0, and C section 5.3 excludes RuntimeKit. Recommend T1 adds section 3.3's pair (T1 already owns `http.rs`; no second RuntimeKit change). C0 keeps the adapter, `AdmissionPort`, contract and telemetry decisions and cites it.
+- **Q4 204 and 304.** Today a handler's 204 or 304 carries `content-length`; hyper forces an empty body and may drop the header. No product emits either. Recommend exact bytes if achievable; if S3 is hit for these two only, accept RFC 9110 framing and record it in the README.
+- **Q5 Threading.** Recommend confirming E3/E5, the section 3.4 shape and section 3.5 item 4's ban on `spawn_blocking` and `block_in_place`: one current-thread runtime, one handler thread per in-flight call, no `rt-multi-thread`. It keeps B3b-12's worker count and explicit overrun ownership.
+
+## 9. Conflicts found while drafting
+
+- The published profile includes the empty 400 (ADR-017 section 4 lists it). No generated product publishes `connection: close`; it lives in API reference section 6 and frozen B3b tests (section 3.1).
+- C A3.2 puts the RuntimeKit accessor under C0 (Q3, S8). C0 has a checkpoint-A approval, but its `trace_fields() -> TraceFields<'_>` signature differs from this draft's `traceparent_fields()` and `tracestate_fields()` methods. Ownership and the exact interface remain BLOCKED pending T1/ADR and C0 reconciliation.
+- hyper's defaults contradict B3b-05/06 eight ways (`date`, `Payload Too Large`, `<none>`, an `HTTP/1.0` status line, `100 Continue`, chunked decoding, 100 headers, h2c); T1-03-07 name each. C5's synchronous `postgres` in a handler would panic on the runtime thread (T1-09).
+
+## Integration review clarification (2026-09-27)
+
+Unresolved authority conflict; implementation BLOCKED. Accepted ADR-017 section 5, lines 64-75, explicitly names keep-alive instead of connection-close as a transport change and requires a B3b amendment, frozen conformance transition, API-reference update and Codegen republication. This draft excludes keep-alive from T1 and recommends postponing it to T2 (Q1), while T1-06 preserves `connection: close`. The owner and ADR reviewer must clarify the accepted ADR and review the resulting T1 scope and transitions before checkpoint A or implementation. This dated note records the conflict; it does not decide that T2 postponement is approved or amend ADR-017.
+
+## Related
+
+<CardGroup cols={2}>
+  <Card title="ADR-017: RuntimeKit Transport Engine" icon="file-text" href="/architecture/adr/adr-017-runtimekit-transport-engine">
+    The accepted ADR that T1 implements.
+  </Card>
+
+  <Card title="Service Config v1" icon="sliders" href="/architecture/service-config-v1">
+    Configuration contract governing RuntimeKit limits.
+  </Card>
+
+  <Card title="API Reference: VS-001 Echo" icon="book-open" href="/api/vs001-echo">
+    Public contract that T1 preserves byte-for-byte.
+  </Card>
+
+  <Card title="C Durability Criteria" icon="shield" href="/superpowers/specs/2026-09-26-c-durability-criteria">
+    The durability gate that precedes T1 implementation.
+  </Card>
+</CardGroup>

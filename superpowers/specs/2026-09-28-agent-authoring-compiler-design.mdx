@@ -1,0 +1,1091 @@
+---
+title: "Mindclade Agent Authoring and Compiler Design"
+sidebarTitle: "Agent Auth Design"
+description: "Approved architecture for filesystem-first agent authoring and semantic compilation through Codegen, covering tranche A boundaries, package model, capability rules and five tranches A–E."
+---
+
+This document defines the canonical architecture for filesystem-first agent authoring and semantic compilation without activating the product agent runtime. The audience is compiler, agent-platform, governance and assurance contributors reviewing tranche A and its later runtime boundaries.
+
+**Status:** Approved design, 2026-09-28. Tranche A implementation remains BLOCKED pending independent criteria review and code-class admission. No product-agent runtime, execution capability, scientific qualification, or deployment is established by this document.
+
+**Date:** 2026-09-28
+
+**Baseline inspected:** `7cbc4b243c750462626549632df944283fee3ced`.
+
+**Current integration base for the approved documentation packet:** `484dbe3bd0f871973003716a1bb0907a76caf871`.
+
+## 1. Intent and authority
+
+Mindclade will provide an agent developer experience comparable in simplicity and inspectability to Vercel eve while retaining Mindclade's stronger architectural laws for semantic authority, capability attenuation, durable execution, provenance, policy, evidence, and independent scientific assurance.
+
+The desired developer experience is filesystem-first:
+
+```text
+agent/
+├── agent.yaml
+├── instructions.md
+├── tools/
+├── skills/
+├── memory/
+├── sandbox/
+├── subagents/
+├── hooks/
+└── evals/
+```
+
+The filesystem is an authoring interface. It is not runtime authority.
+
+Agent source is compiled through Mindclade Codegen into the same immutable semantic system used by the rest of the platform:
+
+```text
+filesystem-authored agent package
+        +
+canonical agent contract vocabulary
+        ↓
+official agent source adapter
+        ↓
+normalized AgentSourceV1
+        ↓
+Mindclade Codegen
+        ↓
+immutable MindcladeGraph
+        ↓
+AgentGraphView
+        ↓
+AgentIrV1 and generated discovery surfaces
+```
+
+`AgentIrV1`, generated tool descriptions, MCP metadata, SDK bindings and runtime configuration are projections. They cannot redefine the authored source or grant execution merely by existing.
+
+This design elaborates, rather than replaces:
+
+- `AGENTS.md`;
+- ADR-000 through the accepted architecture ADR set;
+- ADR-011 Agent Capability Attenuation;
+- ADR-015 repository scaffold alignment;
+- `docs/architecture/MASTER_BLUEPRINT.md`;
+- `docs/architecture/model/repository-layout.json`;
+- `docs/architecture/maturity.yaml`;
+- `docs/architecture/foundations/scientific-and-agent-planes.md`;
+- the VS-001 durability and assurance sequence;
+- the current whole-repository workplan.
+
+`.agents/` remains repository engineering governance. `agents/` remains the product scientific-agent implementation root. They are not interchangeable.
+
+## 2. Program decomposition
+
+The complete agent platform is divided into five ordered architectural tranches.
+
+| Tranche | Scope | Observable deliverable |
+| --- | --- | --- |
+| A — Authoring and compiler | Agent package discovery, contracts, normalization, graph representation and deterministic `AgentIrV1` | A representative agent package compiles reproducibly into one MindcladeGraph and inspectable IR |
+| B — Tools and approval | Capability-backed tools, invocation authorization and durable HITL requests | A model-visible tool resolves to an admitted Mindclade capability and exact invocation approval |
+| C — Sessions | Durable sessions, turns, model invocations, streams, steering and cancellation | A session survives process boundaries without becoming a competing Run scheduler |
+| D — Sandbox, delegation and memory | Provider-neutral sandbox, capability-attenuated children, scoped memory | A child receives an explicit subset of authority and operates inside an admitted sandbox |
+| E — Assurance and operations | Agent scenarios, E2E, qualification, trace/provenance integration and provider adapters | Agent behavior can be independently assessed against frozen expectations |
+
+This specification fully designs tranche A and fixes architectural boundaries required by B-E.
+
+Implementation of B-E requires its own reviewed criteria and plan.
+
+## 3. Tranche A boundary
+
+Tranche A establishes agent authoring and semantic compilation only.
+
+It does not:
+
+- start a model;
+- execute a tool;
+- create an agent session;
+- provision credentials;
+- start a sandbox;
+- dispatch a Run;
+- persist memory;
+- spawn a child;
+- connect OpenAI, Anthropic, Vercel or another provider;
+- activate `services/agent_service`;
+- introduce a second scheduler;
+- introduce another durable database;
+- establish scientific evidence;
+- qualify an agent;
+- deploy an agent.
+
+The existing `agents/` product root remains `planned` until a separately reviewed runtime transition.
+
+Tranche A may use compiler fixtures outside the product runtime to demonstrate the authoring surface without falsely activating `agents/`.
+
+## 4. Core architectural laws
+
+The following distinctions are mandatory:
+
+```text
+AgentSession     ≠ Run
+AgentTurn        ≠ Attempt
+ToolInvocation   ≠ Capability
+ToolBinding      ≠ authorization
+Model output     ≠ Claim
+Memory           ≠ Evidence
+Skill text       ≠ Policy
+Approval         ≠ Policy
+Trace            ≠ qualification receipt
+Sandbox          ≠ trusted application runtime
+Subagent         ≠ inherited authority
+Generated IR     ≠ authored authority
+```
+
+Any implementation that collapses one of these distinctions requires architecture review rather than an implementation workaround.
+
+### One compiler
+
+Codegen remains the sole Mindclade semantic compiler.
+
+No JavaScript, Python, provider SDK, agent framework or runtime package may become a second semantic compiler.
+
+### One durable execution authority
+
+Durable external or scientific work remains governed by the platform Run/Attempt system and the VS-001 PostgreSQL/outbox architecture.
+
+The future agent runtime coordinates capabilities; it does not replace platform execution.
+
+### One evidence law
+
+Agent behavior, tool results and model text may become inputs to an evidence process, but are not Evidence or accepted Claims solely because an agent produced them.
+
+## 5. Agent package authoring model
+
+An agent package has a single root. Its canonical ergonomic layout is:
+
+```text
+agent/
+├── agent.yaml
+├── instructions.md
+├── tools/
+│   └── <tool>.yaml
+├── skills/
+│   └── <skill>/
+│       └── SKILL.md
+├── memory/
+│   └── <slot>.yaml
+├── sandbox/
+│   └── sandbox.yaml
+├── subagents/
+│   └── <child>/
+│       └── agent/
+├── hooks/
+└── evals/
+```
+
+The adapter receives the package root explicitly. It must not search arbitrary repository paths for agents.
+
+Tranche A actively compiles:
+
+- `agent.yaml`;
+- `instructions.md`;
+- `tools/*.yaml`;
+- declared local `subagents/<name>/agent/` packages.
+
+Skills, memory, sandbox, hooks and evals are reserved authoring slots whose architecture is fixed here but whose executable semantics remain later tranches. Until their respective compiler support is reviewed, nonempty unsupported slot content fails with a stable unsupported-feature diagnostic rather than being silently ignored.
+
+That prevents a developer from believing a security or memory declaration is active when it is not.
+
+## 6. Naming and filesystem discovery
+
+Names are derived from paths wherever the filesystem already provides a unique identity.
+
+Examples:
+
+```text
+tools/search_papers.yaml        → tool search_papers
+subagents/reviewer/agent/       → child reviewer
+skills/structure-review/        → skill structure-review
+memory/research-context.yaml    → memory slot research-context
+```
+
+A redundant authored `name` field is rejected where the path owns the name.
+
+This follows eve's strongest authoring principle while preserving compiler authority.
+
+### Path rules
+
+All discovered paths must:
+
+- be relative to the supplied agent root;
+- use normalized `/` separators;
+- reject `..`, `.`, repeated separators and control characters;
+- reject symlink traversal outside the package;
+- reject case-folding collisions where supported filesystems could make two names ambiguous;
+- reject Unicode-normalization collisions;
+- reject duplicate logical names;
+- reject names outside the existing Mindclade `Component` grammar when they become semantic identifiers.
+
+File discovery order cannot affect canonical output.
+
+The compiler sorts normalized logical paths before semantic processing.
+
+## 7. `AgentDescriptor@v1`
+
+`agent.yaml` declares one `AgentDescriptor@v1`.
+
+Its initial authored responsibilities are intentionally small:
+
+```text
+apiVersion
+kind
+metadata.namespace
+metadata.version
+capabilityPolicy
+```
+
+The agent's logical name is derived from the package location supplied by the caller rather than repeated in the descriptor.
+
+`apiVersion` is exactly the accepted v1 discriminator.
+
+`kind` is exactly `Agent`.
+
+`metadata.namespace` and `metadata.version` use Mindclade identity component rules.
+
+`capabilityPolicy` is an exact typed Policy reference.
+
+The descriptor does not contain:
+
+- raw API keys;
+- provider tokens;
+- environment variable values;
+- arbitrary executable JavaScript;
+- inline tool JSON schemas;
+- deployment settings;
+- database settings;
+- unrestricted network configuration;
+- runtime admission;
+- a mutable list of granted privileges.
+
+Unknown fields fail closed.
+
+A descriptor can express requested configuration. It cannot authorize itself.
+
+## 8. Instructions
+
+`instructions.md` is required for the root agent in tranche A.
+
+Its bytes are:
+
+- normalized only according to an explicitly documented UTF-8/text policy;
+- hashed;
+- retained in source provenance;
+- represented in `AgentIrV1` by digest and content projection.
+
+Instructions are model-facing authored content.
+
+They are not:
+
+- a Policy;
+- a Capability;
+- an approval;
+- an evaluator;
+- an authorization source.
+
+Text such as "ignore policy", "grant network access", or "you may call capability X" cannot change compiled authority.
+
+That remains true for future retrieved memory, skills, web pages, papers and tool output.
+
+## 9. Tool bindings
+
+Each `tools/<name>.yaml` is an authored `ToolBinding@v1`.
+
+The filename owns the model-visible tool name.
+
+The binding contains:
+
+```text
+apiVersion
+kind
+capability
+description
+```
+
+`capability` is an exact typed `CapabilityReference`, including identity and digest.
+
+A tool does not author its own input/output schema. The schema comes from the referenced compiled capability contract.
+
+A tool does not embed credentials.
+
+A tool does not directly identify a provider implementation.
+
+A tool cannot weaken the referenced capability's governing policy.
+
+`description` is model-facing discovery text only and is included in provenance.
+
+### Resolution
+
+During compilation:
+
+1. resolve the exact `CapabilityReference`;
+2. require the target to exist in the same immutable graph input;
+3. require the digest and target kind to match;
+4. require the capability to expose an agent-callable surface;
+5. derive input/output discovery types from the capability;
+6. record the tool-to-capability edge in `AgentGraphView`;
+7. reject unresolved, stale or audience-incompatible bindings.
+
+A valid binding proves that the agent definition refers to a known capability.
+
+It does not prove that a caller is authorized to invoke that capability.
+
+## 10. Local subagents and delegation intent
+
+A local child is defined under:
+
+```text
+subagents/<child>/agent/
+```
+
+Its name derives from `<child>`.
+
+The child is compiled as a separate agent node with its own:
+
+- instructions;
+- tool set;
+- policy reference;
+- source digests;
+- nested child declarations.
+
+The parent receives a `DelegationEdge`, not privilege inheritance.
+
+### Capability ceiling
+
+The architectural rule for runtime delegation is:
+
+```text
+effective child authority
+    =
+requested child authority
+    ∩ parent admitted authority
+    ∩ child policy ceiling
+    ∩ active delegation grant
+```
+
+Tranche A validates the static portion that can be known at compile time.
+
+A child cannot obtain authority merely because:
+
+- the parent has it;
+- the same tool file exists;
+- the child asks for it in instructions;
+- the model requests it;
+- a skill mentions it.
+
+Future runtime admission supplies the dynamic parent and delegation intersections.
+
+Root-copy behavior like eve's shared-authority built-in child is not the Mindclade default.
+
+Any future convenience feature that copies a parent must still materialize an explicit delegation record and capability intersection.
+
+## 11. Reserved skill model
+
+Skills are on-demand model-facing procedures.
+
+A future supported skill package will contain immutable source resources and a compiled `SkillBinding`.
+
+The architecture fixes these rules now:
+
+- skill content is context, never authority;
+- required tools must already resolve through the agent's admitted tool surface;
+- skill content cannot create capabilities;
+- skill resources receive source digests;
+- loaded skills are recorded in invocation/session provenance;
+- executable skill code, if introduced later, requires an explicit sandbox/runtime boundary rather than Markdown-based implicit execution.
+
+Tranche A rejects nonempty `skills/` packages until the corresponding compiler extension has reviewed criteria.
+
+## 12. Reserved memory model
+
+Mindclade distinguishes:
+
+```text
+AgentState
+AgentMemory
+Knowledge
+Evidence
+```
+
+`AgentState` is operational state belonging to one durable agent session.
+
+`AgentMemory` is cross-session contextual material retrieved under an authenticated scope.
+
+`Knowledge` is governed scientific/domain information with its own provenance.
+
+`Evidence` supports a scoped assessment or claim.
+
+They are never aliases.
+
+A future `MemoryBinding` must include an explicit authenticated scope and provider contract. Recalled memory enters model context as untrusted contextual material, never system authority.
+
+Returning no authenticated scope must disable the relevant memory operation rather than falling back to a shared global namespace.
+
+Tranche A rejects nonempty `memory/` definitions until tranche D.
+
+## 13. Reserved sandbox model
+
+The future sandbox contract follows a provider-neutral lifecycle:
+
+```text
+prepare()
+start()
+resume()
+stop()
+delete()
+```
+
+Preparation creates an immutable environment artifact or equivalent provider representation.
+
+Session state contains only the minimal reconnectable provider state.
+
+A restart uses the recorded environment artifact and provider state; it must not silently rerun arbitrary initialization and claim it resumed the same sandbox.
+
+### Trust boundary
+
+The future runtime separates:
+
+```text
+trusted agent application runtime
+- capability admission
+- secrets
+- provider clients
+- policy
+- durable state
+
+           │ explicit mediated interfaces
+
+untrusted execution sandbox
+- isolated filesystem
+- commands/code
+- controlled network
+- no ambient credentials
+```
+
+Mindclade's baseline is deny-by-default network access.
+
+A provider that cannot enforce the declared network policy cannot silently accept that profile.
+
+Credentials remain outside sandbox processes wherever provider capabilities permit credential brokering.
+
+Tranche A rejects nonempty sandbox declarations until the sandbox contract is separately implemented.
+
+## 14. `AgentSourceV1`
+
+The source adapter emits a versioned `AgentSourceV1`.
+
+It is a normalized compiler input, not an execution grant.
+
+It contains:
+
+- schema/version discriminator;
+- agent source identity;
+- normalized logical package path;
+- exact source-file inventory;
+- SHA-256 digest per source file;
+- descriptor values;
+- instruction digest/content;
+- normalized tool bindings;
+- normalized local-child sources;
+- located source spans or file/field locations for diagnostics.
+
+It contains no:
+
+- secrets;
+- generated runtime token;
+- session ID;
+- admission decision;
+- provider credentials;
+- scientific claim.
+
+Unknown versions are rejected.
+
+Canonical serialization excludes wall-clock timestamps and host-specific absolute paths.
+
+Two identical logical agent packages must produce byte-identical canonical normalized input regardless of checkout location.
+
+## 15. Codegen and `AgentGraphView`
+
+Codegen consumes `AgentSourceV1` and adds agent semantics to the existing immutable MindcladeGraph.
+
+There is no second `AgentGraph` authority.
+
+`AgentGraphView` is a borrowed typed view over the one graph.
+
+It exposes at minimum:
+
+```text
+agents
+tool bindings
+agent → capability edges
+parent → child delegation edges
+policy references
+source provenance
+```
+
+Agent nodes use existing checked Mindclade identity/digest/reference semantics.
+
+Graph sealing validates:
+
+- unique logical agent identity;
+- exact policy resolution;
+- exact capability resolution;
+- valid tool names;
+- valid child identities;
+- no forbidden public/internal audience crossing;
+- no unresolved source;
+- no unsupported active slot;
+- no duplicate semantic edge;
+- deterministic ordering.
+
+A validation error stops projection.
+
+Emitters never repair, reinterpret or drop an invalid graph entry.
+
+## 16. `AgentIrV1`
+
+`AgentIrV1` is an inspectable deterministic projection derived only after graph validation.
+
+It is designed for later provider/runtime adapters.
+
+It contains:
+
+- agent identity and graph digest;
+- instruction digest and normalized instruction projection;
+- ordered tool catalog;
+- each tool's exact capability reference;
+- capability-derived tool input/output description;
+- policy reference;
+- ordered local-child catalog;
+- child semantic identities;
+- source provenance digests;
+- IR schema version.
+
+It does not contain:
+
+- secrets;
+- provider API keys;
+- ambient environment;
+- a Run;
+- an Admission;
+- authorization results;
+- live sandbox identifiers;
+- session memory;
+- scientific Evidence;
+- deployment credentials.
+
+A consumer may use `AgentIrV1` to construct a provider-specific runtime representation, but cannot modify semantic meaning.
+
+## 17. Generated products
+
+Tranche A may emit a bounded generated catalog such as:
+
+```text
+generated/agents/<fixture>/
+├── agent.ir.json
+├── tools.json
+└── manifest.json
+```
+
+Exact output location is owned by the implementation plan and existing generated-surface rules.
+
+Every retained output must be manifest-owned and digest-bound.
+
+`manifest.json` binds:
+
+- normalized source digest;
+- Codegen/compiler identity;
+- graph digest;
+- output inventory and digests.
+
+No generated product is hand edited.
+
+Check mode must be read-only.
+
+The existing recoverable publication mechanism is reused rather than inventing an agent-specific publisher.
+
+## 18. Provider adapters
+
+OpenAI, Anthropic/Claude/Codex, MCP, Vercel and eve are future runtime or projection adapters.
+
+They are not agent-semantic authorities.
+
+A provider adapter may translate:
+
+```text
+AgentIrV1
+→ provider instructions
+→ provider tool declarations
+→ provider model options
+```
+
+but must not invent:
+
+- new tools;
+- broader schemas;
+- capabilities;
+- credentials;
+- child permissions;
+- approval decisions.
+
+Provider-specific functionality that cannot be represented without changing semantic meaning requires an authored Mindclade contract extension first.
+
+No provider SDK enters tranche A's semantic kernel.
+
+## 19. Tool execution boundary for future tranches
+
+The future tool path is fixed as:
+
+```text
+model proposes ToolInvocation
+        ↓
+resolve compiled ToolBinding
+        ↓
+authenticate caller/session
+        ↓
+resolve exact CapabilityReference
+        ↓
+evaluate capability + invocation policy
+        ↓
+obtain exact HITL approval when required
+        ↓
+admit governed Run for effectful work
+        ↓
+existing durable execution system
+        ↓
+Artifact / Evidence / Provenance
+        ↓
+model-facing bounded projection
+```
+
+The model does not call a database/service implementation directly.
+
+A TypeScript callback existing in an adapter does not itself constitute execution authority.
+
+## 20. Exact invocation approval
+
+Future human approval is bound to one proposed invocation.
+
+The approval subject includes at least:
+
+```text
+request identity
+authenticated responder requirements
+session
+caller
+tool
+capability reference
+normalized input digest
+policy revision/digest
+expiration
+```
+
+Approval of one invocation does not approve:
+
+- arbitrary future calls;
+- another input payload;
+- another capability revision;
+- another caller;
+- another session.
+
+Request-time policy and responder authorization remain distinct.
+
+This design intentionally adopts eve's durable HITL mechanics while making the authorization subject stricter.
+
+## 21. Durable agent sessions
+
+Tranche C will introduce:
+
+```text
+AgentSession
+ └─ AgentTurn
+     ├─ ModelInvocation
+     ├─ ToolInvocation
+     └─ Delegation
+```
+
+These are agent interaction concepts.
+
+They do not replace platform:
+
+```text
+Run
+Attempt
+Lease
+Dispatch
+Artifact
+Evidence
+```
+
+An agent session may reference zero or more governed Runs.
+
+A single Run may outlive the model turn that initiated it.
+
+Client disconnect does not imply Run cancellation.
+
+Session cancellation requests cancellation through the owner of the affected work and remains pending until effects are reconciled.
+
+Completed durable platform steps are not replayed merely because the agent runtime reconstructs context.
+
+## 22. Memory, knowledge and evidence flow
+
+A future agent can consume:
+
+- conversation history;
+- scoped memory;
+- retrieved scientific knowledge;
+- tool results;
+- model results.
+
+Every source retains provenance and trust classification.
+
+Retrieved content remains data.
+
+It cannot:
+
+- grant capabilities;
+- change acceptance criteria;
+- rewrite a policy;
+- authorize a tool;
+- convert itself into scientific evidence.
+
+Where retrieved knowledge is used to support a scientific claim, the scientific system records the original attributable source/evidence path independently of the conversational memory representation.
+
+## 23. Observability and provenance
+
+The future agent trace should offer eve-quality operational visibility while retaining Mindclade semantic identity.
+
+A trace should correlate, where applicable:
+
+```text
+trace_id
+agent_identity
+agent_ir_digest
+agent_session_id
+turn_id
+model_invocation_id
+tool_invocation_id
+delegation_id
+capability_digest
+run_id
+attempt_id
+artifact_digest
+policy_digest
+decision_digest
+```
+
+Operational traces remain observability records.
+
+They do not substitute for independently controlled qualification evidence.
+
+Routine telemetry must exclude secrets, raw credentials and unrestricted scientific payloads.
+
+## 24. Validation and diagnostics
+
+Diagnostics must be stable, located and actionable.
+
+Required tranche A negative categories include:
+
+1. unknown `AgentDescriptor@v1` field;
+2. unsupported source version;
+3. invalid logical path;
+4. traversal outside agent root;
+5. symlink escape;
+6. duplicate normalized path;
+7. case/Unicode name collision;
+8. malformed agent identity component;
+9. missing `instructions.md`;
+10. duplicate tool name;
+11. malformed ToolBinding;
+12. unresolved CapabilityReference;
+13. wrong capability target kind;
+14. capability digest mismatch;
+15. policy reference failure;
+16. incompatible visibility/audience;
+17. malformed child package;
+18. duplicate child name;
+19. unsupported active filesystem slot;
+20. nondeterministic inventory order;
+21. source digest mismatch;
+22. generated-manifest drift.
+
+Invalid source produces no successful `AgentIrV1`.
+
+Warnings cannot be used for authority or security violations that require fail-closed behavior.
+
+## 25. Compatibility
+
+Agent source and `AgentIrV1` are versioned.
+
+Compatibility must be explicit.
+
+Examples expected to be breaking or re-review-requiring include:
+
+- changing an exact capability reference;
+- removing a tool;
+- changing the capability behind an existing tool name;
+- weakening a policy reference;
+- renaming a child;
+- changing child capability requirements;
+- changing instruction bytes when a frozen agent identity claims the prior digest.
+
+Adding a new tool can expand the model-visible action surface and therefore is not presumed harmless merely because an API consumer can ignore it.
+
+Compatibility classification belongs in Codegen, not provider adapters.
+
+## 26. Testing strategy
+
+Tranche A follows test-first development.
+
+Tests must be independently meaningful rather than snapshots created after implementation.
+
+The tightest applicable tiers are:
+
+```text
+Unit
+→ Integration
+→ Conformance
+```
+
+Runtime tranches later extend this to:
+
+```text
+Unit
+→ Integration
+→ Scenario
+→ E2E
+→ Independent Qualification
+```
+
+### Tranche A positive fixtures
+
+At minimum:
+
+- minimal agent with instructions and no tools;
+- agent with one capability-backed tool;
+- deterministic multi-tool agent;
+- agent with one local child;
+- parent and child with different tool surfaces;
+- equivalent package compiled from different checkout roots producing identical canonical semantic output.
+
+### Tranche A negative fixtures
+
+At minimum exercise every diagnostic category in §24, including:
+
+- traversal;
+- path collision;
+- stale capability digest;
+- wrong target kind;
+- unauthorized visibility crossing;
+- unsupported populated memory/sandbox/skill slot;
+- child requesting a binding absent from its own compiled surface;
+- differing filesystem enumeration order.
+
+### Determinism
+
+Repeat compilation with permuted discovery order.
+
+Canonical graph and IR bytes must be identical.
+
+Variable receipts remain outside canonical semantic identity.
+
+## 27. Repository boundaries
+
+Tranche A should reuse existing roots.
+
+Expected authored implementation areas are bounded to:
+
+```text
+contracts/
+codegen/
+codegen/tests/
+tests/conformance/
+docs/architecture/
+docs/superpowers/
+```
+
+Exact paths and ownership belong in the implementation plan and reviewed WorkPacket.
+
+The product `agents/` runtime root is not activated by this compiler tranche.
+
+The existing agent-service descriptor remains planned/non-executable.
+
+The scaffold manifest is changed only when a reviewed implementation actually transitions a specific reserved path.
+
+Do not reseal modified placeholders.
+
+## 28. Documentation
+
+The implementation must add or align:
+
+- a human explanation of agent authoring;
+- the authoring filesystem reference;
+- `AgentDescriptor@v1`;
+- `AgentIrV1`;
+- compiler/graph relationship;
+- explicit `.agents/` versus `agents/` distinction;
+- unsupported-slot behavior;
+- generated-surface ownership;
+- maturity status.
+
+Documentation must not describe future sessions, sandboxing, memory or provider adapters as implemented during tranche A.
+
+Examples must identify whether they are compiler fixtures or runnable agents.
+
+## 29. Security properties
+
+Tranche A must establish source-level fail-closed behavior for:
+
+- path traversal;
+- symlink escapes;
+- capability substitution;
+- digest mismatch;
+- audience crossing;
+- unsupported security-relevant declarations;
+- malformed/unknown fields;
+- generated-output tampering.
+
+Later runtime tranches must additionally prove:
+
+- deny-by-default sandbox networking;
+- credential non-disclosure;
+- no ambient privilege inheritance;
+- exact approval binding;
+- authenticated memory scope;
+- cancellation reconciliation;
+- stale policy/evidence invalidation;
+- prompt-injection resistance at the capability boundary.
+
+Model behavior is never the sole security boundary.
+
+## 30. Relationship to eve
+
+Mindclade intentionally adopts the following eve-quality design ideas:
+
+- filesystem-first authoring;
+- names derived from paths;
+- clear tool/skill/memory/sandbox/subagent slots;
+- durable-session UX;
+- explicit HITL;
+- provider-neutral sandbox lifecycle;
+- isolated declared children;
+- reconnectable execution;
+- strong developer-facing diagnostics;
+- layered unit/integration/scenario/E2E tests;
+- rich agent-run tracing.
+
+Mindclade intentionally does not adopt:
+
+- the filesystem/runtime framework as semantic authority;
+- provider callbacks as capability grants;
+- inherited child privileges as the default;
+- agent runtime as the durable scientific/job scheduler;
+- agent memory as evidence;
+- deployment-provider state as platform authority;
+- framework-level E2E success as independent scientific qualification.
+
+eve remains a useful implementation reference and optional future adapter, not Mindclade's canonical agent platform.
+
+## 31. Acceptance for tranche A
+
+Tranche A is source-complete only when all of the following are demonstrated for the exact candidate:
+
+1. One representative filesystem-authored agent compiles through the official agent adapter and Codegen.
+2. The resulting semantics exist in the one immutable MindcladeGraph.
+3. `AgentGraphView` is borrowed from that graph rather than separately authoritative.
+4. `AgentIrV1` is deterministic.
+5. Tool names derive from paths.
+6. Tool bindings resolve exact typed capabilities.
+7. Child definitions do not inherit parent authored capabilities automatically.
+8. Instructions cannot change authority.
+9. Unsupported nonempty runtime slots fail visibly.
+10. Traversal, collisions, stale references and audience violations fail closed.
+11. Generated output is manifest-owned and drift-checked.
+12. Existing VS-001/foundation behavior remains green.
+13. Documentation accurately records that no agent runtime is active.
+14. A fresh reviewer assesses the candidate against frozen criteria.
+15. Protected repository governance is followed for the actual source change.
+
+These conditions establish the agent authoring/compiler foundation only.
+
+They do not establish:
+
+- live model execution;
+- durable agent sessions;
+- tool execution;
+- sandbox qualification;
+- child runtime isolation;
+- memory isolation;
+- scientific correctness;
+- deployment;
+- production readiness.
+
+## 32. Delivery order after tranche A
+
+After tranche A and the required VS-001 durable prerequisites, the recommended order is:
+
+### Tranche B — capability tools and HITL
+
+Build the model/tool boundary and exact-input approval protocol.
+
+Exit: one generated model-facing tool can request a governed capability through policy and approval without bypassing the platform.
+
+### Tranche C — sessions
+
+Build durable agent sessions and streaming over existing durable infrastructure.
+
+Exit: a session can stop/restart/reconnect while maintaining correct turn state and Run references.
+
+### Tranche D1 — sandbox
+
+Build the provider contract and local/container provider first, then Vercel/Azure adapters.
+
+Exit: untrusted code operates with explicit filesystem/network/credential boundaries.
+
+### Tranche D2 — delegation
+
+Build durable children and explicit delegation grants.
+
+Exit: capability-intersection tests prove no automatic privilege inheritance.
+
+### Tranche D3 — memory
+
+Build authenticated scoped memory.
+
+Exit: cross-session recall works without converting memory into authority or Evidence.
+
+### Tranche E — assurance and provider integrations
+
+Add OpenAI/Anthropic adapters, MCP surfaces, scenario/E2E suites, independent qualification and operational trace tooling.
+
+Exit: one governed scientific-agent vertical can be independently assessed end to end.
+
+## 33. Completion target
+
+The complete program succeeds when an agent developer experiences a simple filesystem-native product while the platform underneath preserves Mindclade's stronger laws:
+
+```text
+simple authoring
+        +
+deterministic compiler
+        +
+typed capability boundaries
+        +
+attenuated authority
+        +
+durable execution
+        +
+explicit provenance
+        +
+independent assurance
+```
+
+The resulting system should feel as approachable to author and debug as eve, while remaining suitable for programmable biology, scientific computation and eventually controlled real-world effects where model behavior alone is not an acceptable trust boundary.
+
+## Read next
+
+- [AGA1 agent authoring/compiler criteria](2026-09-28-agent-authoring-compiler-criteria.md).
+- [AGA1 implementation plan](../plans/2026-09-28-agent-authoring-compiler.md).
+- [Agent capability attenuation](../../architecture/adr/ADR-011-agent-capability-attenuation.md).
+- [Scientific and agent planes](../../architecture/foundations/scientific-and-agent-planes.md).

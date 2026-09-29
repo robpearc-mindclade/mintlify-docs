@@ -1,0 +1,178 @@
+---
+title: "K1-32: contracts/typespec/main.tsp Retired to Tombstone"
+sidebarTitle: "K1-32 Tombstone"
+description: "Historical record for the K1-32 decision to retire contracts/typespec/main.tsp to a comment-only tombstone, preserving the pinned blueprint path."
+---
+
+This page records the 2026-09-26 historical decision to retire `contracts/typespec/main.tsp` to a tombstone. The retired content below is not a contract, a TypeSpec source, a Codegen input, or an authority. Nothing compiles, imports, or validates it.
+
+## Scope and outcome
+
+| Date | Scope | Outcome |
+| --- | --- | --- |
+| 2026-09-26 | Retire `contracts/typespec/main.tsp` to a comment-only tombstone per K1-32 Amendment 1 | File preserved as tombstone; pinned blueprint path retained |
+
+## Disposition
+
+- `contracts/typespec/main.tsp` stays, because the pinned original blueprint tree names it and the [scaffold manifest](../model/blueprint-scaffold.json) keeps it as a preserved file. Its content is now a comment-only [tombstone](https://github.com/Mindclade-org/mindclade-internal-monorepo/blob/main/contracts/typespec/main.tsp) that declares nothing, so compiling it, including through `tsp compile contracts/typespec`, yields an empty program.
+- No `typespec_compile` target compiles the tombstone. The [contract-source manifest](../model/contract-sources.json) excludes it with this reason. [validate_contract_sources.py](https://github.com/Mindclade-org/mindclade-internal-monorepo/blob/main/scripts/validate_contract_sources.py) requires every `contracts/**/*.tsp` to be a declared compile source or an explicit exclusion. It also fails if an uncompiled default entrypoint beside a `tspconfig.yaml` is not excluded or declares anything.
+- Original file: added by the bootstrap commit `f76ceae`; 1562 bytes, SHA-256 `1de4851a4182b7cebe31bb48a777ca9d89329e33fd65d63499b31361600ba7d6`, Git blob `8ed6645e7ac3b5a245ac0c50c2d28e3868dfbd8b`.
+
+## Why the content was retired
+
+- No `typespec_compile` target named it as an entrypoint, public source, or internal source. The official frontend never compiled it and Codegen never consumed it, yet its location under `contracts/` presented it as authored contract truth.
+- It declared a separate `Mindclade.VNext` namespace whose models used free-form strings for identity components, digests, reference target kinds, and timestamps. These disagree with the validated kernel identities and references and with the VS-001 contracts.
+- [tspconfig.yaml](https://github.com/Mindclade-org/mindclade-internal-monorepo/blob/main/contracts/typespec/tspconfig.yaml) configures the official emitter with the `mindclade/foundation/v1` package identity. Running `tsp compile contracts/typespec` compiles that directory's `main.tsp` by default, so the old content could have emitted a second, unrelated semantic input under the foundation package identity.
+
+## Current authority
+
+- Public contract: [public/echo.tsp](https://github.com/Mindclade-org/mindclade-internal-monorepo/blob/main/contracts/typespec/public/echo.tsp).
+- Internal contracts: [internal/main.tsp](https://github.com/Mindclade-org/mindclade-internal-monorepo/blob/main/contracts/typespec/internal/main.tsp), [execution.tsp](https://github.com/Mindclade-org/mindclade-internal-monorepo/blob/main/contracts/typespec/internal/execution.tsp), and [assurance.tsp](https://github.com/Mindclade-org/mindclade-internal-monorepo/blob/main/contracts/typespec/internal/assurance.tsp).
+- Foundation regression fixture: [fixtures/foundation/echo.tsp](https://github.com/Mindclade-org/mindclade-internal-monorepo/blob/main/contracts/fixtures/foundation/echo.tsp).
+- Kernel identity, reference, and record semantics: [core/src/lib.rs](https://github.com/Mindclade-org/mindclade-internal-monorepo/blob/main/core/src/lib.rs).
+- Service descriptors: [ServiceDescriptor@v1](../service-descriptor-v1).
+- The declared compile sources are the `typespec_compile` targets in [the frontend BUILD file](https://github.com/Mindclade-org/mindclade-internal-monorepo/blob/main/codegen/frontend/typespec/BUILD.bazel).
+
+## Retired content
+
+The block below reproduces the original bytes. The file ended with one empty line, which is the block's last line. Do not copy it back under `contracts/`.
+
+```typespec
+namespace Mindclade.VNext;
+
+model Identity {
+  namespace: string;
+  name: string;
+  version: string;
+}
+
+model Digest {
+  algorithm: string;
+  value: string;
+}
+
+model Reference {
+  identity: Identity;
+  digest: Digest;
+  targetKind: string;
+}
+
+model Artifact {
+  identity: Identity;
+  kind: string;
+  digest: Digest;
+  provenance: Reference;
+}
+
+model Capability {
+  identity: Identity;
+  owner: string;
+  policy: Reference;
+}
+
+model Implementation {
+  identity: Identity;
+  capability: Reference;
+  source: Reference;
+}
+
+model Run {
+  identity: Identity;
+  capability: Reference;
+  implementation: Reference;
+  inputs: Reference[];
+  outputs: Reference[];
+  evidence: Reference[];
+}
+
+model Evidence {
+  identity: Identity;
+  subject: Reference;
+  producedBy: Reference;
+  statement: string;
+}
+
+model Claim {
+  identity: Identity;
+  subject: Reference;
+  statement: string;
+  evidence: Reference[];
+}
+
+model Policy {
+  identity: Identity;
+  scope: string;
+  rule: string;
+}
+
+model Decision {
+  identity: Identity;
+  claim: Reference;
+  policy: Reference;
+  outcome: string;
+}
+
+model Provenance {
+  identity: Identity;
+  source: Reference;
+  actor: string;
+  occurredAt: string;
+}
+
+model ServiceDescriptorV1 {
+  identity: Identity;
+  ownership: string;
+  capabilities: Reference[];
+  protocols: string[];
+  dependencies: Reference[];
+  configuration: string[];
+  secrets: string[];
+  health: string[];
+  resources: string[];
+  scaling: string;
+  topology: string;
+  telemetry: string[];
+  security: string[];
+  deployment: Reference;
+  qualification: Reference;
+}
+```
+
+<Note>
+  The block above reproduces the original bytes for audit purposes. Do not restore this content under `contracts/`.
+</Note>
+
+## Decisions
+
+- `contracts/typespec/main.tsp` remains as a scaffold-preserved tombstone, not a compile source.
+- The pinned blueprint path is retained per Rob's same-day amendment.
+- `validate_contract_sources.py` enforces that every `.tsp` file is either a declared compile source or an explicit exclusion.
+
+## Follow-ups
+
+- Ensure no `typespec_compile` target inadvertently includes the tombstone.
+- Monitor the contract-source manifest for future exclusions.
+
+## Evidence
+
+No JSON evidence files are produced. Evidence is the tombstone file content, Git blob hash, and SHA-256 digest as recorded above.
+
+## Related
+
+<CardGroup cols={2}>
+  <Card title="K1 Compatibility Reports" icon="file-shield" href="/architecture/reviews/2026-09-26-k1-compatibility-reports">
+    K1-12 and K1-31 compatibility reports with policy changes
+  </Card>
+
+  <Card title="K1 Criteria" icon="list-check" href="/superpowers/specs/2026-09-26-k1-codegen-contracts-hardening-criteria">
+    K1 codegen contracts hardening criteria and amendments
+  </Card>
+
+  <Card title="Service Descriptor v1" icon="file-code" href="/architecture/service-descriptor-v1">
+    Current service descriptor authority and profile rules
+  </Card>
+
+  <Card title="Public Echo Contract" icon="code" href="https://github.com/Mindclade-org/mindclade-internal-monorepo/blob/main/contracts/typespec/public/echo.tsp">
+    Current public TypeSpec contract source
+  </Card>
+</CardGroup>

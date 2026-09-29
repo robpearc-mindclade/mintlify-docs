@@ -1,0 +1,143 @@
+---
+title: "Run Foundation Echo locally"
+sidebarTitle: "Foundation Echo"
+description: "Build and run the non-durable Foundation Echo binary, read receipts, stop it cleanly, and check that nothing is left running. B3b, partial VS-001."
+---
+
+Purpose: build and run the Foundation Echo binary, read its receipts, stop it cleanly and check that nothing is left running.
+
+Audience: developers and the authorized parent or integrator.
+
+Status: B3b, integrated at `main` `72b762d` (PR #18); its configuration, exit codes, control channel and the `just run-echo` route were rechecked against `main` `1fe3c1a`, the closeout merge. It is **non-durable partial VS-001**: loopback only, test admission, nothing stored. It is not a deployment and not a qualified service.
+
+Use it when: building, running (`just run-echo`), calling and stopping the non-durable Echo binary.
+
+Prerequisites: the pinned shell ([start here](/developer/start-here)) and a terminal whose stdin stays open while the binary runs (section 5).
+
+This runbook adds operating steps to the short [VS-001 handoff section](/developer/vs001-handoff#running-the-non-durable-echo-binary-b3b). The component's design, API and tests are in the [Foundation Echo README](https://github.com/Mindclade-org/mindclade-internal-monorepo/blob/main/services/foundation_echo/README.md). The HTTP surface is in the [VS-001 Echo API reference](/api/vs001-echo).
+
+## 1. Build
+
+```bash
+nix develop --no-write-lock-file -c bazel build //services/foundation_echo:foundation_echo
+nix develop --no-write-lock-file -c bazel cquery --output=files //services/foundation_echo:foundation_echo
+```
+
+The second command prints the path of the built binary. The Cargo package `mindclade-foundation-echo` also declares the binary `foundation_echo`. The Bazel route above is the documented one, and it is what the tests exercise.
+
+`just run-echo` does both steps and then runs the binary in the foreground, with the terminal as its stdin:
+
+```bash
+nix develop --no-write-lock-file -c just run-echo
+```
+
+It stops with an error if the build fails or `cquery` names no executable. The rest of this runbook applies unchanged: the receipts in section 3, and `shutdown` or Ctrl-D in that terminal to stop it (section 5).
+
+## 2. Run
+
+Run the file that `cquery` printed, in a terminal, with stdin left open. It takes no arguments, environment variables or config file. Its configuration is compiled in from [`generated/vs001/service/config.rs`](https://github.com/Mindclade-org/mindclade-internal-monorepo/blob/main/generated/vs001/service/config.rs):
+
+| Setting | Value |
+| --- | --- |
+| Listen | `127.0.0.1:0` (an ephemeral loopback port, reported in the ready receipt) |
+| Service identity | `Mindclade.Foundation` / `foundation-echo` / `v1` |
+| Tenant, environment | `Mindclade.Test` / `tenant` / `v1`, `Mindclade.Test` / `local` / `v1` |
+| Max body | 65536 bytes |
+| Max in flight | 8 connections |
+| Request timeout | 2000 ms per phase (head, body, write) |
+| Shutdown timeout | 5000 ms |
+| Admission | `test` (the only mode that exists) |
+| Log level | `info` |
+
+To change any of these, change `services/foundation_echo/service.descriptor.yaml` and regenerate ([regenerate generated outputs](/runbooks/regenerate-generated-outputs)). RuntimeKit rejects any non-loopback address, and any other service, tenant, environment or body limit.
+
+## 3. Receipts and telemetry
+
+**stdout** carries exactly two JSON lines:
+
+```json
+{"address":"127.0.0.1:PORT","admission":"test","descriptor_digest":"sha256:…","schema":"FoundationEchoReady@v1"}
+{"outcome":"drained","schema":"FoundationEchoStopped@v1"}
+```
+
+`descriptor_digest` is the digest compiled into `service/config.rs`. `outcome` is `"overrun"` only when the drain overruns (exit 5).
+
+**stderr** carries only telemetry: one JSON object per line with the keys `code`, `conn`, `event`, `level`, `reason`, `status` and `ts_ms`, omitting any that are absent. `event` is one of `ready`, `accepted`, `rejected`, `completed`, `deadline`, `disconnect`, `write_failed`, `shutdown_begin`, `shutdown_complete`, `worker_exit`, `config_error`, `bind_error`, `transport_failed` or `overrun`. Values come from closed sets, so no address, path, header, body or `requestId` appears ([`platform/runtimekit/src/telemetry.rs`](https://github.com/Mindclade-org/mindclade-internal-monorepo/blob/main/platform/runtimekit/src/telemetry.rs)).
+
+## 4. Call it
+
+Use the generated TypeScript client with `baseUrl: "http://<address>"`, where `<address>` comes from the ready receipt. See [calling it with the client](/api/vs001-echo#4-calling-it-with-the-generated-typescript-client). The process tests do the same with the Bazel-compiled `client_module.mjs`.
+
+A raw HTTP call also works. The command below is not run by the repository's tests; it follows the framing rules in the API reference, section 6:
+
+```bash
+curl -sS -i -H 'content-type: application/json' -H 'Expect:' \
+  --data '{"message":"hello","tags":[]}' "http://127.0.0.1:PORT/echo/r-1"
+```
+
+It should return `200` with `{"message":"hello"}`. RuntimeKit answers any `expect` header with 417; `-H 'Expect:'` stops curl from sending `Expect: 100-continue` for larger bodies.
+
+## 5. Stop it: the stdin control channel
+
+stdin is the supervisor control channel ([`services/foundation_echo/src/lib.rs`](https://github.com/Mindclade-org/mindclade-internal-monorepo/blob/main/services/foundation_echo/src/lib.rs)):
+
+- A line that is exactly `shutdown` (one trailing `\r` allowed), or end of input (Ctrl-D in a terminal), requests a drained shutdown.
+- Every other line is ignored, including near misses such as ` shutdown` or `SHUTDOWN`, non-UTF-8 bytes and lines longer than 64 bytes. Repeated `shutdown` lines are not read.
+- **Closed stdin drains at once.** With `</dev/null`, `nohup … &` or any closed stdin, the binary prints the ready receipt, drains immediately and exits 0.
+- **Signals do not drain.** Neither the service nor RuntimeKit installs a signal handler. Ctrl-C (SIGINT) or `kill` (SIGTERM) ends the process immediately: no drain, no stopped receipt. Use `shutdown` or Ctrl-D instead.
+- A non-transient listener accept failure (`transport_failed`) also requests shutdown.
+
+A drain stops accepting and closes connections still reading their request. Running handlers see cancellation and have until the 5000 ms shutdown timeout. Remaining sockets are then closed, with a fixed 250 ms grace for I/O-bound workers; a worker still running after that is an overrun (exit 5). After a clean exit the reported address refuses connections.
+
+## 6. Exit codes
+
+| Code | Meaning | Output |
+| --- | --- | --- |
+| 0 | Drained | Ready and `"drained"` receipts |
+| 1 | Other: the control reader could not start, a receipt could not be written, or a listener accept failure | The service still drains and writes `"drained"` when it can |
+| 3 | Configuration rejected by the checked constructor | One `config_error` line with a `code` such as `config-listen`; no receipt; nothing bound |
+| 4 | Bind failure or identity mismatch | No receipt; a bind failure also logs `bind_error` |
+| 5 | Overrun: a worker did not finish within the drain bound | Ready and `"overrun"` receipts; the process exits while still owning the workers |
+
+Source: `EXIT_*` constants and `supervise` in [`services/foundation_echo/src/lib.rs`](https://github.com/Mindclade-org/mindclade-internal-monorepo/blob/main/services/foundation_echo/src/lib.rs), and [`main.rs`](https://github.com/Mindclade-org/mindclade-internal-monorepo/blob/main/services/foundation_echo/src/main.rs).
+
+## 7. Check for leftover processes and listeners
+
+After the stopped receipt, or after any abnormal end:
+
+```bash
+pgrep -fl foundation_echo                    # any process started from the package
+lsof -nP -iTCP:PORT -sTCP:LISTEN             # PORT from the ready receipt; expect no output
+```
+
+On Linux, `pgrep -fa foundation_echo` shows full command lines. The pattern also matches the test-only `config_probe_*` binaries, whose paths contain `foundation_echo`.
+
+If a process is still running, it is still waiting on an open stdin. Send `shutdown` to its terminal, or close its stdin, and watch for the stopped receipt. Use `kill <pid>` only as a last resort, and record that the run ended without a drain or stopped receipt. The process tests follow the same rule: a child still alive after a test case is killed with SIGKILL and the case fails.
+
+## 8. Limits
+
+- **Nothing is durable.** `TestAdmission` echoes the message and stores nothing. The same `requestId` never conflicts, nothing survives a restart, and 409 is never returned. PostgreSQL state, outbox, idempotency and recovery belong to C1–C5; C2 introduces idempotency.
+- **Loopback and test identity only.** There is no authentication, TLS, durable admission mode or deployment. The descriptor records `deployment: {enabled: false}` and `qualification: {status: pending}`.
+- **Bounded transport.** One request per connection. At most 8 connections are read at once; more wait in the kernel backlog. Deadlines are 2000 ms per phase. The HTTP rules are in the [API reference](/api/vs001-echo#6-current-service-behaviour-beyond-the-contract).
+- **Not yet built:** D1–D4 replay and independent assessment, and owner acceptance. B4 dependency enforcement is merged (PR #22) and runs in every `just verify` as the host-scope `verify-boundaries` check. See the [task register](/developer/agent-handoff#current-task-register).
+
+The tests that cover this binary run in `just verify`: `//services/foundation_echo:process_tests` (the Node process test against the real binary), `:composition_in_process`, `:composition_compile_fail` and `:supervisor_unit_tests`. See [local verification](/runbooks/local-verification).
+
+## 9. If it fails
+
+| Symptom | Meaning | Recovery |
+| --- | --- | --- |
+| The build fails, or `just run-echo` stops before the binary starts | A build or host failure | Triage it with [local verification](/runbooks/local-verification#5-if-it-fails-host-failure-or-verdict) |
+| Exit 3 and one `config_error` line | The checked constructor rejected the generated configuration; nothing was bound | Change `services/foundation_echo/service.descriptor.yaml` and regenerate (section 2); never edit `generated/` |
+| Exit 4 | Bind failure (a `bind_error` line) or identity mismatch; no receipt | Keep the stderr telemetry and hand it to the integrator |
+| Exit 5 and an `"overrun"` receipt | A worker did not finish within the drain bound | Check for leftovers (section 7) and record the overrun |
+| Exit 1 | The control reader, a receipt write or the listener failed | The service still drains when it can; check for leftovers (section 7) |
+| No stopped receipt after Ctrl-C or `kill` | Signals do not drain (section 5) | Check for leftovers (section 7) and record that the run ended without a drain |
+
+Nothing is stored, so there is nothing to roll back: a restart starts from nothing (section 8). Escalate to the parent or integrator with the receipts, the stderr telemetry and the exit code. The component's failure detail is in the [Foundation Echo README](https://github.com/Mindclade-org/mindclade-internal-monorepo/blob/main/services/foundation_echo/README.md#failure-behaviour).
+
+## Read next
+
+- [VS-001 Echo API reference](/api/vs001-echo).
+- [Codebase map](/developer/codebase-map) for RuntimeKit, TestKit and Codegen around this service.
+- [Service configuration](/architecture/service-config-v1) and [ServiceDescriptor@v1](/architecture/service-descriptor-v1).

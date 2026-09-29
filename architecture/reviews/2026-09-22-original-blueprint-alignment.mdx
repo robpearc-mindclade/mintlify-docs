@@ -1,0 +1,107 @@
+---
+title: "Original Greenfield Blueprint Alignment (2026-09-22)"
+sidebarTitle: "Blueprint Alignment"
+description: "Reconciliation of the original greenfield blueprint against the current repository baseline, covering scope, corrected locations, requirement review, and stub safety."
+---
+
+This page records the alignment of the original greenfield blueprint with the current vNEXT repository baseline on 2026-09-22. The goal is to materialize all stub directories and files while retaining previous vNEXT work, and to document what was corrected during that alignment.
+
+| Field | Value |
+| --- | --- |
+| Date | 2026-09-22 |
+| Baseline reviewed | `4cdb333bfe392dd74da0b60f2dcf0d980a80bc25` |
+| Scope | Original-prompt alignment plus the user's subsequent request to materialize all stub directories and files while retaining previous vNEXT work |
+
+## Source and coverage
+
+The [original blueprint](/architecture/sources/original-greenfield-blueprint) is a byte-for-byte snapshot of the supplied attachment. SHA-256: `c23d824ea6d2890bde8d1032ce4e0341cbd98ea4cc217c94eb0cec36c7665c38`.
+
+Sections 2 and 13 name **706 directories and 124 files** after deduplication. All are materialized. Eighteen already-existing named files were retained instead of replaced with placeholders; 106 named files were added. Empty target leaves use tracked, explicitly approved directory markers so Git preserves the shape.
+
+Thirty-five nested extension directories retain useful earlier vNEXT requirements inside the original roots. Together the changes add **713 explicit stub files**: 106 named placeholders and 607 directory markers. No packages, external tools, cloud resources, CI integrations, training jobs, or model dependencies were installed or activated.
+
+The [scaffold manifest](/architecture/model/blueprint-scaffold) records the original path set, extensions, preserved file names, and exact placeholder hashes. The parser checks both tree sections, rejects malformed lines, and compares the recorded path sets to the original source. The current [repository tree](/architecture/repository-tree) is refreshed from actual files.
+
+## Misalignment corrected
+
+The previous 27-root planning map was not a faithful transcription of the original compact tree. The following responsibilities are retained at corrected locations:
+
+| Earlier planning address | Aligned location |
+| --- | --- |
+| runtimekit/ | platform/runtimekit/ |
+| testkit/ | platform/testkit/ |
+| sdk/ | products/sdk/ |
+| apps/ | products/console/, products/admin/, and other product surfaces |
+| knowledge/ | data/knowledge/ |
+| experiments/ | contracts/science/experiments/, platform/experiments/, thin services/experiment_service/ |
+| assurance/ | Independently owned tests/qualification/, tests/scientific/, and tools/qualification/ |
+| factory/ | tools/engineering/ plus .agents/ workflows and platform execution primitives |
+| governance/ | .agents/policies/, platform/policy/, platform/budgets/, and tools/architecture/ |
+| build/ | tools/build/ for Bazel/Nix support |
+
+No existing implementation directories were deleted: these were planned addresses only. Existing Rust, TypeSpec, bootstrap checks, and accepted ADRs are preserved. The scripts/ root remains as an explicit bootstrap compatibility extension until a separately reviewed tooling migration.
+
+Restored original surfaces include .agents/, .buildkite/, .azuredevops/, protocols/, products/, tests/, tools/, detailed service/worker descriptors, generated product/provenance destinations, architecture source-model filenames, and architecture view destinations. Their existence is scaffold coverage only.
+
+## Requirement review
+
+| Original section | Alignment and evidence boundary |
+| --- | --- |
+| 1. Canonical architecture | Codegen remains sole compiler. vNEXT's MindcladeGraph owns semantic truth; SemanticGraph/CapabilityGraph are typed views, not separate authorities. Forge is historical only. |
+| 2. Final tree | Every literal directory and named file is covered by the scaffold validator; existing source is retained. |
+| 3. Root responsibilities | Original compact domain/product/platform roots restored; previous useful additions nested and documented. |
+| 4. Architecture laws | Accepted vNEXT laws retained. ADR-015 records the user-authorized scaffold exception without granting qualification. |
+| 5. Dependency/ownership | Core remains independent of products/services/cloud. Services remain thin; tests may depend broadly but production cannot depend on tests. Future import enforcement remains unimplemented. |
+| 6. Generated/authored boundaries | Authored contracts and descriptors remain separate from generated protocols/products/views. Placeholder markers are not Codegen artifacts. |
+| 7. RuntimeKit | Canonical path corrected to platform/runtimekit. Lifecycle, config, identity, health, telemetry, and shutdown remain planned. |
+| 8. TestKit | Canonical path corrected to platform/testkit. Fake clocks, identity, stores, workers, models, and assertions remain planned. |
+| 9. ServiceDescriptor@v1 | Every named service/worker descriptor exists as an explicitly incomplete planned stub; no process is recognized as deployable from it. |
+| 10. Deployment | Synthesis, qualification, signing, promotion, and GitOps retained. Source/runtime/deployment/connected/scientific/release lanes remain distinct and unqualified. |
+| 11. Engineering provenance | [Provenance requirements](/architecture/provenance-requirements) retain intent-to-deployment receipt fields and review scope. |
+| 12. Scientific provenance | Same companion retains source/quarantine/curation/data/splits/model/evaluation/claim lineage and uncertainty. |
+| 13. Architecture source models | All six named model JSON files and view filenames exist as blocked placeholders. Existing YAML seed/maturity remain active until reviewed Codegen integration. No hand-authored atlas is presented as generated evidence. |
+| 14. VS-001 | Keep the bounded fake-worker first proof and the full semantic-change lifecycle. A fake/manifest-only milestone is not general release/deployment/scientific completion. |
+| 15. Development platform | Engineering graph responsibilities and tools/CI adapters restored; link requirements through incidents and remediation. Actual CI evidence remains absent. |
+| 16. Scientific planes | Biological, knowledge, data, model, learning, runtime, experiment, and agent boundaries retained. NOVA representation/embedding and protected evaluation additions survive. |
+| 17. Trust/security | Tenant, identity, approval, secrets, external API, licensing, raw-data, model/generated artifact, environment, and production boundaries retained; destructive/irreversible actions need explicit approval. |
+| 18. External tool policy | Directories represent adapters only. Kubernetes, GCP/Azure, and OpenTelemetry remain design targets, not verified connected systems. No optional dependency is installed by scaffolding. |
+| 19. Maturity | All stubs stay planned. Physical state scaffolded is separate from implemented/qualified/production maturity. The partial vocabulary is retained for incomplete behavioral implementations. |
+| 20. Operating principle | Contracts/descriptors/models/tests/evidence retain their roles. Tree presence cannot establish behavior or qualification. |
+
+## Deliberate reconciliation
+
+Existing Rust implementations remain in core/src and codegen/src; the original module-directory reservations do not create duplicate libraries. Accepted ADRs remain canonical in docs/architecture/adr. The original docs/adr and architecture decisions directories are reserved stubs, not competing decision authorities.
+
+The original descriptor example and .v1.json filenames describe future contracts, not already implemented schemas. Stub descriptors omit executable configuration and cannot authorize deployment. No example credentials, runtime entrypoints, cloud quotas, or health endpoints are asserted as working.
+
+The original model names and multiple service names reserve possible destinations; they do not select checkpoints, force separate deployments, or override modular-monolith-first. Thin service subdirectories must stay adapters/orchestration, not duplicate domain frameworks.
+
+The existing biological-source review, scientific requirements, independent assurance, exact-candidate evidence, effect reconciliation, budgets, and generated product checks remain part of vNEXT. Extensions preserve core Reference/Decision, BiologicalState context, knowledge citations/claims/linking, NOVA shared representation, experiment orchestration, engineering workflows, and release tests.
+
+## Stub safety and next work
+
+Named lockfiles are explicit placeholders, not resolved locks. The new flake.lock does not pin Nix; uv/pnpm placeholders do not resolve Python/Node dependencies. go.sum is empty because no Go dependencies are selected. Cargo.lock and the working Rust bootstrap are retained. Do not run package/bootstrap/deploy tooling on the assumption that the scaffold is configured.
+
+Generated MANIFEST/PROVENANCE and architecture view placeholders are explicitly non-evidence. They must be replaced by Codegen-emitted, provenance-bound artifacts through a reviewed transition. Shell/Python tool stubs exit 2 with BLOCKED. CI adapter stubs do not create a functioning verification pipeline.
+
+Coverage and local regression passes establish structural alignment only. The [roadmap](/architecture/implementation-roadmap) still requires real Nix/frontend pins, executable Bazel builds, immutable kernel/graph invariants, VS-001, independent CI/review, runtime recovery, and scientific/release/deployment qualification.
+
+## Related
+
+<CardGroup cols={2}>
+  <Card title="Repository Tree" icon="folder-tree" href="/architecture/repository-tree">
+    Current refreshed repository tree derived from actual files.
+  </Card>
+
+  <Card title="Implementation Roadmap" icon="map" href="/architecture/implementation-roadmap">
+    Remaining Phase 0 gates and planned qualification sequence.
+  </Card>
+
+  <Card title="Master Blueprint" icon="book" href="/architecture/master-blueprint">
+    Canonical architecture reference and operating principles.
+  </Card>
+
+  <Card title="ADR-015 Scaffold" icon="file-plus" href="/architecture/adr/adr-015-original-blueprint-scaffold-alignment">
+    Record of the user-authorized scaffold exception.
+  </Card>
+</CardGroup>

@@ -1,0 +1,55 @@
+---
+title: "ADR-015: Original Blueprint Alignment and Explicit Scaffold Exception"
+sidebarTitle: "ADR-015"
+description: "Authorizes a bounded scaffold exception for the original greenfield blueprint while preserving all prior architecture laws and restricting runtime activation."
+---
+
+This architecture decision records a bounded scaffold exception for the original greenfield blueprint. It is for engineers, reviewers, and agents who need to understand what the scaffold covers, what it does not authorize, and how it relates to the preserved architecture laws.
+
+## Status
+
+| Attribute | Value |
+| --- | --- |
+| Status | Accepted for the user's explicit scaffold request |
+| Date | 2026-09-22 |
+| Related | [2026-09-22 original blueprint alignment review](../reviews/2026-09-22-original-blueprint-alignment) |
+
+## Context
+
+The user supplied the original greenfield blueprint, requested alignment, then explicitly asked to create all stub directories and files on top of the previous tasks. This authorizes a bounded exception to the earlier minimal-scaffold policy. It does not authorize runtime activation, deployment, dependency installation, or claims of implementation.
+
+## Decision
+
+Use the original blueprint's compact ownership roots. RuntimeKit and TestKit belong under `platform/`, authored developer products under `products/`, knowledge under `data/knowledge/`, and cross-cutting assurance under `tests/qualification` and `tools/qualification` with independent ownership. Preserve the existing `scripts/` bootstrap helpers as a documented compatibility location.
+
+Materialize sections 2 and 13 as explicit planned stubs. Retain useful earlier vNEXT responsibilities as documented nested extensions, not duplicate roots. A source snapshot and structural manifest bind the scope. Only manifest-listed directory markers and named placeholder files are permitted under this exception.
+
+A scaffolded root is physically present but semantically planned. Executable script stubs must exit BLOCKED. CI, toolchain lock, service descriptor, architecture model, and generated-output placeholders are not usable configurations, pins, emitted artifacts, attestations, or qualification evidence.
+
+### Preserved laws
+
+ADR-000 through ADR-014 remain unchanged. MindcladeGraph is the single compiled graph; SemanticGraph and CapabilityGraph are typed views. Codegen is the sole semantic compiler. Independent assurance, agent attenuation, modular-monolith-first, PostgreSQL/outbox, RuntimeKit/TestKit, ServiceDescriptor@v1, staged GitOps promotion, TileLang, generated C ABI, and the no-Triton/no-tch-rs baseline are preserved.
+
+## Consequences
+
+- Coverage proves the requested paths exist, not that the platform works.
+- Stub hashes detect unreviewed edits. Real implementation requires a reviewed manifest transition, honest maturity, tests, and applicable independent evidence.
+- No automatic resealing of altered stubs is allowed.
+- Generated placeholders must be retired before Codegen publishes real artifacts.
+- The original source snapshot remains immutable; corrections belong in the [alignment review](../reviews/2026-09-22-original-blueprint-alignment).
+
+## Alternatives
+
+Not stated.
+
+## Related
+
+<CardGroup cols={2}>
+  <Card title="ADR-000 Constitution" icon="scroll" href="/architecture/adr/adr-000-mindclade-vnext-architecture-constitution">
+    The foundational constitution preserved by this scaffold.
+  </Card>
+
+  <Card title="Original Blueprint Alignment Review" icon="magnifying-glass" href="/architecture/reviews/2026-09-22-original-blueprint-alignment">
+    The review where corrections to the scaffold snapshot are recorded.
+  </Card>
+</CardGroup>

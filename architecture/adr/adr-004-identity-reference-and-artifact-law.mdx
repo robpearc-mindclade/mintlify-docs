@@ -1,0 +1,32 @@
+---
+title: "ADR-004: Identity, Reference, and Artifact Law"
+sidebarTitle: "ADR-004 Identity Law"
+description: "Defines Identity, Reference, and Artifact as foundational typed primitives for all artifacts in Mindclade."
+---
+
+ADR-004 establishes `Identity`, `Reference<T>`, and `Artifact` as foundational primitives. References are typed and immutable, while artifacts carry identity, digest, kind, and provenance.
+
+| Status | Date | Related |
+| :-- | :-- | :-- |
+| Accepted | 2026-09-22 | Not stated |
+
+## Context
+
+Before any service, model, or evidence can be trusted, the system must have a single law for what an artifact is and how it is addressed.
+
+## Decision
+
+`Identity`, `Reference<T>`, and `Artifact` are foundational primitives. References are typed and immutable. Artifacts carry identity, digest, kind, and provenance.
+
+## Consequences
+
+- Datasets, checkpoints, models, generated outputs, deployment plans, evidence bundles, and scientific outputs share one identity law.
+- Digest and provenance are required for trust.
+
+## Related
+
+<CardGroup cols={2}>
+  <Card title="Architecture" icon="sitemap" href="https://github.com/Mindclade-org/mindclade-internal-monorepo/blob/main/docs/architecture">
+    Architecture documentation directory.
+  </Card>
+</CardGroup>

@@ -1,0 +1,82 @@
+---
+title: "Architecture Laws"
+description: "Binding architectural laws for the Mindclade vNEXT platform covering stable truth, compiler authority, kernel, runtime, deployment, assurance, and agent security."
+sidebarTitle: "Architecture Laws"
+---
+
+These laws define the non-negotiable boundaries of the Mindclade vNEXT architecture. Accepted ADRs and architecture metadata govern their interpretation.
+
+## Stable Truth and Dynamic Execution
+
+Stable Truth is immutable authored or compiled authority: contracts, `SemanticInput@v1`, `MindcladeGraph`, artifacts, provenance, evidence, policies, and decisions.
+
+Dynamic Execution is runtime activity: service processes, workers, schedulers, agent sessions, training runs, inference calls, and operational workflows.
+
+Dynamic Execution may produce evidence and artifacts, but it does not silently rewrite Stable Truth.
+
+## Codegen Sole Compiler
+
+Codegen is the only semantic compiler. TypeSpec, Protobuf, domain IR, and `ServiceDescriptor@v1` enter as frontend material and become `SemanticInput@v1`. OpenAPI, SDKs, MCP, docs, architecture views, deployment plans, Terraform, and C ABI headers are generated projections.
+
+## MindcladeGraph Typed Views
+
+`MindcladeGraph` is the immutable graph of compiled semantic truth. Typed graph views expose protocol, resource, capability, service, architecture, assurance, and deployment projections without becoming separate sources of truth.
+
+## Kernel
+
+The common kernel is:
+
+```text
+Identity
+Reference<T>
+Artifact
+Capability
+Implementation
+Run
+Evidence
+Claim
+Policy
+Decision
+Provenance
+MindcladeGraph
+```
+
+This kernel applies to engineering, data, models, agents, experiments, deployments, and scientific claims.
+
+## RuntimeKit and TestKit
+
+Services are composed from RuntimeKit plus generated transport plus a domain capability plus infrastructure ports. TestKit supplies deterministic fakes, fixtures, clocks, workers, storage, events, and assertions.
+
+## Durable Path
+
+The canonical durable execution path is PostgreSQL state plus transactional outbox, followed by a scheduler, deterministic worker, artifacts, evidence, assurance, and decision.
+
+## Deployment
+
+Deployment follows:
+
+```text
+authoring -> synthesis -> DeploymentPlan -> qualification -> signing -> promotion -> GitOps -> reconciliation
+```
+
+CDK or Terraform may synthesize plans, but they do not directly mutate production as canonical authority.
+
+## Independent Assurance
+
+Independent Assurance owns conformance, compatibility, replay, security, numerical, scientific, release, and deployment qualification. Implementation agents do not define success and then self-certify it.
+
+## Governed Evolution
+
+Governed Evolution converts telemetry, incidents, evaluation results, scientific evidence, and repository graph changes into impact analysis, proposals, policies, engineering tasks, evidence, and decisions.
+
+## Agent Capability Attenuation
+
+Agents receive explicit tasks, owned paths, budgets, tools, credentials, and network policy. Child agents never inherit parent privilege automatically.
+
+## Compute and Native Policy
+
+Triton and `tch-rs` are not baseline dependencies. TileLang is the preferred future optimized-kernel path. Native operator registration uses a generated C ABI.
+
+## ServiceDescriptor@v1
+
+Every deployable eventually has a `ServiceDescriptor@v1` that describes identity, ownership, capabilities, protocols, dependencies, configuration, secrets, health, resources, scaling, topology, telemetry, security, deployment, and qualification.

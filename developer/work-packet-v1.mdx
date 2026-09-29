@@ -1,0 +1,136 @@
+---
+title: "WorkPacket@v1 and Local Admission"
+sidebarTitle: "WorkPacket@v1"
+description: "Defines the WorkPacket@v1 fields, local admission command, accepted policy constraints and GovernanceReport@v1 output for the Mindclade engineering process."
+---
+
+The packet and report grant no execution capability, path lock, acceptance, publication permission or remote qualification. Follow [AGENTS.md](https://github.com/Mindclade-org/mindclade-internal-monorepo/blob/main/AGENTS.md) and the [supervised policy](https://github.com/Mindclade-org/mindclade-internal-monorepo/blob/main/.agents/policies/supervised.md).
+
+## Trusted evaluator
+
+Operational admission must run an evaluator from a separately accepted, operator-controlled tool checkout or artifact, identified below as `TOOL_ROOT`. `--repo` selects the candidate repository to inspect. These are different trust roles: never execute the candidate's edited `admission.py` to authorize that same candidate. Reading policy from an accepted commit does not authenticate the program doing that reading. A candidate cannot bootstrap its evaluator, accepted policy or approval.
+
+Before operational use, the operator must verify the tool revision and file digest against an independently retained approval, along with its Python/Git runtime and execution environment. Protect the evaluator files and imported code against candidate writes throughout execution. Do not derive the trusted tool path, expected digest, approved packet digest or accepted policy revision from candidate content, Linear text or a self-reported receipt. Resolve named owners to distinct actual principals; string comparisons cannot authenticate people or detect renamed sessions.
+
+The admission report records `evaluator_version`, `evaluator_sha256` (the observed bytes of its `admission.py` file) and `evaluator_binding_sha256` (the observed bytes of the sibling `github_binding.py` it loads by resolved file path, never through `sys.path` or `PYTHONPATH`). Retain the operator-approved tool revision/digest and runtime identity separately and compare them with the report. A reported digest is provenance data, not proof of approval or of the loaded process: an untrusted program can forge its own report, and concurrent changes can invalidate an observation. This CLI does not verify its own approval.
+
+Executing this candidate tool in local tests establishes source observations only. Until an independent accepted evaluator and its approved inputs are available, operational bootstrap remains BLOCKED even if local tests pass.
+
+## Packet fields
+
+The packet is a UTF-8 JSON object with exactly the following required fields. Unknown or duplicate keys are invalid at every object depth. Non-finite JSON numbers, NUL text, malformed UTF-8 and documents over 1 MiB are rejected. Packet input must be a regular file. The reader opens a nonblocking, read-only descriptor, rejects a final symlink, and checks the opened descriptor with `fstat` before reading. FIFOs and other non-regular descriptors fail without waiting for a writer or end-of-stream. The bounded read uses that same descriptor; it does not check a path and then reopen it. Exact-byte digest verification is unchanged. Unavailable inputs are BLOCKED, while non-regular or oversized inputs FAIL. This prevents special-file blocking; it is not a wall-clock guarantee for regular-file reads on a stalled filesystem.
+
+| Field | Contract |
+| --- | --- |
+| `schema` | Exactly `mindclade.work-packet.v1` |
+| `id` | Nonempty packet identifier |
+| `linear_issue` | Nonempty Linear issue reference; carried into report bindings |
+| `objective` | Nonempty objective text |
+| `non_goals` | Array of nonempty strings; the array may be empty |
+| `spec` | Exactly `path` and `sha256`; explicit repository-relative file and 64-hex SHA256 of frozen bytes |
+| `base_sha`, `policy_sha` | Exact 40-hex commit identifiers matching the operator's separate inputs |
+| `work_class` | `governance` or `code` |
+| `owners` | Exactly `implementation`, `review`, `integration`, `acceptance`; nonempty single-line identities without surrounding whitespace |
+| `owned_paths` | Nonempty, non-overlapping array of explicit files or directory prefixes ending `/` |
+| `generated_paths` | Non-overlapping explicit output files; may be empty; no overlap with authored scopes |
+| `acceptance` | Nonempty array of records with exactly `id`, `description`, `argv`; IDs unique, text nonempty, argv a nonempty array of nonempty strings |
+| `stop_conditions` | Nonempty array of nonempty strings |
+| `allowed_actions` | Nonempty, unique subset of `local-edit`, `local-check`, `propose-pr` |
+| `budget` | Exactly `max_attempts` and `max_minutes`; positive integers, never booleans |
+
+Implementation must differ from review and acceptance. Acceptance must match the accepted policy's `acceptance_owner`. Action and budget ceilings come from that policy. These are admission constraints; the tool does not launch commands, track attempts or elapsed time, provision permissions, or execute stop-condition text. The integration owner or operator owns execution and enforcement during work.
+
+Paths reject absolute paths, traversal, dot components, repeated separators, backslashes, control characters, Git-internal paths, colon syntax and glob characters. An explicit file scope matches that file only: `docs/guide` does not own `docs/guide.md` or `docs/guide/child.md`. `docs/` owns its descendants subject to generated boundaries and accepted governance limits.
+
+`generated/`, `protocols/`, `infra/generated/`, and `docs/architecture/generated/` are generated boundaries. They cannot be authored scopes, including under a broader scope such as `docs/`. An undeclared generated change FAILs. Declaring a generated file records an output, not permission to edit it: a changed declared output is BLOCKED pending generation evidence. There is no new generation-receipt protocol or contract-semantics interpreter.
+
+## Operator command
+
+All uppercase input variables below must be resolved from operator-controlled records. `TOOL_ROOT` and `TRUSTED_PYTHON` identify the separately verified tool and interpreter; `CANDIDATE_REPO` is the inspected working-tree root. Keep the packet and report outside the candidate checkout so that writing them does not make an otherwise clean HEAD candidate dirty.
+
+```bash Terminal
+"$TRUSTED_PYTHON" -I -B "$TOOL_ROOT/tools/engineering/admission.py" \
+  --repo "$CANDIDATE_REPO" \
+  --packet "$APPROVED_PACKET_PATH" \
+  --approved-packet-sha256 "$APPROVED_PACKET_SHA256" \
+  --base "$APPROVED_BASE_SHA" \
+  --candidate "$CANDIDATE_SHA" \
+  --policy-revision "$ACCEPTED_POLICY_SHA" > "$REPORT_PATH"
+```
+
+The CLI emits one JSON report to stdout, including argument failures. Exit codes are 0 PASS, 2 FAIL and 3 BLOCKED. It has no output-file option; only the operator's chosen stdout redirection writes the report. The checker never executes packet argv, launches jobs, invokes remote APIs, or performs Git mutations. Local Git reads have a 15-second timeout per command and disable optional index writes, hooks, filesystem monitors, replacement objects, lazy fetching and network protocols. Inherited Git environment settings and user/system Git configuration are excluded. A legacy graft file blocks evaluation. The operator must control the local repository's Git configuration and runtime as part of the execution environment; this is not a sandbox for arbitrary local Git configuration.
+
+The approved SHA256 covers the exact packet bytes, including whitespace. Base, candidate and policy must be locally available commit objects. Policy must be an ancestor of base; base must be an ancestor of candidate; the candidate must have real changes. The policy is read only at `ACCEPTED_POLICY_SHA:.agents/policies/supervised.v1.json`. Its observed digest is recorded as `policy_sha256` for comparison to operator records. Policy edits in the base, candidate or working tree do not activate themselves.
+
+The frozen specification is read at both base and candidate and compared against the packet digest. Missing committed policy/specification/revisions are BLOCKED; invalid inputs, mismatched digests or ownership violations FAIL. Both sides of renames are checked through `git diff --no-renames --name-status -z`. Old and new Git modes must be regular files, including deletions; symlinks and submodules FAIL. The tool does not interpret contract semantics.
+
+When candidate equals HEAD, tracked, staged and untracked Git-visible differences are BLOCKED. Ignored caches are excluded, but tracked ignored files still count. Assume-unchanged or skip-worktree flags block the working-state observation. A historical candidate can be assessed without asserting that the current working tree matches it; the report explicitly records that narrower scope.
+
+## Accepted policy and reports
+
+The [policy artifact](https://github.com/Mindclade-org/mindclade-internal-monorepo/blob/main/.agents/policies/supervised.v1.json) declares the fixed repository identity, required GitHub Actions check, acceptance owner, workflow, governance allowlist, supported actions and positive budget ceilings. The current ceiling is three attempts and 30 minutes. The exact governance test entries are `scripts/test_governance_admission.py`, `scripts/test_governance_github.py`, `scripts/test_governance_evidence.py` and `scripts/test_ci_policy.py`. Neither `scripts/` nor an ambiguous `scripts/test_governance` prefix is admitted.
+
+The policy accepts exactly two boundary shapes; any other combination is invalid (`policy` FAIL in admission, BLOCKED in the audit):
+
+- **Legacy:** `boundary_checker_status: "pending"` with no `boundary_evaluator` key. This is the shipped shape. Code-class admission stays BLOCKED with a B4 detail, and admission never asks for boundary inputs.
+- **Bound:** `boundary_checker_status: "evaluator-bound"` plus `boundary_evaluator` with exactly `config_sha256` (64 lowercase hex, the digest of an operator-held evaluator config), `configurations` (B4's six sorted IDs `bazel|cargo|typescript` \\times `aarch64-darwin|x86_64-linux`), `required_scope: "matrix"`, `model_path: "docs/architecture/model/architecture.yaml"`, `facts_schema: "DependencyFacts@v1"` and `report_schema: "BoundaryReport@v1"`.
+
+No status word authorizes anything by itself: `implemented`, `accepted`, `pass`, `evaluator-bound` without its binding, or `pending` with one are all invalid. A candidate that rewrites its own policy file cannot change the accepted revision that admission reads. The bound shape is only a proposal until Rob adopts it in O3.
+
+The other optional policy field is `dedicated_app`, an object with exactly `id` (positive integer, not boolean) and `slug` (lowercase alphanumeric components separated by hyphens). An operator must independently verify and approve the real App identity before an accepted policy revision adds it. The shipped policy carries `{id: 5090624, slug: "mindclade-monorepo-engineer"}` (Rob, 2026-09-26, decision D-17), so the GitHub governance audit checks the live App and the PR's bot author and reports PASS or FAIL. It reports App identity BLOCKED only when the field is absent; `required_checks[].app_id` identifies the check provider, not the dedicated coding App. Admission validates an optional identity's structure, but does not verify a live App or turn its presence into acceptance.
+
+The report schema is `mindclade.governance-report.v1`, with `scope`, `bindings`, `checks`, `status`, and `limitations`. Admission uses `scope: supervised-admission`. Each check has exactly `id`, `status`, `detail`. FAIL takes precedence over BLOCKED, then PASS.
+
+Code-class packets get one final `boundary-checker` check; governance packets never do and never request boundary inputs or run anything:
+
+- If any earlier check is not PASS, it is BLOCKED ("prerequisite admission checks did not pass; candidate code was not executed").
+- Under the legacy policy it is BLOCKED with a B4 detail.
+- Under the bound policy, admission first requires the architecture model and `docs/architecture/architecture-source-profile.md` to be identical at base and candidate (D4, else FAIL). `.bazelrc`, `.bazelversion` and `tools/bazel` must be identical in presence, mode and bytes (else BLOCKED, before any runner call), because the Bazel client reads the first and the nixpkgs launcher reads or execs the other two. It then obtains `(expected, tools)` from `boundary_inputs` and cross-checks them. The result is FAIL unless `tools` is a `TrustedBoundaryTools` whose `config_sha256` equals the policy's, `expected.candidate` equals `--candidate`, the model anchor equals the accepted policy's path and the digest of the model blob at base, and the configurations and scope equal the policy. Only then does it call `verify_boundaries`. `Invalid` or a binding `Violation` is FAIL; `Blocked` or a binding `Unknown` is BLOCKED. Any other exception from these steps, including one raised by `boundary_inputs` or the loader, is BLOCKED, and the JSON report is still written. On PASS, `bindings.boundary` holds the verified report identity and `bindings.boundary_observation_kind` is `fixture` when the inputs were injected.
+
+`boundary_inputs(binding) -> (expected, tools)` is a keyword-only parameter of `admit(args, *, boundary_inputs=None)` and `main(argv=None, *, boundary_inputs=None)`. No CLI flag or environment variable supplies it. An implementation must raise `Blocked` when its inputs are unavailable and `Invalid` only for an observed contradiction; admission treats any other exception as BLOCKED. The production default raises "O3 has not adopted trusted boundary evaluator inputs", and the production runner is BLOCKED pending P1b, so code admission is not operational. A candidate cannot supply its own receipt, facts, report or policy edit to remove that block. See the [G3 section](/developer/governance-tools#g3-source-implementation-independently-regenerated-boundary-evidence) for `verify_boundaries` and its evidence rules.
+
+Successful packet parsing binds `packet_id`, `linear_issue`, `packet_sha256`, `base_sha`, `policy_sha`, `spec_path`, and `spec_sha256`. Admission additionally records `candidate_sha`, `approved_packet_sha256`, evaluator identity, observed `policy_sha256`, `base_spec_sha256`, `candidate_spec_sha256` and, for a passing code packet, `boundary` as available. Missing prerequisites can yield a partial set of bindings; reports never imply that an absent observation was verified.
+
+## Shared Python helpers
+
+Admission owns WorkPacket parsing. Consuming tools import these helpers from the same trusted tool distribution; they must not resolve `admission` from the candidate.
+
+```python Trusted Python helpers
+load_json(raw: bytes) -> dict
+sha256_bytes(raw: bytes) -> str
+report(scope: str, bindings: dict, checks: list[dict]) -> dict
+validate_packet(value: dict) -> dict
+packet_bindings(raw: bytes, expected_digest: str, base: str, policy: str) -> dict
+read_packet(path: str | os.PathLike[str]) -> bytes
+```
+
+`validate_packet` returns the validated object without mutation or I/O. `packet_bindings` verifies the exact approved digest, strictly parses the packet, checks its base/policy against the operator anchors and returns the seven packet bindings listed above. Invalid inputs raise `ValueError` (including its `Invalid` subclass). Hexadecimal digests/revisions in bindings are lowercase. These helpers do not check commit existence/ancestry, apply accepted-policy constraints, read committed spec files, authenticate approvals or qualify a candidate. Each consuming tool must perform its required observations and state their scope. Consuming tools must reuse admission's parser rather than duplicate it.
+
+`read_packet` owns the bounded regular-file read described above. It performs read-only local I/O and returns unchanged bytes; it neither parses them nor verifies their digest. `Invalid` (a `ValueError` subclass) reports non-regular or oversized descriptors; `Blocked` reports unavailable inputs, including rejected final symlinks. Consuming tools should use it before `packet_bindings` rather than duplicate the open/stat/read sequence. The five other helpers retain their I/O-free contracts.
+
+## Shared Git preflight
+
+The shared `Git(repo)` constructor only configures the read-only transport. Every consuming tool must call `reader.root()` successfully before using `reader.run`, `reader.commit`, `reader.ancestor`, or `reader.document` for trusted revision, ancestry, policy or specification observations. `root() -> bool` returns `True` for the repository working-tree root with no legacy graft file; it raises `Invalid` for a non-root `--repo` and `Blocked` for grafts or unavailable Git evidence. The GitHub governance audit must report an unavailable trusted policy observation and stop dependent remote observations if this preflight fails. Calling the constructor or checking subprocess flags is insufficient.
+
+```python Git preflight
+reader = Git(repo)
+reader.root()
+# Only after successful preflight:
+policy_bytes = reader.document(policy_revision, POLICY_PATH)
+```
+
+This preflight does not authenticate policy acceptance, inspect packet semantics or lock repository metadata. The operator-controlled environment must remain stable for the observation. `packet_bindings` does not perform this I/O.
+
+<CardGroup cols={2}>
+  <Card title="Supervised development" icon="shield-halved" href="/developer/supervised-development">
+    The full procedure for supervised work.
+  </Card>
+
+  <Card title="Governance tools" icon="gavel" href="/developer/governance-tools">
+    Command details and source implementation.
+  </Card>
+
+  <Card title="Linear task template" icon="clipboard-list" href="/developer/linear-task-template">
+    Template for bounded changes.
+  </Card>
+</CardGroup>

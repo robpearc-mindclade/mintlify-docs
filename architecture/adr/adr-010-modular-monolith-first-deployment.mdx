@@ -1,0 +1,33 @@
+---
+title: "ADR-010: Modular-Monolith-First Deployment"
+sidebarTitle: "ADR-010"
+description: "Mindclade starts modular-monolith-first. Service boundaries must be semantically clear before they become separately deployed services."
+---
+
+This architecture decision record records the choice to start with a modular monolith. Distribution into separately deployed services requires deployment and operational evidence first.
+
+| Status | Date | Related |
+| --- | --- | --- |
+| Accepted | 2026-09-22 | — |
+
+## Decision
+
+Mindclade starts modular-monolith-first. Service boundaries must be semantically clear before they become separately deployed services.
+
+## Consequences
+
+- Domain ownership is enforced in source and graph metadata.
+- Distribution requires deployment and operational evidence.
+- Services are deployable wrappers around capabilities, RuntimeKit, generated transports, and infrastructure ports.
+
+## Related
+
+<CardGroup cols={2}>
+  <Card title="ADR-008: RuntimeKit and TestKit" icon="microchip" href="/architecture/adr/adr-008-runtimekit-and-testkit">
+    The runtime and testing substrate for services.
+  </Card>
+
+  <Card title="Implementation roadmap" icon="road" href="/implementation-roadmap">
+    The roadmap for gates and deployment stages.
+  </Card>
+</CardGroup>

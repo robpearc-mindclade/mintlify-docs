@@ -1,0 +1,103 @@
+---
+title: "Execution Reliability: Planned Requirements and Recovery Model"
+sidebarTitle: "Execution Reliability"
+description: "Planned requirements for durable execution, admission, ownership, effects, recovery, and resource reservations, adapting Notion source to the vNEXT PostgreSQL plus transactional outbox path."
+---
+
+This page elaborates planned requirements for execution reliability, adapting the Notion Execution Kernel and qualification matrix to vNEXT's PostgreSQL plus transactional outbox path. It covers identity and state, admission and ownership, effects and recovery, resource reservations, and an independent acceptance model. No runtime enforcement or passing fault tests are claimed.
+
+<Warning>
+  Status: Planned requirements; no runtime enforcement or passing fault tests claimed.
+</Warning>
+
+This document elaborates ADR-001, ADR-005, ADR-008 through ADR-012, and ADR-014. The source document name does not introduce another semantic kernel or another control plane.
+
+## Identity and state
+
+The target runtime admission artifact binds exact kernel references and immutable inputs. Its proposed information includes objective, non-goals, source/base revision, dependencies, owned paths, allowed capabilities, policy reference, acceptance criteria, environment, budget, stopping rules, reviewer role, and expected artifacts. Its eventual semantic contract must enter Codegen through `SemanticInput@v1`.
+
+This is future runtime design, not the implemented engineering [WorkPacket@v1](https://github.com/Mindclade-org/mindclade-internal-monorepo/blob/main/docs/developer/work-packet-v1.md). That engineering record is non-semantic: it is neither a kernel artifact, capability, lock, nor grant, and its existing schema is not extended by this list. No packet admits itself; accepted policy, scoped approval, and observed execution boundaries remain required.
+
+| Identity | Meaning |
+| --- | --- |
+| Work item | The intended outcome, with one authoritative tracker reference. |
+| Packet reference and digest | The exact admitted specification; changed scope creates a new revision. |
+| Run | The logical execution of that packet. |
+| Attempt | One retry or resumption, preserving previous attempt evidence. |
+| External job/session | The provider's execution identity, recorded separately from the logical run. |
+| Effect key | One intended external action, stable across retries and coordinator restarts. |
+
+Persist schema, workflow-definition, policy, and packet versions, checkpoints, ownership generation, and effect records. Work may have independent attempts, but attempts cannot silently acquire new authority or a fresh campaign budget.
+
+Keep authorization, execution, qualification, outcome acceptance, release, and reporting freshness distinct. Success in one does not imply success in another. Unknown or unavailable evidence stays unknown. Support paused old-version runs through explicit migrations or compatible workers; never silently reinterpret persisted state under a new schema.
+
+## Admission and ownership
+
+Use one admitted route per tenant, environment, and work class. Authenticate and deduplicate input signals before creating a Run. A repeated idempotency key with different request content is a conflict. Notion edits, tracker assignments, and agent mentions cannot bypass admission.
+
+Commit durable state and its dispatch event in one PostgreSQL transaction. Outbox delivery can repeat: consumers deduplicate by stable identity, enforce legal state transitions, and preserve evidence across delivery attempts.
+
+Serialize conflicting owned paths or resources while permitting independent work. Check the current ownership generation at authoritative writes and effect publication. A lease or token stored in a packet alone does not fence an external provider; the coordinator/publisher must enforce ownership and reconcile in-flight effects before reassignment. Preserve unrelated worktrees and concurrent changes.
+
+## Effects and recovery
+
+Before an external effect, persist its intent and stable key derived from tenant, work identity, packet digest, effect kind, and target. Persist returned external identity and confirmed result afterward. A timeout leaves an uncertain effect: look up or reconcile that effect before submitting it again. When neither idempotency nor reliable lookup exists, pause that effect for resolution. Durable orchestration alone cannot guarantee exactly-once external behavior.
+
+Use bounded backoff for transient transport failures. An unchanged deterministic failure is not a retry strategy. A repair produces a new candidate under the same admitted limits and cannot relax acceptance criteria to pass.
+
+Cancellation remains pending until the executor confirms termination. Preserve checkpoints and unresolved effects; release only resources whose state is known. Revalidate checkpoint compatibility before resuming against changed software, hardware, schemas, or model versions. Clean up only resources owned by the run.
+
+Notion/Linear reporting is a projection. A reporting outage retries the mapped projection, not the completed job, publication, or merge. Record source revision, last successful sync, and freshness. Reject out-of-order updates, preserve unrelated authored fields, and exclude self-authored reporting events from dispatch triggers unless an explicit loop-safe rule requires them.
+
+## Resource reservations
+
+Before paid or capacity-limited dispatch, atomically reserve tenant, campaign, and job resources in the authoritative durable store. The accounting model is:
+
+```text
+available = approved envelope - settled usage - outstanding commitments - reserve
+```
+
+Settlement transfers usage out of commitments without counting it twice. Retries and child runs consume the parent campaign's limits. Track estimate, reservation, actual usage, and uncertainty separately. Delayed billing or an unconfirmed cancellation retains conservative commitments; unknown capacity blocks new admission. Provider limits, where available, complement the ledger; the design does not promise exact spend caps beyond a provider's enforcement.
+
+## Independent acceptance
+
+Bind qualification evidence to the packet digest, candidate revision, tested integration base, graph/generator/runtime versions, evaluator, and policy. Changes invalidate the affected evidence. Check the combined candidate before integration; separately passing branches do not establish combined correctness. Use a qualified merge queue or serialized integration check when implemented.
+
+Implementation, assurance, and publication receive separately scoped identities. Required checks and publishing credentials are outside the implementer's scope. Reusable policy may preauthorize eligible routine steps; no agent can edit that policy, its evaluator, or its own access during a run to authorize an exception.
+
+Scope both an agent's resources and the audience allowed to invoke it. A handoff or report must not broaden access to restricted source material. Retrieved text is data, never authority to alter policy, disclose secrets, or expand capabilities.
+
+## Planned failure matrix
+
+These scenarios adapt Notion's Q01-Q24. Every row remains **Not run**. A later slice must record exact stimuli, faults, versions, observed behavior, evidence, and independent assessment; this table is not an executable test suite.
+
+| Source cases | Observable requirement | First relevant scope |
+| --- | --- | --- |
+| Q01-Q02 | Duplicate/reordered intake and competing routes resolve one logical run and admitted publisher. | VS-001 durable path; external routes later. |
+| Q03-Q05 | Revoked authority and stale workers cannot publish; conflicting work serializes without resetting unrelated changes. | VS-001 ownership checks, then factory integration. |
+| Q06-Q08 | Lost acknowledgements and coordinator crashes reconcile effects; paused state migrates or fails explicitly. | Fake worker recovery first; external providers later. |
+| Q09-Q11 | Bounded retry/repair, confirmed cancellation, and deduplicated maintenance signals prevent unbounded work. | VS-001 retry/cancel; maintenance later. |
+| Q12-Q13 | Changed inputs invalidate evidence; incompatible parallel changes fail combined-revision checks. | VS-001 evidence identity, then integration. |
+| Q14 | Concurrent reservations cannot overspend available capacity; settlement/cancellation do not double count. | Before paid execution. |
+| Q15-Q18 | Generation, audience separation, compatible release sets, partial publication, and eligible provider lifecycles qualify separately. | See [developer products](/architecture/developer-products). |
+| Q19-Q21 | A deliberately wrong evaluator is rejected; holdouts stay protected; job recovery avoids duplicate paid work. | Before real scientific campaigns. |
+| Q22-Q23 | Malicious content and broader audiences cannot expand access; failed reporting cannot redispatch completed effects. | Before external agent/reporting adapters. |
+| Q24 | Count each outcome once, including failures, retries, interventions, exclusions, costs, and the observation window. | Before autonomy claims. |
+
+Qualify observation, supervised execution, and bounded autonomy per work class. Pause only the affected class when its authority or evidence becomes invalid. Temporal and other orchestration products remain candidates for demonstrated unmet requirements; they are not added by adopting these recovery requirements.
+
+## Related
+
+<CardGroup cols={2}>
+  <Card title="Developer Products" icon="boxes" href="/architecture/developer-products">
+    Compiler and product qualification plan.
+  </Card>
+
+  <Card title="Provenance Requirements" icon="file-check" href="/architecture/provenance-requirements">
+    Engineering and scientific receipt law.
+  </Card>
+
+  <Card title="Programmable Biology" icon="dna" href="/architecture/programmable-biology">
+    Scientific domain design and Clade model family.
+  </Card>
+</CardGroup>

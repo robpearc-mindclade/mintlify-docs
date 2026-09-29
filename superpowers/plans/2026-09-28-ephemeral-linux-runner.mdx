@@ -1,0 +1,67 @@
+---
+title: "Ephemeral Linux Runner Implementation Plan"
+sidebarTitle: "ELR Plan"
+description: "Implementation plan for an operator-controlled ephemeral Linux runner using Azure JIT VM lifecycle and immutable-image qualification."
+---
+
+This page documents the implementation plan for the ephemeral Linux runner (ELR). It is intended for operators, reviewers, and implementers working on the runner infrastructure.
+
+<Warning>
+  Live deployment is BLOCKED on Azure tenant reauthentication, runner-controller App creation and independent criteria review.
+</Warning>
+
+**Depends on:** [ephemeral Linux runner criteria](/superpowers/specs/2026-09-28-ephemeral-linux-runner-criteria) independent review, repaired Azure tenant authentication, and creation of the dedicated runner-controller GitHub App.
+
+## Wave 0: Authority and Evidence
+
+- Freeze the criteria and record App ID, installation ID, runner-group ID and allowed repository.
+- Use the isolated, tenant-correct Azure CLI session already established for this work; do not mutate the user's global Azure CLI cache.
+- Review the observed East US 2 inventory and create source for an isolated runner resource group/VNet rather than reusing `aadds-vnet` or product resource groups.
+- Choose the authored Azure topology format consistent with deployment/synthesis laws; do not add a direct CI apply path.
+- Select a maintained x86_64 Linux base image and an East US 2 VM SKU with positive subscription quota, Trusted Launch, and disposable OS storage where available. Dv5/DSv5 currently have zero quota and are not default candidates.
+
+**Exit:** exact identities and architecture review recorded; no cloud resources required yet.
+
+## Wave 1: Controller and Immutable Image
+
+- Activate `infra/ci_runners/self_hosted/` through the scaffold activation mechanism.
+- Implement the immutable runner image build, pinned Actions runner artifact/checksum, namespace/AppArmor policy, non-root runner account and bounded bootstrap.
+- Implement the allowlisted `workflow_job` request model, organization JIT-config call, Azure VM create/delete state machine, TTL watchdog, reconciliation and redacted receipt.
+- Unit-test duplicate delivery, cancellation, controller restart, provisioning failure, timeout, deletion retry, repository mismatch and secret sentinels.
+
+**Exit:** source tests pass and a deterministic deployment plan/projection is reviewable; no live qualification claim.
+
+## Wave 2: Isolated Live Qualification
+
+- Deploy controller/image to the approved non-production runner environment.
+- Create the restricted runner group and verify an unauthorized repository cannot schedule it.
+- Execute the frozen R2 probe on twenty fresh VMs.
+- Prove every VM and runner is removed after use; retain lifecycle and R2 receipts.
+- Run the negative user-namespace image/policy mutation and prove it becomes non-PASS.
+
+**Exit:** ELR-01 through ELR-08 pass on one immutable image version.
+
+## Wave 3: Dual-Run and Cutover
+
+- Add a non-required managed-runner R2 qualification lane.
+- For three source candidates, run hosted Ubuntu 22.04 and managed runner against the same R2 source/input hashes.
+- Review all semantic and teardown differences.
+- Submit a narrow protected workflow PR changing only the R2 prerequisite runner selector.
+- Obtain fresh CODEOWNER approval and exact merge-group checks; verify resulting main.
+
+**Exit:** R2 no longer depends on hosted Ubuntu 22.04; `linux-foundation` remains the protected required context on Ubuntu 24.04.
+
+## Wave 4: Operational Hardening
+
+- Add controller/image vulnerability and patch cadence with forced requalification after relevant changes.
+- Add orphan/TTL alarms, VM lifetime/cost telemetry and runner-registration drift checks.
+- Exercise controller outage, GitHub API throttling, Azure create/delete failure and secret-service failure drills.
+- Retain the hosted-runner canary until its owner-approved retirement.
+
+**Exit:** operational evidence is current; no orphaned runners/VMs; rollback procedure is proven.
+
+## Related
+
+- [Ephemeral Linux Runner Criteria](/superpowers/specs/2026-09-28-ephemeral-linux-runner-criteria)
+- [R2 Linux Diagnostic Criteria](/superpowers/specs/2026-09-28-r2-linux-diagnostic-criteria)
+- [PR #54 Reconciliation Plan](/superpowers/plans/2026-09-28-pr54-main-reconciliation)

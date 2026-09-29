@@ -1,0 +1,104 @@
+---
+title: "Compiler and Developer Product Qualification Plan"
+sidebarTitle: "Developer Products"
+description: "Acceptance requirements for compiler boundaries, compatibility, product acceptance, deterministic generation, and the foundation gate for Mindclade developer products."
+---
+
+This page defines acceptance requirements for compiler and developer product qualification. It elaborates ADR-002, ADR-003, ADR-009, and ADR-013 using the Notion Architecture & Contracts blueprint, WF-03, and contract-to-products packet. Status: acceptance requirements with partial B2a TypeScript/Rust source. Protocol products, real service conformance,This page defines acceptance requirements for compiler and developer product qualification. It elaborates ADR-002, ADR-003, ADR-009, and ADR-013 using the Notion Architecture & Contracts blueprint, WF-03, and contract-to-products packet. Status: acceptance requirements with partial B2a TypeScript/Rust source. Protocol products, real service conformance, and release qualification remain pending.
+
+<Warning>
+  Status: acceptance requirements with partial B2a TypeScript/Rust source. See the [product checkpoint](/architecture/reviews/2026-09-23-vs001-products); protocol products, real service conformance, and release qualification remain pending.
+</Warning>
+
+<Warning>
+  Status: acceptance requirements with partial B2a TypeScript/Rust source. See the [product checkpoint](/architecture/reviews/2026-09-23-vs001-products); protocol products, real service conformance, and release qualification remain pending.
+</Warning>
+
+## Compiler bboundaries
+
+The official TypeSpec frontend resolves model and HTTP semantics once and emits versioned, deterministic `SemanticInput@v1` with source locations and provenance. Codegen ingests, normalizes, resolves, validates, builds `MindcladeGraph`, compares compatibility, lowers target IR, and emits canonicalized output and receipts. Human-readable symbols do not substitute for stable typed identities.
+
+Expected input failures produce structured diagnostics with source locations, not panics. Unknown input versions, unresolved references, unsupported required semantics, and ambiguous lowering fail explicitly. Downstream emitters consume target IR and cannot import TypeSpec to reinterpret meaning independently.
+
+For each supported fixture, compare HTTP/schema meaning with the official TypeSpec OpenAPI emitter. Independently authored expected behavior must also exercise generated consumers against a real deterministic fixture service: client and mock generated from the same mistaken interpretation are not a sufficient acceptance oracle.
+
+## Compatibility and aand audience
+
+Compatibility checks compare graph snapshots and affected consumers across API, schema, artifact, checkpoint, dataset, operator, model, and deployment contracts as those domains become implemented. Record unsupported dimensions instead of claiming universal compatibility from an API diff.
+
+Begin with required/optional-field, identity/rename, union/enum, error, and supported transport cases for the first fixture. Generator and client-runtime changes also require affected consumer checks even when wire semantics did not change. Source compatibility and serialization behavior are separate concerns.
+
+Public/internal separation covers the complete transitive closure: types, dependencies, errors, examples, source maps, search indexes, credentials, and package destinations. An audience label is not an access control. Keep authored handlers and ergonomic/runtime extensions outside disposable generated zones.
+
+## Product aacceptance
+
+Qualify one representative consumer in VS-001 before multiplying surfaces. The Notion catalogue lists future targets; it is not a requirement to build all of them in Phase 0 or evidence of current language support.
+
+| Product | Acceptance requirement when implemented |
+| --- | --- |
+| API/protocol/server bindings | Official frontend semantic parity plus independent domain and authorization tests. |
+| Public/internal SDKs | Per-language compilation, installation, and consumer behavior; supported auth, retries, errors, cancellation, pagination, and streaming are tested explicitly. |
+| Application CLI | Distinct from the compiler CLI; typed results/errors, help, cancellation, and applicable pagination conform to the API. |
+| Action MCP / agent adapters | Executable behavior through governed capabilities; tool metadata does not grant authority. |
+| Documentation-search MCP | Read-only, version-aware retrieval with audience and missing-content checks. |
+| Documentation/examples | Executable examples bound to the exact candidate, with authored narrative preserved. |
+| Postman or equivalent API fixtures | Generated structure with independently authored scenario intent and expected outcomes; the collaboration surface cannot redefine source semantics. |
+| Terraform | Only explicitly modeled desired-state resources; qualify identity/import, refresh, no-op/update, drift, state upgrades, deletion, and partial failure. An imperative run/response is not automatically a resource. |
+
+No Postman service, additional SDK toolchain, or Terraform dependency is required for the initial manifest and fake-worker path. Introduce each tool only when its concrete slice requires it.
+
+## Deterministic generation and release sgeneration and release sets
+
+No-op regeneration and clean-environment regeneration must agree on canonical semantic outputs and digests. Declare variable receipt envelope fields such as generation time separately; a wall-clock timestamp cannot make the semantic artifact nondeterministic. Tampered generated zones fail verification.
+
+A future release-set manifest binds independently versioned components rather than requiring one shared version number. It records contract and source revisions, compiler/runtime identities, graph digest, product identities and digests, audience, compatibility, required/optional status, evidence, policy decision, and registry destinations.
+
+Failure of a required product blocks promotion of the set. Any handling of optional failures must be explicit in policy. Publication across registries is not atomic: reconcile partially published immutable versions, verify installable packages, and withhold current/discovery pointers until the required set qualifies. Recover by selecting a prior compatible release or publishing a corrective version; never overwrite a published artifact. Deployment still follows ADR-012.
+
+## Foundation ggate
+
+Before broad compiler qualification, pin the Nix inputs and the actual frontend dependencies; demonstrate clean-checkout tool resolution and build/test behavior. Bazel filegroups or a successful query do not demonstrate Rust/TypeSpec builds.
+
+Add executable build/test targets and independent CI evidence as the respective implementation arrives. Do not introduce unused Go/Python/Node package roots merely because historical Wave 0 templates list them.
+
+## Related
+
+<CardGroup cols={2}>
+  <Card title="Generated Surface Ownership" icon="list-check" href="/architecture/generated-surface-ownership">
+    Authored sources and generated surface ledger.
+  </Card>
+
+  <Card title="Generated Output Policy" icon="file-shield" href="/architecture/generated-output-policy">
+    Rules and provenance requirements for generated artifacts.
+  </Card>
+
+  <Card title="Toolchain" icon="wrench" href="/architecture/toolchain">
+    Build toolchain and qualification boundaries.
+  </Card>
+
+  <Card title="Bootstrap Status" icon="gauge" href="/architecture/bootstrap-status">
+    Current capability and blocked gates.
+  </Card>
+</CardGroup>
+
+Add executable build/test targets and independent CI evidence as the respective implementation arrives. Do not introduce unused Go/Python/Node package roots merely because historical Wave 0 templates list them.
+
+## Related
+
+<CardGroup cols={2}>
+  <Card title="Generated Surface Ownership" icon="list-check" href="/architecture/generated-surface-ownership">
+    Authored sources and generated surface ledger.
+  </Card>
+
+  <Card title="Generated Output Policy" icon="file-shield" href="/architecture/generated-output-policy">
+    Rules and provenance requirements for generated artifacts.
+  </Card>
+
+  <Card title="Toolchain" icon="wrench" href="/architecture/toolchain">
+    Build toolchain and qualification boundaries.
+  </Card>
+
+  <Card title="Bootstrap Status" icon="gauge" href="/architecture/bootstrap-status">
+    Current capability and blocked gates.
+  </Card>
+</CardGroup>

@@ -1,0 +1,234 @@
+---
+title: "P1b Hermetic Collection Criteria for Boundary Evidence"
+sidebarTitle: "P1b Hermetic Collection"
+description: "Review the frozen acceptance criteria for P1b hermetic dependency-fact collection, establishing the trusted boundary-runner for G3 code-class admission with sandboxed, reproducible, offline collection."
+---
+
+P1b specifies hermetic dependency-fact collection, the prerequisite for G3 production admission that regenerates B4 boundary evidence without executing candidate-controlled code. These criteria define a sandboxed runner that collects the candidate tree using only trusted, pinned tools in an isolated environment with no network, no shared state, and no writable paths outside a single step directory.
+
+The criteria are frozen at Revision 2 (2026-09-26). Rob approved checkpoint A on 2026-09-26. These criteria grant no admission, acceptance, qualification, or execution authority.
+
+## Scope and non-goals
+
+**Threat.** Candidate-controlled code can run inside trusted steps through two paths: (1) candidate module extensions and repository rules in every Bazel invocation that must fetch; (2) step 1's vs001 build running candidate-defined actions outside Bazel's sandbox. Every runner call shares one writable step directory, so a detached process started by candidate code could rewrite what the collector or admission later reads.
+
+**Hermetic conditions (H1-H8):**
+
+| Condition | Requirement |
+| --- | --- |
+| H1 Candidate, not self | The collector collects the Git tree at `cwd`, and lives outside that tree |
+| H2 Trusted helpers | Helpers load only from the evaluator root; candidate copies are observed but never executed |
+| H3 Pinned runtimes | Every executed tool is an evaluator-pinned runtime; Bazel is the executed client wrapper |
+| H4 Offline and provisioned | Provisioned repository cache and `CARGO_HOME` are read-only; each call gets a fresh output user root |
+| H5 No ambient state | Explicit environment allowlist; no shared disk cache; no reused Bazel server |
+| H6 Contained | Each call runs in the accepted sandbox with no network, no credentials, one writable path |
+| H7 Same observation | For the same clean candidate and host, hermetic facts equal B4's facts byte for byte |
+| H8 Trusted reads | Every file a trusted reader consumes was written by trusted code after candidate processes are proven dead |
+
+**In scope:** `collect --hermetic`; the aarch64-darwin sandboxed runner; helper binding; parent probes for "BLOCKED" proposal values; dated G3/B4/proposal amendments.
+
+**Non-goals:** policy adoption, production-default wiring, O3 anchors and custody, D-7 path change, Linux trusted runner, provisioning inside a call, `codegen/src/boundaries.rs`, model/profile changes, non-hermetic `collect` behavior, new dependencies or lock changes.
+
+## Paths and roles
+
+| Role | Owner |
+| --- | --- |
+| Criteria author | This context (`claude/p1b-criteria`) |
+| Criteria reviewer | Fresh reviewer (verdict: "ready for Rob's checkpoint A after fixes") |
+| Test author, implementer, task reviewer, whole-candidate reviewer | Fresh contexts assigned by the parent |
+| Checkpoint A | Rob |
+
+**Budget:** One test-author pass, one implementer pass, and one fix round per review.
+
+### Path ownership
+
+- **Test author:** `tools/validation/test_dependency_facts_hermetic.py` and `tools/validation/fixtures/hermetic/**`; runner test at Q9 location; flip in `tools/validation/test_dependency_facts_units.py`; G3-reserved `scripts/test_governance_admission.py` where Q choices change admission.
+- **Implementer:** `tools/validation/dependency_facts.py`; `tools/validation/typescript_facts.mjs` if needed; `tools/engineering/boundary_runner.py` and `tools/engineering/boundary-sandbox.darwin.sb`; `tools/engineering/admission.py` per Q1, Q2, Q3(a)/(c), Q5, Q6, Q10, Q11.
+- **Parent:** Codegen regeneration of manifests after W4 merges; `codegen/src/generator.rs`, `scripts/validate_generator_inputs.py`, `tools/build/BUILD.bazel` for new `.bzl`; `docs/architecture/model/repository-layout.json`; `blueprint-scaffold.json` `activated_sources`; `REPOSITORY_TREE.md`; `justfile` recipe; P1B-14 amendments and docs.
+
+## Interfaces
+
+### Existing at base `8bea4a4`
+
+- `dependency_facts.py`: `build_parser` defines `collect --host H --out DIR [--allow-dirty] [--probe] [--hermetic] --bazel-output-user-root PATH [--bazel-repo-env NAME]...` and `merge A B --out M`. `collect` rejects `--hermetic`. `find_tool`/`nix_path` resolve `bazel`, `cargo`, `git`, `node` from `/nix/store` PATH entries. `isolated_environment` gives `PATH`, `HOME`, `CARGO_HOME`. `check_isolation` refuses `NODE_PATH`, `NODE_OPTIONS`, `RUSTFLAGS`, `.cargo/config*`. `bazel_command` adds `--nohome_rc --nosystem_rc --output_user_root=...` and `--lockfile_mode=error --repository_disable_download`.
+- `admission.py`: runner protocol comment above `TrustedBoundaryTools`: `runner(argv, *, cwd, env, timeout, max_stdout_bytes, max_processes, writable) -> {"returncode", "stdout", "isolation": {"profile", "sha256", "network": "none", "credentials": "none", "writable": [step]}}`. `_production_runner` raises `Blocked("P1b/O3: no accepted sandboxed boundary runner")`.
+
+### Proposed (names final at freeze)
+
+- `--hermetic` semantics; `collect --bazel-repository-cache PATH` (Q1); `collect --runtime NAME=PATH` for `bazel`, `cargo`, `rustc`, `git`, `node`, `typescript` (Q2).
+- `boundary_runner.sandboxed_runner(root: Path, profile: str, sha256: str) -> runner`, with its SBPL profile.
+- Per-call separation (Q10), `nix_*` override record (Q6), toolchain-environment record (Q11).
+- Test gates: `MINDCLADE_P1B_EVALUATOR_ROOT` and `MINDCLADE_P1B_LINUX_FACTS`.
+
+## Acceptance criteria
+
+### P1B-01 Candidate at `cwd` (H1)
+
+A collector outside the candidate, run with `--hermetic` in a clean candidate `cwd`, writes facts whose `candidate` is HEAD and whose inventory is the candidate's tree.
+
+- **Negatives** (each exits 1 with no facts): (1) the candidate's own committed collector run with `--hermetic`; (2) a `cwd` that is not the Git top level; (3) `--hermetic --allow-dirty`.
+- **Control:** the same bytes outside the tree exit 0.
+- **Mutations:** (1) drop the outside-the-tree check; (2) collect the top level instead of requiring `cwd`; (3) allow `--allow-dirty`.
+- **Test:** `test_p1b_01_collects_the_candidate_at_cwd`.
+
+### P1B-02 Trusted helpers (H2)
+
+Helpers load only from the collector's own directory; the aspect follows Q4.
+
+- **Negatives:** (1) a candidate commit whose helper copies write a sentinel when executed leaves no sentinel, and the facts equal the control's; (2) a helper missing from the collector's directory exits 1.
+- **Control:** a sentinel-writing trusted sibling does write its sentinel.
+- **Mutations:** (1) load helpers from `cwd`; (2) fall back to the candidate copy.
+- **Test:** `test_p1b_02_runs_only_trusted_helpers`.
+
+### P1B-03 Pinned runtimes (H3)
+
+Every tool's `argv[0]` is the pinned runtime given per Q2, with no PATH search for a runtime. Cargo runs with `RUSTC` set to the pinned `rustc`, and Bazel's `argv[0]` is the executed client.
+
+- **Negative:** a decoy `bazel`, `cargo`, `rustc`, `git`, or `node` earlier on `PATH` never runs.
+- **Control:** a missing pinned runtime exits 1 before any collector runs.
+- **Mutations:** (1) resolve runtimes by a PATH search; (2) omit `RUSTC`.
+- **Test:** `test_p1b_03_pinned_runtimes_only`.
+
+### P1B-04 Offline, no shared state (H4, H5)
+
+Every hermetic Bazel argv carries `--batch --nohome_rc --nosystem_rc`, the given output user root, the provisioned repository cache (Q1), `--repository_disable_download`, `--lockfile_mode=error`, and an explicit disk cache per Q5. Cargo runs `--locked --offline`, and no argv contains `fetch`, `sync`, or a download flag.
+
+- **Negative:** an empty repository cache with an unprovisioned root exits 1.
+- **Control:** the provisioned root and cache exit 0.
+- **Mutations:** (1) drop `--repository_disable_download`; (2) drop the disk-cache override; (3) drop `--batch`.
+- **Test:** `test_p1b_04_offline_argv_and_no_shared_cache`.
+
+### P1B-05 Ambient environment (H5)
+
+Children receive exactly the allowlist.
+
+- **Negatives:** (1) extra invoking variables (`GH_TOKEN`, `SSH_AUTH_SOCK`, `BAZEL_WRAPPER`, `USE_BAZEL_VERSION`, `JAVA_HOME`, `CC`, `NIX_CONFIG`) change neither a child's environment nor the facts; (2) `NODE_PATH`, `NODE_OPTIONS`, `RUSTFLAGS`, or `.cargo/config*` still exit 1.
+- **Control:** an allowlisted key is observed in a child.
+- **Mutations:** (1) pass the invoking environment through; (2) skip `check_isolation` in hermetic mode.
+- **Test:** `test_p1b_05_ambient_environment_has_no_effect`.
+
+### P1B-06 Same observation (H7)
+
+Runs against the provisioned output user root and repository cache that `just verify-boundaries` uses, on both hosts. For a clean candidate whose committed collectors equal the trusted copies, the facts are byte-identical to non-hermetic `collect` with the same five A-1 names, and `merge` with the other host's facts exits 0.
+
+- **Negative:** a candidate whose committed `typescript_facts.mjs` differs by one comment byte gets the trusted digest, and `merge` with its non-hermetic facts exits 1 ("identical collectors").
+- **Control:** the unmodified candidate.
+- **Mutation:** hash the `cwd` copies.
+- **Test:** `test_p1b_06_hermetic_equals_b4_facts`.
+
+### P1B-07 Runner: no network (H6)
+
+- **Negative:** inside a call, all of these fail, and the listener sees nothing: TCP to a loopback listener opened outside the call, a DNS lookup, and a Unix-socket connect outside the call's directory (the Nix daemon's included, Q6).
+- **Control:** the same probes outside the runner connect.
+- **Mutation:** delete the network deny rule.
+- **Test:** `test_p1b_07_no_network`.
+
+### P1B-08 Runner: one writable path; caches read-only by inode (H6)
+
+A call can write under its own directory.
+
+- **Negatives:** (1) writes to the candidate, the evaluator root, a sibling call's directory, or the operator's `TMPDIR` fail, with bytes unchanged; (2) a write, `chmod`, or `chflags` through a hard link the call made to a cache file fails, with the bytes, mode, and flags unchanged; (3) the runner returns `Blocked` before any call when a cache entry is owned by, or writable by, the call's user (Q7).
+- **Control:** Q7-provisioned caches run.
+- **Mutations:** (1) widen the write rule to the candidate root; (2) run negative 2 against caches owned by the call's user, without the precheck; (3) remove the precheck.
+- **Test:** `test_p1b_08_writable_scope_and_inode_readonly_caches`.
+
+### P1B-09 Runner: environment and credentials (H6)
+
+The call's environment is exactly `env`, and stdin is `/dev/null`.
+
+- **Negatives:** (1) G3-14's `GH_TOKEN`, `GITHUB_TOKEN`, `SSH_AUTH_SOCK`, `AWS_ACCESS_KEY_ID`, `NODE_OPTIONS`, and `RUSTFLAGS`, set in the runner's own `os.environ`, are absent; (2) reads outside the Q8 scope fail.
+- **Control:** an `env` key and an in-scope file are visible.
+- **Mutations:** (1) merge `os.environ` into the call's environment; (2) remove the read-deny rule.
+- **Test:** `test_p1b_09_env_exact_and_no_credentials`.
+
+### P1B-10 Runner: lifetime and limits (H6, H8)
+
+- **Negatives:** (1) after a call returns, times out, or overflows stdout, no process it started remains, including a double-forked `setsid` daemon; (2) a call past `timeout` raises `subprocess.TimeoutExpired`; (3) a call exceeding `max_processes` concurrent processes does not return 0; (4) stdout past `max_stdout_bytes` returns at most limit+1 bytes.
+- **Control:** a call within the limits returns 0 and its exact stdout.
+- **Mutations:** (1) kill only the direct child; (2) drop the timeout; (3) drop the process limit; (4) drop the stdout cap.
+- **Test:** `test_p1b_10_no_process_outlives_its_call`.
+
+### P1B-11 Runner: truthful isolation record (H6)
+
+The record is `{profile, sha256, network: "none", credentials: "none", writable: [dir]}`, where `sha256` hashes the profile bytes actually applied.
+
+- **Negatives** (each raises `Blocked` before any process starts): (1) profile bytes that differ from the pin; (2) more than one writable path; (3) a host other than aarch64-darwin.
+- **Mutations:** (1) report the pinned `sha256` without hashing the applied bytes; (2) accept several paths; (3) drop the host check.
+- **Test:** `test_p1b_11_isolation_record_matches_applied_profile`.
+
+### Parent-gated criteria
+
+**P1B-12 Fresh-root real collection (aarch64-darwin).** Through the runner, in fresh per-call roots under the parent's draft evaluator root, the G3 semantic-input build and hermetic collect of a clean checkout exit 0, and the facts equal the head's non-hermetic facts.
+
+**P1B-13 Trusted matrix rehearsal (aarch64-darwin).** `admission.verify_boundaries` returns a PASS identity with `hosts.aarch64-darwin.provenance` `"regenerated"`.
+
+**P1B-14 Docs and amendments (parent; review only).** Governance tools describe the implemented behaviour; dated notes amend G3, B4, and proposal for every Q choice.
+
+**P1B-15 Candidate code cannot forge facts (H8, aarch64-darwin).** The facts, merged facts, and report that trusted readers consume equal a control candidate's, even when candidate code starts detached processes.
+
+## Checks the parent runs
+
+In order: (1) checkpoint A; (2) RED on the Mac, then each named mutation; (3) GREEN on both hosts; (4) fresh task review, then whole-candidate review.
+
+```bash
+# P1B-01..06 (RED, then GREEN on both hosts)
+nix develop --no-write-lock-file -c python3 -B -m unittest discover -s tools/validation -p test_dependency_facts_hermetic.py
+# P1B-07..11: mutations; GREEN on both hosts
+nix develop --no-write-lock-file -c python3 -B -m unittest discover -s tools/engineering -p test_boundary_runner.py
+# G3 regression
+python3 -B -m unittest discover -s scripts -p test_governance_admission.py
+python3 -B -m unittest discover -s scripts -p test_governance_binding.py
+MINDCLADE_CODEGEN_BIN=<abs> python3 -B -m unittest discover -s scripts -p test_governance_admission.py -k test_g3_20
+# P1B-12, -13, -15: Apple Silicon only; keep receipts
+MINDCLADE_P1B_EVALUATOR_ROOT=<abs> MINDCLADE_CODEGEN_BIN=<abs> MINDCLADE_P1B_LINUX_FACTS=<abs> \
+  python3 -B -m unittest discover -s tools/engineering -p test_boundary_runner.py -k test_p1b_12 -k test_p1b_13 -k test_p1b_15
+# Regeneration (after W4 merges), inventory, tree, and format
+nix develop --no-write-lock-file -c just generate-foundation generate-vs001 verify-generated
+python3 scripts/validate_generator_inputs.py
+python3 scripts/validate_repository.py --write-tree
+nix develop --no-write-lock-file -c just verify-tree fmt-check
+# Aggregate on Apple Silicon; Linux: linux-foundation green on the exact head
+nix develop --no-write-lock-file -c just verify
+```
+
+## Stop conditions
+
+- No design passes P1B-15: candidate code can rewrite a file that a trusted reader consumes.
+- A call needs network, a download, online `crate.from_cargo` splicing, any Nix store write or Nix daemon connection, or a writable path outside its own directory.
+- Cargo needs a writable provisioned `CARGO_HOME` that Q7 does not cover.
+- The Bazel client or `local_config_cc` cannot run under the Q11 environment.
+- `sandbox-exec` cannot enforce H6, nested Bazel needs a weaker profile, or `max_processes` cannot be enforced.
+- Hermetic facts differ from B4's for the same head, or cannot merge with CI-attested facts.
+- A change is needed outside the paths list: `boundaries.rs`, key sets, model/profile, `.bazelrc`, locks, flake, `.github/**`, `.agents/policies/**`, or G3-reserved test.
+
+## Amendment 1 (2026-09-26): checkpoint A approved
+
+Rob decided checkpoint A in chat on 2026-09-26 ("approve all"), after the parent listed each open decision with its recommendation.
+
+- **Decisions.** Every recommendation in "Open decisions for Rob" is approved as written, Q1-Q11. For Q3 that is (b), the digests embedded in the pinned `dependency_facts.py`. For Q10 it is (a), separate per-call roots and directories with the kill-all proven before any trusted read. For Q11 it is (b) if P1B-12 proves system directories are enough, otherwise (a).
+- **Host tool.** The macOS runner may run `/usr/bin/sandbox-exec`, a deprecated system tool outside Nix. No Nix input, package, or lock change is approved.
+- **Order.** P1b regenerates only after W4 (PR #34) merges.
+
+## Integration review clarification (2026-09-27)
+
+**Implementation BLOCKED pending reviewed criteria resolution.** P1B-12's scratch-commit negative expects a candidate adding executable `tools/bazel` and `.bazelversion` to leave the facts unchanged. Its own H1/H7 and G3/B4 bindings identify the candidate by committed head and inventory. A scratch commit changes that head and inventory even if the executed Bazel client remains trusted, so byte-identical facts for distinct commits conflict with the binding contract. The criteria owner and independent reviewer must specify which behavioral observation and which identity-bound facts are compared, then review the affected P1B-12/P1B-13/P1B-15 tests before implementation.
+
+## Related
+
+<CardGroup cols={2}>
+  <Card title="G3 Criteria" icon="shield" href="/superpowers/specs/2026-09-24-g3-criteria">
+    Review the G3 criteria that consume B4 boundary evidence through admission.
+  </Card>
+
+  <Card title="B4 Criteria" icon="globe" href="/superpowers/specs/2026-09-24-b4-criteria">
+    Review the B4 boundary criteria that define the evidence P1b regenerates.
+  </Card>
+
+  <Card title="Governance Tools" icon="lock" href="/developer/governance-tools">
+    Read the governance tools documentation covering P1b and B4 dependencies.
+  </Card>
+
+  <Card title="Agent Handoff" icon="handshake" href="/developer/agent-handoff">
+    Review the current task register and pending decisions.
+  </Card>
+</CardGroup>

@@ -1,0 +1,74 @@
+---
+title: "DOC1: engineering and technical documentation criteria"
+sidebarTitle: "DOC1 Docs"
+description: "Documentation-only gate for filling out engineering and technical docs so a new engineer or agent can build, test, and verify every implemented component."
+---
+
+DOC1 is a documentation-only gate to ensure engineering and technical documentation covers every implemented component. Rob asked in chat to "make sure to fill out the engineering and technical documentation as well". The gate grants no admission, acceptance or qualification.
+
+<Info>
+  **Base:** `main` `72b762d`, which includes PR #18 (B3b). **Branch:** `claude/engineering-docs`.
+</Info>
+
+## Reader outcomes
+
+A new engineer or agent can:
+
+- Find what each **implemented** component does, where its code, tests and Bazel targets are, how to build and test it, and what it deliberately does not do yet.
+- Call and verify the VS-001 Echo API from the generated products.
+- Run and triage the local and CI verification.
+- Understand how the implemented components connect.
+
+## Rules
+
+- **Source-exact.** Every path, command, target, type, default, limit and exit code is checked against the source or tests on `72b762d`; after the H1 Stage 1 merge the pages were reconciled against `efb48e8` (commits `e69633d` and the recheck fixes). Guessed APIs are rejected (`.agents/evals/architecture-docs.md`, "Exact source claims").
+- **Status discipline:**
+  - Document only what is implemented. Label B3b as _non-durable partial VS-001_.
+  - Name the owning gate for anything not built: B4 dependency enforcement, C1 to C5 durability, D1 to D4 replay and assurance, owner acceptances, O1 to O4.
+  - Never present scaffold as implementation. Never claim production, release, deployment or scientific readiness.
+- **Link, don't duplicate.** Point to the authoritative specs, criteria, ADRs, `start-here.md`, `troubleshooting.md` and `toolchain.md` rather than restating them.
+- **Generated output is untouched.** Nothing under `generated/**` or `docs/architecture/generated/**` is hand-edited.
+- **Scaffold stubs are activated only through the manifest.** Activating `codegen/README.md` and `contracts/README.md` is a parent transition in `docs/architecture/model/blueprint-scaffold.json` (ADR-015). New files join the repository tree through `--write-tree`.
+- **Scope limits.** No policy, CI, lock, code or test change. `.github/**`, `.agents/policies/**` and CODEOWNERS are excluded.
+
+## Deliverables
+
+### DOC1-01 Component READMEs
+
+Each covers purpose, status and owning gate, layout, public API and entry points, Bazel/Cargo targets and how to test, dependencies (and forbidden dependencies), failure behaviour, limits and next steps. Files:
+
+- `core/README.md`
+- `codegen/README.md` (scaffold stub, activated)
+- `platform/runtimekit/README.md`
+- `platform/testkit/README.md`
+- `services/foundation_echo/README.md`
+- `tools/build/README.md`
+- `tests/conformance/vs001/README.md`
+- `contracts/README.md` (scaffold stub, activated; a contract index)
+- `contracts/registries/README.md`
+- `contracts/fixtures/README.md`
+
+### DOC1-02 API reference
+
+`docs/api/vs001-echo.md` covers:
+
+- The operation, request and response shapes, limits and error set, taken from `contracts/typespec/public/echo.tsp` and the generated products.
+- How to call the service through the generated TypeScript client.
+- The statuses the running service actually returns today. The contracts audit (I1) found transport statuses the contract does not declare. They are stated as current behaviour pending Rob's contract decision, and presented neither as contract nor as bug.
+
+### DOC1-03 Runbooks
+
+- `docs/runbooks/local-verification.md`: running `just doctor` and `just verify`, what each recipe runs, reading receipts, and triaging host failures (exit 74, BLOCKED) versus verdicts. It links to `troubleshooting.md`.
+- `docs/runbooks/regenerate-generated-outputs.md`: when to run `just generate-foundation`, `just generate-vs001` and `just update-tree`, and the drift check.
+- `docs/runbooks/run-foundation-echo.md`: build, run, receipts, the stdin control channel, exit codes and leftover-process checks.
+
+### DOC1-04 Engineering map
+
+`docs/developer/codebase-map.md` shows the implemented components and how they connect (contracts to frontend to Codegen to generated to RuntimeKit/TestKit/Echo to conformance), with a text diagram and links. `start-here.md` and `docs/README.md` link to it and to the runbooks and API docs.
+
+## Checks the parent runs
+
+- `python3 scripts/validate_scaffold.py`
+- `python3 scripts/validate_repository.py --write-tree`, then `just verify-tree`
+- `nix develop --no-write-lock-file -c just verify`
+- A fresh docs reviewer applies `.agents/evals/architecture-docs.md`. Findings are fixed and re-checked.

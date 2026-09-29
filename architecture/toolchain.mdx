@@ -1,0 +1,165 @@
+---
+title: "Toolchain Authority and Build Configuration"
+sidebarTitle: "Toolchain"
+description: "Pinned build tools, Nix and Bazel baseline, local verification recipes, CI actions, and disk cache configuration for the Mindclade monorepo."
+---
+
+The Mindclade monorepo toolchain is owned by Nix for local baselines and Bazel for the build graph. This page records the pinned versions, verification commands, lint policy, compiler CLI, CI configuration, and cache behavior you need to work in the repository.
+
+## Baseline
+
+- Bazel `9.1.1`; `rules_rust` `0.74.0`; `rules_nixpkgs_core` `0.13.0`.
+- Rust `1.96.1` from the locked Rust overlay, not host Rustup.
+- Official TypeSpec compiler and HTTP library `1.16.0`.
+- Node `24.20.0` (LTS), pnpm `12.3.4`, Python `3.12.14`.
+- TypeScript `5.9.3` from locked nixpkgs, executed as compiler JavaScript by the pinned Node 24 action.
+- JDK from the same locked package set: Darwin `21.0.11`, Linux `21.0.12.1+1`.
+- Platform linker and tool paths come from the locked Nix package set.
+- Genuine `flake.lock`, `Cargo.lock`, `pnpm-lock.yaml`, and `MODULE.bazel.lock`.
+- CI bootstraps Nix `2.35.1`; the local Nix launcher is also `2.35.1`.
+- protoc `36.1` (`libprotoc 36.1`) and Python protobuf `7.36.1`, both from the already-locked nixpkgs (Rob-approved for B2b; no lock change). protoc is on the devShell PATH and exposed to Bazel as `nix_protoc`; the protobuf-enabled interpreter is exposed only as `nix_protobuf_python` for the Bazel descriptor test, so shell `python3` remains the plain `pythonToolchain`.
+- The C1 prerequisite selects `postgresql_18` at `18.6` from the unchanged `flake.lock` and `postgres` Rust client at exact `0.19.14`. The PostgreSQL package is exposed to Bazel as `nix_postgresql`, with the four individual `postgres`, `initdb`, `pg_ctl`, and `pg_controldata` runfiles and a `bin`/`lib`/`share` filegroup. The real probe-only Cargo member `mindclade-foundation-echo-testing` owns the client dependency; Echo's production dependency set is unchanged at this stage.
+
+`flake.lock` fixes nixpkgs and rust-overlay revisions and content hashes. Repository Python uses the standard library; only the B2b descriptor conformance test uses the Nix protobuf interpreter. No second contract compiler or framework was added. `uv.lock`, `go.sum`, and other unactivated blueprint files remain stubs, not pins.
+
+The PostgreSQL selection and repository declarations are source configuration. The prepared `Cargo.lock` resolves the exact client version with 73 new registry package/version pairs globally. Its selected normal/build closures contain the 53 Darwin and 50 Linux pairs in Appendix A, and the existing 27 registry pins are preserved. The [A4.7 S9 reconciliation](https://github.com/Mindclade-org/mindclade-internal-monorepo/blob/main/docs/superpowers/specs/2026-09-26-c-durability-criteria.md) records why the global lock is larger and freezes both inventories.
+
+## Service Compiler Toolchain Additions
+
+B3a pins the event-only `saphyr-parser` adapter in Codegen. Unix bounded reads use `libc` constants through safe standard-library file APIs; they do not introduce unsafe Rust or a runtime YAML dependency. The exact versions remain in Cargo.lock.
+
+On Darwin, the Nix C-linker wrapper explicitly supplies the locked `libiconv` library directory, also included in the development shell. Linux does not receive that Darwin flag. Bazel's Nix repository declaration lists both `flake.nix` and `flake.lock` in `nix_flake_file_deps`, so content changes invalidate the generated toolchain instead of retaining a stale linker wrapper. This changes neither flake input revisions nor the policy that builds use pinned tools.
+
+## Run the Foundation
+
+```bash
+nix develop --no-write-lock-file -c just doctor
+nix develop --no-write-lock-file -c just verify
+nix develop --no-write-lock-file -c just generate-foundation
+nix develop --no-write-lock-file -c just generate-vs001
+nix develop --no-write-lock-file -c just verify-generated
+```
+
+Doctor checks local prerequisites without Nix evaluation, provisioning, builds, tests or remote probes. The human/parent enters the shell; `just doctor` runs only `python3 -B scripts/doctor.py`. Its 0/PASS, 2/FAIL and 3/BLOCKED JSON result does not grant admission or qualification. It checks its declared prerequisite baseline, Nix store paths and metadata, supported host, Git state and unchanged lock bytes.
+
+`just verify` aggregates fast source/format checks, scaffold integrity, tree checks, actual foundation build/tests, a read-only generated-output check, and `just verify-boundaries`: fresh dependency facts for the running host, checked by Codegen into `target/foundation-verification/boundaries/{facts.json,report.json}`. It gives host scope only; the two-host matrix is a separate parent step. `just generate-foundation` explicitly regenerates only the owned foundation outputs. Verification never repairs drift. `just generate-vs001` selects the fourteen-file composition catalog (`VS001CompositionProducts@v1`): the original checked client/DTO/graph/manifest products, `service/descriptor.json` and `service/config.rs`, the public `openapi.json`, `echo.proto`, `mcp.json` and `README.md` products, plus the generated `service/http.rs` adapter. It passes `--services`, `--architecture docs/architecture/model/architecture.yaml`, `--protocols`, the explicit current/previous `--proto-registry` and `--previous-proto-registry` sources and `--composition` (which requires `--protocols`) to the wrapper. `just verify-generated` checks both foundation and composition catalogs without repair. The thirteen-file protocol route (the same flags without `--composition`), the nine-file service route and the descriptor-free seven-file route remain for isolated compatibility tests. There is no separate bootstrap script: `nix develop --no-write-lock-file -c just verify` and the recipes above are the only foundation route, for maintainers and CI alike. None of them updates a lock; a dependency change is a separately reviewed lock change.
+
+Bazel compiles Rust and the official TypeSpec fixture using declared Nix tools and a content-addressed, offline pnpm dependency closure. Build actions do not install dependencies. Cargo runs supplemental unit/integration/doctests using the same Rust tools. VS-001 adds actual generated TypeScript compilation, JavaScript runtime tests, strict positive/negative type fixtures and a Rust DTO consumer. The consumer action verifies the TypeScript version; doctor does not duplicate that compiler check.
+
+`//codegen:tests` preserves the integration suite. `//codegen:unit_tests` also compiles the library with test-only publication barriers and runs actual child process termination, recovery and concurrent-writer tests. Both targets are required in foundation action and execution receipts; the shipped compiler has no environment-controlled fault hooks. The publication checks require a local filesystem supporting advisory locks and directory sync, not a network mount.
+
+The local toolchain module extension declares reproducibility: it instantiates repository rules using only source labels and its declared OS/architecture. Bazel can therefore reevaluate it on Linux without a Mac-only extension-cache entry. See [Bazel extension metadata](https://bazel.build/rules/lib/builtins/module_ctx#extension_metadata).
+
+## Bazel Configuration and the Shared Disk Cache
+
+The committed `.bazelrc` is the only Bazel configuration that repository builds read. The flake's `bazel` wrapper starts the pinned Bazel with `--nosystem_rc --nohome_rc` (`flake.nix`), so a personal `~/.bazelrc` or a system rc never applies. `tools/build/bazel_policy_test.py` pins the rc: no `import` or `try-import`, no execution-strategy line, exactly one network line (`build --sandbox_default_allow_network=false`) and the three disk-cache lines below.
+
+The pinned launcher selects a local disk cache shared by clones and worktrees using the same process home. It passes an absolute `--disk_cache` path for `build`, `test`, `run` and `coverage`; a scratch process home therefore isolates DX2 captures and B4's temporary-home collector. A later explicit cache option retains normal command-line precedence.
+
+| Setting | Value |
+| --- | --- |
+| Location | The launcher expands `$HOME/.cache/mindclade-bazel-disk` from the invoking process's absolute existing home. This overrides `.bazelrc`'s tilde default, which Bazel resolves through the JVM account home rather than a scratch process home |
+| Size bound | `build --experimental_disk_cache_gc_max_size=20G` |
+| Age bound | `build --experimental_disk_cache_gc_max_age=30d` |
+
+The cache is content-addressed: Bazel reuses an entry only for an action with the same command and input digests, so a new worktree or a `bazel clean` rebuilds from it instead of from scratch. The two bounds are Bazel's experimental disk-cache garbage-collection flags; collection runs periodically, not on every write. The first build that uses the cache creates the directory.
+
+**A cache, never evidence.** The cache stores action outputs keyed by their inputs; it is not a check result. Bazel already reuses a passing test from the output base's action cache for identical inputs and reports it as `(cached) PASSED`; the disk cache extends that reuse to other worktrees, clones and a `bazel clean`. Receipts still record what each run observed: `verify-foundation` writes its build events, test logs and `verification.json` every run, and `verify-boundaries` clears and recollects its facts every run. The host socket probes (`//platform/runtimekit:std_socket_probes`) carry `tags = ["external"]`, so Bazel runs them on every invocation and never takes their result from either cache. Nothing in `~/.cache/mindclade-bazel-disk` may be cited, copied or archived as evidence.
+
+To clear it, stop the Bazel servers that use it, then delete the directory:
+
+```bash
+nix develop --no-write-lock-file -c bazel shutdown   # in each checkout or worktree that ran Bazel
+rm -rf ~/.cache/mindclade-bazel-disk
+```
+
+Clearing only costs rebuild time; the next build recreates it. The Bazel output base (`bazel info output_base`) and the repository cache are separate and are not affected.
+
+## Lints
+
+`just verify-fast` runs `cargo clippy --workspace --all-targets --locked -- -D warnings` after `cargo fmt --all --check`. It uses clippy's default lint set from the pinned Rust toolchain, with no `clippy.toml`, and any warning fails the recipe. The gate compiles every Cargo target. It needs no test-input variables: tests read `VS001_INPUT`, `B3A_FIXTURES` and similar only at run time. Bazel-only Rust suites such as `service_http`, `service_config` and `config_probe` are not Cargo targets, so this gate does not lint them.
+
+- Fix a finding in the source. An allow is an exception: put it on the narrowest item, or on the crate only when the lint fires across the crate, and give the reason next to it. Do not use `allow(clippy::all)` or a group-level allow.
+- Fix generated Rust in the Codegen emitter, then regenerate. Do not edit `generated/**` or allow lints where a crate includes a generated module. An emitter may emit a commented item-level allow only for a lint that the contract's shape causes.
+- rustc's `dead_code` and `unused_imports` stay allowed where a crate includes generated DTOs and uses only part of them. Those allows are not clippy allows.
+
+Current exceptions:
+
+| Lint | Scope | Reason |
+| --- | --- | --- |
+| `clippy::result_large_err` | `mindclade-codegen` crate (`codegen/src/lib.rs`) | `Diagnostic` (136 bytes) and `Vec<Diagnostic>` are the compiler's deliberate error channel. Boxing them would change every signature without runtime benefit. |
+| `clippy::too_many_arguments` | Generated DTO `new` with more than seven parameters, emitted by `codegen/src/emit/rust.rs` | The constructor takes one parameter per contract field, so the authored schema sets its arity. |
+| `clippy::too_many_arguments` | `ServiceConfig::new` in `platform/runtimekit/src/config.rs` | It takes one parameter per validated setting, in validation order. |
+
+## Compiler CLI
+
+Within the pinned shell, discover the implemented commands without reading or writing compiler inputs or outputs:
+
+```bash
+cargo run --locked -q -p mindclade-codegen -- --help
+cargo run --locked -q -p mindclade-codegen -- compile --help
+cargo run --locked -q -p mindclade-codegen -- compile-vs001 --help
+cargo run --locked -q -p mindclade-codegen -- compat --help
+```
+
+Help exits zero on stdout. Missing required compile options name the option in a located `cli-argument` diagnostic on stderr and exit one. `compile --check` remains read-only; `compat` never overwrites an existing report. Compatibility exits two for an incompatible or unsupported report, not a successful verdict.
+
+## Current Limits
+
+Apple Silicon clean-checkout execution and [Linux CI](https://github.com/robpearc-mindclade/mindclade-vnext/actions/runs/35841756945) passed for candidate `5a79f926f4b756935e1cf8c7aebd82899ce5a305` (VS-001 A2). The retained graph and manifest match byte-for-byte across those hosts. These results are revision-scoped; subsequent candidates require their own checks. Intel macOS has no development shell (H1-19). These distinctions and current remote governance blockers are recorded in [bootstrap status](/architecture/bootstrap-status).
+
+Receipts under ignored `target/foundation-verification/` carry candidate identity, tool versions, host, lock/artifact digests, test logs, build events, and configured actions. A failing/missing command replaces an older passing verification receipt with failure. The workflow uploads these and the canonical outputs even on failure. The CI run conclusion and generated-output gate must also pass; a build-test receipt alone does not establish the aggregate result or independent acceptance.
+
+The pinned nixpkgs pnpm closure helper is narrowly overridden to avoid rewriting verbatim JSON-with-comments package payloads. Its observed Darwin/Linux archive hashes are separately pinned; canonical compiler output must still be identical. Only the Cargo crate-universe triple list still includes `x86_64-apple-darwin`, as dependency-resolution compatibility; there is no Intel macOS shell or execution evidence.
+
+## CI Action Review
+
+Checkout and upload release refs and `action.yml` sources were reviewed on 2026-09-23; the cache action sources were reviewed on 2026-09-28:
+
+| Action | Release | Immutable Runtime Source | Runtime |
+| --- | --- | --- | --- |
+| actions/checkout | v7.0.1 | [3d3c42e5](https://github.com/actions/checkout/blob/3d3c42e5aac5ba805825da76410c181273ba90b1/action.yml) | node24 |
+| actions/cache/restore | v6.1.0 | [55cc8345](https://github.com/actions/cache/blob/55cc8345863c7cc4c66a329aec7e433d2d1c52a9/restore/action.yml) | node24 |
+| actions/cache/save | v6.1.0 | [55cc8345](https://github.com/actions/cache/blob/55cc8345863c7cc4c66a329aec7e433d2d1c52a9/save/action.yml) | node24 |
+| actions/upload-artifact | v7.0.1 | [043fb46d](https://github.com/actions/upload-artifact/blob/043fb46d1a93c77aae656e7c1c64a875d1fc6a0a/action.yml) | node24 |
+| cachix/install-nix-action | v31, unchanged | [13d8dd58](https://github.com/cachix/install-nix-action/blob/13d8dd58da0234aa297dedd986986ccb8e7f3e24/action.yml) | composite Bash |
+
+Checkout retains `persist-credentials: false`; no unsafe PR checkout input is enabled. Upload retains zipped multi-file transport, missing-file errors and 14-day retention; artifact names bind candidate, run ID and attempt. This removes the observed Node 20 compatibility warning without changing the Nix-supplied Node 24 product toolchain. Hosted Ubuntu runners supply the action runtime. These are source/runtime declaration checks, not an action security audit.
+
+Main groups use unique run IDs and never cancel preceding main runs. Feature/PR groups are stable within event/ref and cancel obsolete runs. Cancelled or missing results are non-passing even if partial logs were uploaded. Read-only repository permissions and immutable dependency resolution remain unchanged.
+
+## CI Build Cache and Timing Diagnostics
+
+The Linux foundation workflow restores only the Bazel disk cache, Cargo registry index/cache/source, and `target/debug`. Its key binds runner OS and architecture, the committed flake, Cargo, Bazel and pnpm lock/build inputs, then the GitHub run ID and attempt. A restore may fall back only to an earlier cache with the same OS, architecture and full input hash. The successful main-push run saves its resolved primary key after validation and artifact steps. The two cache transport steps tolerate service errors; a miss or failure cannot skip or pass any check. Neither generated sources, receipts, reports nor the whole Cargo or target tree are cached. Cache contents remain disposable build inputs, not evidence.
+
+CI sets `JUST_TIME=true` only for `nix develop --no-write-lock-file -c just verify`. The pinned Just runtime prints completion durations for the six aggregate recipes. An always-run helper reads `target/foundation-verification/ci.log` and records only observed completion lines and the cache restore's exact-hit/matched-key metadata in `target/foundation-verification/performance.json`. This separate JSON is diagnostic only. An absent or partial log leaves absent timings; it cannot claim that verification finished or passed. The original workflow and receipt outcomes remain authoritative. A warm-run speedup requires measurements from comparable completed runs; configuration alone establishes no performance result.
+
+## Evidence Retention
+
+Use [evidence retention](/architecture/evidence-retention) for explicit directory export and readback. GitHub uploads are transport only. The owner-controlled shared archive, access/retention policy and verified retrieval remain blocked until supplied; neither a local duplicate nor extended artifact expiry closes that gate.
+
+## Qualification Boundary
+
+Local source checks do not establish remote CI, release, deployment, live-cloud, GPU, security, or scientific qualification.
+
+Before production claims, the repository must add independent CI evidence, signed build provenance, SBOMs, deployment evidence, and scientific/numerical evidence where relevant.
+
+## Related
+
+<CardGroup cols={2}>
+  <Card title="Start Here" icon="play" href="/developer/start-here">
+    Access, prerequisites, and first commands for new contributors.
+  </Card>
+
+  <Card title="Service Config v1" icon="gear" href="/architecture/service-config-v1">
+    Frozen generated configuration contract for Foundation Echo.
+  </Card>
+
+  <Card title="Bootstrap Status" icon="chart-bar" href="/architecture/bootstrap-status">
+    Current maturity and open gates.
+  </Card>
+
+  <Card title="VS-001 Semantic Loop" icon="arrows-spin" href="/architecture/vs-001-semantic-development-loop">
+    The end-to-end development loop this toolchain supports.
+  </Card>
+</CardGroup>

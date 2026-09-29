@@ -1,0 +1,33 @@
+---
+title: "ADR-009: Independent Assurance"
+sidebarTitle: "ADR-009"
+description: "Assurance must be independent from implementation. This ADR records the decision that conformance and qualification consume artifacts and evidence outside the implementation owner's control."
+---
+
+This architecture decision record establishes that assurance must be independent from implementation. Conformance, compatibility, security, replay, numerical, scientific, release, and deployment qualification all consume artifacts and evidence. The implementation owner does not define success and self-certify it.
+
+| Status | Date | Related |
+| --- | --- | --- |
+| Accepted | 2026-09-22 | — |
+
+## Decision
+
+Assurance must be independent from implementation.
+
+## Consequences
+
+- Agent-generated work requires separate review or evaluator ownership.
+- Scientific and numerical claims require evidence beyond source review.
+- Local source checks are not remote CI, deployment, or release claims.
+
+## Related
+
+<CardGroup cols={2}>
+  <Card title="ADR-005: Evidence Claim Policy" icon="file-contract" href="/architecture/adr/adr-005-evidence-claim-policy-and-decision-law">
+    How evidence, claims, and decisions are governed.
+  </Card>
+
+  <Card title="Agent handoff" icon="users" href="/developer/agent-handoff">
+    Current task register and owner decisions.
+  </Card>
+</CardGroup>

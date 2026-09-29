@@ -1,0 +1,86 @@
+---
+title: "Mindclade vNEXT Architecture Package"
+description: "Index of the architecture package. Covers foundations, system design, blueprints, ADRs, and the engineering system that governs platform evolution."
+sidebarTitle: "Overview"
+---
+
+This is the architecture package for the greenfield repository. The authority order in [AGENTS.md](https://github.com/Mindclade-org/mindclade-internal-monorepo/blob/main/AGENTS.md) governs it; explanations and diagrams do not override accepted ADRs or implementation maturity.
+
+Start with the [foundations reading guide](/architecture/foundations/overview) for the complete target system, the [system design](/architecture/system-design) for a single-page overview, or the [layered platform diagram](/architecture/platform-diagram) for visual orientation. The [blueprint coverage map](/architecture/foundations/blueprint-coverage) connects all 20 original sections and every image layer to owned paths and detailed references. The [documentation index](/index) separates design from developer and operator procedures.
+
+## Package Contents
+
+<CardGroup cols={2}>
+  <Card title="Generated Surface Ownership" icon="scroll" href="/architecture/generated-surface-ownership">
+    Exact authored/generated boundaries and the Protobuf distinction
+  </Card>
+
+  <Card title="Original Blueprint Alignment" icon="check-double" href="/architecture/reviews/2026-09-22-original-blueprint-alignment">
+    Supplied source snapshot, complete scaffold coverage, and reconciled ownership
+  </Card>
+
+  <Card title="Notion HQ Review" icon="building" href="/architecture/reviews/2026-09-22-notion-hq">
+    Source coverage, adopted requirements, conflicts, and deferred material
+  </Card>
+
+  <Card title="Design Audit" icon="magnifying-glass" href="/architecture/reviews/2026-09-26-design-audit">
+    Three 2026-09-26 audit verdicts, their findings, and Rob's decision on groups A to D
+  </Card>
+
+  <Card title="Master Blueprint" icon="book-open" href="/architecture/master-blueprint">
+    Consolidated vNEXT system design
+  </Card>
+
+  <Card title="Platform Diagram" icon="diagram-project" href="/architecture/platform-diagram">
+    Canonical flow, text equivalent, and links to detailed engineering/scientific views
+  </Card>
+
+  <Card title="Repository Tree" icon="sitemap" href="/architecture/repository-tree">
+    Complete current inventory and planned responsibility map
+  </Card>
+
+  <Card title="Implementation Roadmap" icon="road" href="/architecture/implementation-roadmap">
+    Dependency-ordered delivery and acceptance
+  </Card>
+
+  <Card title="Bootstrap Status" icon="power-off" href="/architecture/bootstrap-status">
+    Finalized baseline and remaining implementation blockers
+  </Card>
+
+  <Card title="Architecture Laws" icon="scale-balanced" href="/architecture/architecture-laws">
+    Binding architectural laws
+  </Card>
+
+  <Card title="VS-001 Semantic Development Loop" icon="rotate" href="/architecture/vs-001-semantic-development-loop">
+    The first vertical slice plan
+  </Card>
+
+  <Card title="VS-001 Remaining Work" icon="list-check" href="/architecture/vs001-todo">
+    Current slice status and tracked tasks
+  </Card>
+</CardGroup>
+
+## Active ADRs
+
+- [ADR-015](/architecture/adr/adr-015-original-blueprint-scaffold-alignment) (Accepted): bounded explicit scaffold exception
+- [ADR-016](/architecture/adr/adr-016-postgresql-outbox-durable-execution) (Accepted): PostgreSQL plus the transactional outbox as the durable execution substrate, with the rejected alternatives and the triggers for revisiting them
+- [ADR-017](/architecture/adr/adr-017-runtimekit-transport-engine) (Accepted): RuntimeKit's transport engine moves to hyper on tokio behind the existing `Handler` interface before C5
+- [ADR-018](/architecture/adr/adr-018-biosecurity-and-dual-use-controls): **Proposed** draft making hazard screening a precondition for generative-design capabilities and laboratory adapters
+- [ADR-019](/architecture/adr/adr-019-pytorch-training-substrate): **Proposed** PyTorch training substrate
+- [ADR-020](/architecture/adr/adr-020-kernel-adoption-and-operator-binding): **Proposed** kernel adoption and operator binding
+- [ADR-021](/architecture/adr/adr-021-clade-adopt-or-build-gate): **Proposed** adopt-or-build gate for Clade representation and structure
+- [ADR-022](/architecture/adr/adr-022-evaluation-and-data-split-standards): **Proposed** evaluation artifacts and data-split standards
+- [ADR-023](/architecture/adr/adr-023-model-organization): **Proposed** model organization under `models/`
+
+## Provenance and Qualification Companions
+
+- [Execution reliability](/architecture/execution-reliability): identity, retries, ownership, budgets, recovery, independent acceptance, and reporting boundaries
+- [Compiler and developer products](/architecture/developer-products): semantic parity, compatibility, audience closure, consumer tests, and release-set recovery
+
+The architecture is allowed to evolve, but only through reviewed ADR changes and evidence-backed vertical slices.
+
+## Engineering System
+
+Read the [supervised system blueprint](/architecture/engineering/supervised-system-blueprint) for the complete proposed engineering workflow and its connection to the platform. The [requirements map](/architecture/engineering/requirements-traceability) connects each implementation-plan requirement to source, procedures and required acceptance evidence. [Governance status](/architecture/engineering/governance-status) records observed blockers without treating a proposed design as deployed. The [agent handoff](/developer/agent-handoff) records the working branch, verification/review state, preserved concurrent work and ordered resume steps.
+
+The [developer guide](/developer/supervised-development), [packet contract](/developer/work-packet-v1), [governance tool contract](/developer/governance-tools) and [operator runbook](/operations/github-governance) own their detailed interfaces and procedures. The [Eve assessment](/architecture/reviews/2026-09-23-eve-factory) is pinned source analysis, not vendor adoption or execution qualification.

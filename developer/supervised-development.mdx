@@ -1,0 +1,106 @@
+---
+title: "Supervised Development"
+sidebarTitle: "Supervised Dev"
+description: "The procedure for resuming, recording and handing off supervised engineering work in the Mindclade vNEXT repository."
+---
+
+The contributor entry point is [start here](/developer/start-here): first commands, private access, owner lookup, dispatch handoff, edit map and source boundaries. Use [troubleshooting](/developer/troubleshooting) to route prerequisite failures to the integrator or operator without installing tools or discarding concurrent work.
+
+Status: Documented procedure, 2026-09-23. Bootstrap admission and the connected acceptance loop remain BLOCKED pending their recorded prerequisites. These docs do not establish live protections or unattended engineering readiness.
+
+The dated recorded work reference is [MIN-14](https://linear.app/mindclade/issue/MIN-14/vnext-establish-supervised-engineering-authority-and-enterprise), last recorded In Progress; refresh its live assignment/state before dispatch. This documentation records progress, not closure.
+
+Use the [tracked foundation workflow](https://github.com/Mindclade-org/mindclade-internal-monorepo/blob/main/.agents/workflows/foundation-development.md) and [provider-neutral prompts](https://github.com/Mindclade-org/mindclade-internal-monorepo/blob/main/.agents/README.md) without requiring an installed plugin. The [common handoff](/developer/agent-handoff) owns current task status and the [system design](/architecture/system-design) explains the full target system.
+
+## Resume without chat history
+
+Start with [AGENTS.md](https://github.com/Mindclade-org/mindclade-internal-monorepo/blob/main/AGENTS.md) and the tracked [agent handoff](/developer/agent-handoff). The handoff is dated recovery context, not authority, approval, a lock or an execution grant. Before resuming, have the current integration owner freshly verify checkout/revision/remote state, local changes, Linear and path ownership, existing attempts/jobs and their parent-owned receipts against the actual candidate and outcomes. Reconcile interrupted or uncertain work before another dispatch; acquire the current owner's handoff and use the sole registered route. Workers use parent-supplied verification and keep their existing scope. Neither the document nor an old receipt grants permission to rerun work or establishes a current pass.
+
+## Work and technical authority
+
+Use one Linear task for scope, priority, ownership, blockers and closure. Notion holds research, context and links to accepted outcomes. Git holds the reviewed specification, architecture, contracts, source, policy and evidence references. Neither an external page nor a tracker comment silently changes Git authority. Use the [Linear task template](/developer/linear-task-template) and [AGENTS.md](https://github.com/Mindclade-org/mindclade-internal-monorepo/blob/main/AGENTS.md) to establish a bounded change.
+
+The [role assignments](https://github.com/Mindclade-org/mindclade-internal-monorepo/blob/main/.agents/roles/supervised.md), [lifecycle](https://github.com/Mindclade-org/mindclade-internal-monorepo/blob/main/.agents/workflows/supervised.md) and [security policy](https://github.com/Mindclade-org/mindclade-internal-monorepo/blob/main/.agents/policies/supervised.md) define the operating requirements. Each task names a planner, implementer, fresh reviewer, one integration owner and Rob as engineering acceptance owner. The parent integrator owns validation commands, process jobs, Git and combined-candidate integration; bounded workers follow their briefs and hand back source changes and reports.
+
+The integrator owns exactly one registered engineering dispatch route. Every manual, Linear, GitHub or future n8n intake feeds that route, even when an alternative would have equal or lower permissions. Reconcile duplicate delivery against the existing work and attempt records before any new execution.
+
+## Reviewed records
+
+WorkPacket@v1 and GovernanceReport@v1 are non-semantic, versioned engineering records. They do not create locks, provision credentials, grant capabilities, compile contract semantics or substitute for a policy decision. The following table summarizes the versioned WorkPacket and GovernanceReport contracts. The [WorkPacket contract](/developer/work-packet-v1) and [governance tools](/developer/governance-tools) describe the implemented source interfaces and command details. Operational use remains subject to review and operator adoption, including an independently accepted evaluator and trusted approval inputs. Source implementation alone does not establish connected acceptance.
+
+| Record | Contract Fields Or External Responsibility |
+| --- | --- |
+| WorkPacket@v1 | `schema` = `mindclade.work-packet.v1`; `id`, `linear_issue`, `objective`, `non_goals`, `spec` (`path`, `sha256`), `base_sha`, `policy_sha`, `work_class`, `owners`, `owned_paths`, `generated_paths`, `acceptance`, `stop_conditions`, `allowed_actions`, `budget` |
+| Operator approval inputs, outside the packet | Rob's approval reference and exact approved packet digest; trusted base/candidate and accepted-policy revision supplied by the operator, with approved policy identity held outside candidate control |
+| GovernanceReport@v1 | `schema` = `mindclade.governance-report.v1`; `scope`, `bindings`, `checks`, `status`, `limitations`. Each check has `id`, `status`, `detail`; report and check statuses are PASS, FAIL or BLOCKED only |
+
+`owners` contains `implementation`, `review`, `integration` and `acceptance`; record the planner in Linear or the specification. Acceptance records contain `id`, `description` and an `argv` list that admission never executes. Budget contains `max_attempts` and `max_minutes`. `work_class` is governance or code; `allowed_actions` permits only local-edit, local-check and propose-pr. Owned paths are explicit files or directory prefixes ending in `/`, without globs; generated paths are explicit output files and grant no permission to edit.
+
+Dependencies, explicit evidence requirements, tool/network/credential limits and recovery details belong in the reviewed specification, acceptance descriptions or stop conditions and the operator's environment controls. They are not extra packet fields. Reports carry revision/evidence context in their bindings, check details and limitations rather than invented top-level fields. Required checks that did not execute are BLOCKED with "not run" in `detail`; NOT RUN is never a fourth status. Overall status gives FAIL precedence over BLOCKED, then PASS.
+
+The integrator rejects unsafe or overlapping paths, self-acceptance, modified specifications, substituted policy and stale identities. Generated paths require declared Codegen regeneration and provenance. Commands recorded in a packet are data, never evaluation instructions. Missing operator-approved policy or packet digests keep bootstrap admission BLOCKED. The user's explicit bounded authority to implement governance documentation does not approve later packets or qualify the admission machinery. Code-class admission remains BLOCKED until the B4 boundary checker is implemented; a candidate-supplied receipt cannot replace it.
+
+## Daily handoff
+
+The parent maintains external execution-attempt records under the [lifecycle procedure](https://github.com/Mindclade-org/mindclade-internal-monorepo/blob/main/.agents/workflows/supervised.md), linked to the frozen packet and exact revisions. Each records a distinct identity, state and dated start/resume/finish or abandonment entries, execution/session references, candidate checkpoints and parent-owned receipt links. Retain completed and abandoned attempts. Confirmed continuation can keep the existing identity; re-execution requires a new attempt and consumes the original attempt/time budget. These operator records add no fields to the frozen packet or report schemas.
+
+<Steps>
+  <Step title="Link Linear to specification and context">
+    Link the Linear task to the reviewed Git specification and optional Notion context. Freeze observable criteria and independently authored expected results before the implementer starts; obtain Rob's scope and digest approvals.
+  </Step>
+  <Step title="Check and record before dispatch">
+    Have the integrator check current source/base, accepted policy, ownership and actual capabilities, reconcile existing work/attempt records and record the attempt before dispatch through the sole registered route. Admission of a record alone cannot authorize execution.
+  </Step>
+  <Step title="Implement and report">
+    Implement only allowed changes and report discoveries that affect the contract. Preserve concurrent edits and avoid assigning shared integration files to multiple workers.
+  </Step>
+  <Step title="Hand off with exact details">
+    Hand off exact changed paths, candidate/source/base, packet/specification references, attempt identity/state and execution/session references, decisions, findings, parent-owned receipt links, unverified steps and recovery state. Workers describe parent-owned checks they did not run in prose; a required unexecuted report check has status BLOCKED and a "not run" detail.
+  </Step>
+  <Step title="Review with a fresh reviewer">
+    Have a distinct fresh reviewer inspect the candidate using the parent's receipts. Review fixes and the final combined candidate; changes invalidate affected evidence and approvals and require refreshed admission/checks.
+  </Step>
+  <Step title="Protected PR and merge queue">
+    Follow the [GitHub runbook](/operations/github-governance) through Rob's approval, protected PR, verified merge group, main verification and immutable private evidence archival. Close Linear only after downloading and verifying the archive; link the outcome from Notion.
+  </Step>
+</Steps>
+
+<Warning>
+  Stop dependent work for stale inputs, ownership conflicts, unavailable evidence, unexpected effects, exhausted budgets or new credential needs. The integrator records the blocker and escalates to Rob. Cancellation stops new dispatch but remains pending until jobs and uncertain effects are reconciled by their owner. A reporting-only retry uses the same completed attempt's retained results; it does not repeat engineering work, rerun a completed check or create a new execution attempt. Do not retry an effect merely because its reporting step failed.
+</Warning>
+
+## Evidence boundary
+
+The existing foundation has locked Nix, executable Bazel targets, an immutable typed graph and retained foundation graph/manifest. The task's 2026-09-23 baseline records `linux-foundation` success for main `bef879d` in [run 35824604803](https://github.com/robpearc-mindclade/mindclade-vnext/actions/runs/35824604803). [Toolchain authority](/architecture/toolchain) already records Apple Silicon and earlier Linux execution. Those receipts concern their named revisions; every new candidate needs its own evidence. Wider runtime, service and SDK surfaces remain planned. F0 still needs independent acceptance and protected review, not an initial cross-host execution result.
+
+The supplied baseline also records HTTP 403 due to SAML on destination preflight and unprotected source main. The 2026-09-26 transfer superseded that baseline; [governance status](/architecture/engineering/governance-status) records the live protection, dedicated App and merge queue. The connected loop remains BLOCKED: no Linear closure or evidence publication yet. Local checks, an older CI pass, Rob's acceptance and fresh agent review cannot establish live protection, independent scientific/release assurance or deployment qualification.
+
+## Follow-on pilots
+
+After governance acceptance, n8n may coordinate Linear/GitHub/Notion events while Linear remains the single work authority. First qualify duplicate delivery, uncertain effects, expired approvals and reporting-only retry; coordination must feed the integrator's sole registered dispatch route. n8n must not bypass admission or become another dispatcher, including with equal or lower permissions. Duplicate events reconcile existing work/attempt records before any new execution. n8n remains uninstalled; this procedure does not implement dispatch enforcement.
+
+Mintlify may publish reviewed guides and Codegen-owned approved OpenAPI after the Echo consumer milestone. Require authenticated previews, private audience checks for raw specifications and search, and PR-only documentation changes. Neither pilot is installed or required by this task; no second tracker is introduced.
+
+The separate [Eve factory evaluation](https://github.com/Mindclade-org/mindclade-internal-monorepo/blob/main/docs/architecture/reviews/2026-09-23-eve-factory.md) records a candidate only. It does not adopt Eve, grant execution authority or replace the reviewed governance loop.
+
+<CardGroup cols={2}>
+  <Card title="Start here" icon="play" href="/developer/start-here">
+    First commands and prerequisites.
+  </Card>
+
+  <Card title="Troubleshooting" icon="wrench" href="/developer/troubleshooting">
+    Route failures to their owners.
+  </Card>
+
+  <Card title="WorkPacket@v1" icon="file-contract" href="/developer/work-packet-v1">
+    Contract fields and local admission.
+  </Card>
+
+  <Card title="Linear task template" icon="clipboard-list" href="/developer/linear-task-template">
+    Template for bounded changes.
+  </Card>
+
+  <Card title="Agent handoff" icon="list-check" href="/developer/agent-handoff">
+    Current task register.
+  </Card>
+</CardGroup>

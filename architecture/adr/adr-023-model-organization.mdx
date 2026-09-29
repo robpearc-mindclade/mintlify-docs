@@ -1,0 +1,142 @@
+---
+title: "ADR-023: Model Organization Under models/"
+sidebarTitle: "Model Organization"
+description: "Proposed ADR restructuring models/ into common, clade, adopted upstream slots, and registry with activation rules and ADR-015 amendment notes."
+---
+
+This proposed ADR restructures the `models/` tree to support the Clade rename, adopted-model slots, and clean generation boundaries. It is a draft approved by Rob on 2026-09-27 and decides nothing until reviewed and accepted. It creates, renames, or removes no path todayproposed ADR restructures the `models/` tree to support the Clade rename, adopted-model slots, and clean generation boundaries. It is a draft approved by Rob on 2026-09-27 and decides nothing until reviewed and accepted. It creates, renames, or removes no path today.
+
+| Attribute | Value |
+| --- | --- |
+| Status | Proposed |
+| Date | 2026-09-27 |
+| Related | ADR-015, ADR-021, ADR-020, ADR-019 |
+
+| Attribute | Value |
+| --- | --- |
+| Status | Proposed |
+| Date | 2026-09-27 |
+| Related | ADR-015, ADR-021, ADR-020, ADR-019 |
+
+## ContextContext
+
+Today's `models/` scaffold comes from two sources: the original blueprint tree and the scaffold manifest. The original tree gives `common/`, `nova/nova1`, `nova/nova2`, `protenix/`, `virtual_cell/`, and `registry/`. Manifest extensions add `nova/` areas for representation, embed, molecular, cellular, systems, multiscale, causal, heads, and configs. ADR-015 binds the manifest to the original blueprint snapshot by SHA-256 and permits only manifest-listed stubs. D-19 (Rob, 2026-09-26) renames the NOVA family to Clade but keeps `models/nova/` until a reviewed activation.
+
+Today's `models/` scaffold comes from two sources: the original blueprint tree and the scaffold manifest. The original tree gives `common/`, `nova/nova1`, `nova/nova2`, `protenix/`, `virtual_cell/`, and `registry/`. Manifest extensions add `nova/` areas for representation, embed, molecular, cellular, systems, multiscale, causal, heads, and configs. ADR-015 binds the manifest to the original blueprint snapshot by SHA-256 and permits only manifest-listed stubs. D-19 (Rob, 2026-09-26) renames the NOVA family to Clade but keeps `models/nova/` until a reviewed activation.
+
+## DecisionDecision
+
+Adopt this hybrid of the original blueprint and the scale layout as the target:Adopt this hybrid of the original blueprint and the scale layout as the target:
+
+```text
+models/
+├── common/        shared layers: attention, geometry, diffusion, flow, embeddings, config
+├── clade/
+│   ├── representation/ embed/ molecular/ cellular/ systems/
+│   │   multiscale/ causal/ heads/ configs/     module code, by scale
+│   └── clade1/ clade2/                         release generations only
+├── protenix/ esm_c/ boltz/ …                   adopted models, upstream names
+├── virtual_cell/  adopted cell-model slot, or folded into clade/cellular (open)
+└── registry/
+```
+
+1. **`common/`** holds shared layers only: no model-specific code and no kernels, which belong to compute (ADR-007, ADR-020).
+2. **`clade/<scale>/`** holds module code, one implementation per concept. Clade-Embed lives in `embed/` over `representation/`, not as a second encoder.
+3. **`clade/clade1/`, `clade/clade2/`** are release generations only: a frozen configuration, a checkpoint mapping, a model card, and references to evaluation evidence. They never hold code copies; a generation cites module code by source revision.
+4. **Adopted models keep upstream names.** Each slot holds a licence and provenance record (upstream repository, version or commit, weight digests, licence text, and any acceptable use policy), the adapter to the Mindclade capability contract, a checkpoint mapping, and `parity/` against upstream. A slot is not a reimplementation unless a reviewed slice decides so.
+5. **`virtual_cell/`** stays open: an adopted cell-model slot, or folded into `clade/cellular`. The first cellular slice decides.
+6. **`registry/`** holds registration records; registration grants no eligibility.
+7. **No empty slots.** A slot appears only when a reviewed slice activates it (ADR-000 discourages empty scaffolding).
+
+| Today (scaffold) | Target | Note |
+| --- | --- | --- |
+| `models/common/*` | `models/common/*` | Unchanged |
+| `models/nova/{representation,...,configs}` | `models/clade/{same}` | Rename (D-19) |
+| `models/nova/nova1`, `nova2` | `models/clade/clade1`, `clade2` | Generations only |
+| `models/protenix/*` | `models/protenix/` (adopted) | Keep `checkpoint/`, `parity/` |
+| none | `models/esm_c/`, `models/boltz/` | Created at adoption (ADR-021) |
+| `models/virtual_cell/*` | Open | See rule 5 |
+| `models/registry/` | `models/registry/` | Unchanged |
+
+### Why activation needs an ADR-015 amendment
+
+ADR-015 authorizes only the paths in the manifest, and the manifest is bound by digest to an immutable snapshot whose tree says `nova/nova1` and `nova/nova2`. Its extensions are justified as preserving "an existing vNEXT responsibility", which does not cover new adopted-model slots. The rename and new slots are therefore deviations from the snapshot, not edits to it. At activation, one reviewed change must:
+
+- amend ADR-015 to permit the Clade rename and adopted-model slots as recorded deviations, leaving the snapshot and its digest unchanged;
+- transition the scaffold manifest (directories, stub files and hashes, extensions with reasons) without resealing any altered stub;
+- update the layout areas and activation text, then have the integration owner refresh `REPOSITORY_TREE.md` through the inventory tool;
+- update the explanatory docs that still name `models/nova/`.
+
+## Consequences
+
+```text
+models/
+├── common/        shared layers: attention, geometry, diffusion, flow, embeddings, config
+├── clade/
+│   ├── representation/ embed/ molecular/ cellular/ systems/
+│   │   multiscale/ causal/ heads/ configs/     module code, by scale
+│   └── clade1/ clade2/                         release generations only
+├── protenix/ esm_c/ boltz/ …                   adopted models, upstream names
+├── virtual_cell/  adopted cell-model slot, or folded into clade/cellular (open)
+└── registry/
+```
+
+1. **`common/`** holds shared layers only: no model-specific code and no kernels, which belong to compute (ADR-007, ADR-020).
+2. **`clade/<scale>/`** holds module code, one implementation per concept. Clade-Embed lives in `embed/` over `representation/`, not as a second encoder.
+3. **`clade/clade1/`, `clade/clade2/`** are release generations only: a frozen configuration, a checkpoint mapping, a model card, and references to evaluation evidence. They never hold code copies; a generation cites module code by source revision.
+4. **Adopted models keep upstream names.** Each slot holds a licence and provenance record (upstream repository, version or commit, weight digests, licence text, and any acceptable use policy), the adapter to the Mindclade capability contract, a checkpoint mapping, and `parity/` against upstream. A slot is not a reimplementation unless a reviewed slice decides so.
+5. **`virtual_cell/`** stays open: an adopted cell-model slot, or folded into `clade/cellular`. The first cellular slice decides.
+6. **`registry/`** holds registration records; registration grants no eligibility.
+7. **No empty slots.** A slot appears only when a reviewed slice activates it (ADR-000 discourages empty scaffolding).
+
+| Today (scaffold) | Target | Note |
+| --- | --- | --- |
+| `models/common/*` | `models/common/*` | Unchanged |
+| `models/nova/{representation,...,configs}` | `models/clade/{same}` | Rename (D-19) |
+| `models/nova/nova1`, `nova2` | `models/clade/clade1`, `clade2` | Generations only |
+| `models/protenix/*` | `models/protenix/` (adopted) | Keep `checkpoint/`, `parity/` |
+| none | `models/esm_c/`, `models/boltz/` | Created at adoption (ADR-021) |
+| `models/virtual_cell/*` | Open | See rule 5 |
+| `models/registry/` | `models/registry/` | Unchanged |
+
+### Why activation needs an ADR-015 amendment
+
+ADR-015 authorizes only the paths in the manifest, and the manifest is bound by digest to an immutable snapshot whose tree says `nova/nova1` and `nova/nova2`. Its extensions are justified as preserving "an existing vNEXT responsibility", which does not cover new adopted-model slots. The rename and new slots are therefore deviations from the snapshot, not edits to it. At activation, one reviewed change must:
+
+- amend ADR-015 to permit the Clade rename and adopted-model slots as recorded deviations, leaving the snapshot and its digest unchanged;
+- transition the scaffold manifest (directories, stub files and hashes, extensions with reasons) without resealing any altered stub;
+- update the layout areas and activation text, then have the integration owner refresh `REPOSITORY_TREE.md` through the inventory tool;
+- update the explanatory docs that still name `models/nova/`.
+
+## Consequences
+
+- Model generations stop being code forks, so a fix in `clade/<scale>/` reaches every generation that cites the corrected revision, with fresh evaluation.Model generations stop being code forks, so a fix in `clade/<scale>/` reaches every generation that cites the corrected revision, with fresh evaluation.
+- ADR-021's adopt-first path needs these slots; without them adoption has no owned place for licence, parity, and adapters.ADR-021's adopt-first path needs these slots; without them adoption has no owned place for licence, parity, and adapters.
+- Adopted kernels (ADR-020) stay in compute. Model slots reach them through operators and never vendor kernel packages.Adopted kernels (ADR-020) stay in compute. Model slots reach them through operators and never vendor kernel packages.
+- The original `protenix/` sub-areas that imply a reimplementation (`graph/`, `pairformer/`, `diffusion/`, `heads/`, `state/`) are kept or retired by the first Protenix slice, not by this draftThe original `protenix/` sub-areas that imply a reimplementation (`graph/`, `pairformer/`, `diffusion/`, `heads/`, `state/`) are kept or retired by the first Protenix slice, not by this draft.
+- Design-capable or generative adopted models also need ADR-018 (biosecurity, drafted separately) before exposure.
+- Until activation, `models/nova/` and every existing stub stay as they are.
+- Design-capable or generative adopted models also need ADR-018 (biosecurity, drafted separately) before exposure.
+- Until activation, `models/nova/` and every existing stub stay as they are.
+
+## Alternatives consideredAlternatives considered
+
+Keeping the `nova/` name and adding adopted slots under `nova/` was rejected because the rename to Clade is already decided, and keeping `nova/` would create confusion between the family name, the scaffold, and the model tree.
+
+Keeping the `nova/` name and adding adopted slots under `nova/` was rejected because the rename to Clade is already decided, and keeping `nova/` would create confusion between the family name, the scaffold, and the model tree.
+
+## Related
+
+<CardGroup cols={2}>
+  <Card title="Adopt-or-Build GateAdopt-or-Build Gate" icon="code-compare" href="/architecture/adr/adr-021-clade-adopt-or-build-gate">
+    ADR-021, why adopted slots exist.ADR-021, why adopted slots exist.
+  </Card>
+
+  <Card title="Kernel AdoptionKernel Adoption" icon="microchip" href="/architecture/adr/adr-020-kernel-adoption-and-operator-binding">
+    ADR-020, where adopted kernels live.ADR-020, where adopted kernels live.
+  </Card>
+
+  <Card title="PyTorch Training Substrate" icon="server" href="/architecture/adr/adr-019-pytorch-training-substrate">
+    ADR-019, the framework model code uses.ADR-019, the framework model code uses.
+  </Card>
+</CardGroup>

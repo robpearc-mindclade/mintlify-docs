@@ -1,0 +1,96 @@
+---
+title: "ADR-018: Biosecurity and Dual-Use Controls"
+sidebarTitle: "ADR-018"
+description: "Proposes hazard screening as a precondition for generative-design capabilities and laboratory adapters, with five controls for biosecurity and dual-use governance."
+---
+
+This architecture decision record drafts biosecurity and dual-use controls for Mindclade's programmable biology roadmap. It is for scientists, security reviewers, legal counsel, and anyone assessing the safety boundaries around generative design and automated experimentation.
+
+<Warning>
+  This ADR is **Proposed** and not yet accepted. No gate may cite it as an accepted law, and no capability may claim it as satisfied until Rob accepts it.
+</Warning>
+
+## Status
+
+| Attribute | Value |
+| --- | --- |
+| Status | Proposed |
+| Date | 2026-09-26 |
+| Related | Not stated |
+
+## Context
+
+The north star includes generative design for programmable biology and, later, automated experiment execution. The [2026-09-26 design audit](../reviews/2026-09-26-design-audit.md) found no dual-use or biosecurity policy anywhere in the architecture package, while [programmable biology](../programmable-biology.md) already plans Clade model families, experiment protocols, and laboratory adapters. That is the only safety gap the audits identified, and Rob asked for this draft first among the science-gate ADRs.
+
+The gap matters because screening effectiveness is not static. Work published in 2025 evaluated open-source AI protein-design software against the biosecurity screening tools used by nucleic-acid synthesis providers, found that AI-redesigned sequences were not reliably detected, and then developed and deployed patches that improved detection (Wittmann et al., _Science_ 390(6768):82 through 87, 2025-10-02, [doi:10.1126/science.adu8578](https://doi.org/10.1126/science.adu8578); retrieved through PubMed). The lesson this ADR takes from it is procedural: a screening step is only as good as the tool version behind it, so the version and its result belong in the evidence record.
+
+This ADR is policy, at the same level as the existing laws it builds on: [ADR-005](adr-005-evidence-claim-policy-and-decision-law.md) for evidence, claims, policy, and decisions, [ADR-009](adr-009-independent-assurance.md) for assurance that the implementer does not own, [ADR-011](adr-011-agent-capability-attenuation.md) for attenuated capabilities, and [ADR-006](adr-006-biological-world-model-authority.md) for canonical biological meaning.
+
+## Decision
+
+Hazard screening is a precondition for any generative-design capability and for any laboratory or experiment-execution adapter. Five controls follow; each needs its own reviewed criteria and evidence contract before the capability it guards exists.
+
+### 1. Screening before synthesis or ordering
+
+A designed sequence must pass hazard screening before it can be synthesized, ordered, or sent to an external provider. A missing, failed, or inconclusive screening result blocks the request; it is not a warning the requester can proceed past. The screening tool and its version are recorded with the decision, because detection quality changes with tool revisions, and a screening result is evidence bound to that version rather than a permanent property of the sequence. Re-screening is required when the tool version, the design model, or the sequence changes.
+
+### 2. Access control on models and outputs
+
+Generative-design models, their weights and checkpoints, and the designs they produce are capability-scoped under ADR-011: explicit grants, no ambient authority, no privilege inherited by a child agent. Designs are artifacts with a restricted audience, and a handoff, report, or projection may not widen that audience. Public availability of an external model does not establish permitted use.
+
+### 3. Human authorization for any wet-lab action
+
+Every physical-world action (synthesis, ordering, or execution through a laboratory adapter) requires a named human authorization bound to the exact request, the screening decision, and the policy revision in force. There is no agent-only path, and no accumulated approval: one authorization covers one request. Authorization can be withheld, paused, or withdrawn, and a run may not edit the policy or the screening configuration that governs it.
+
+### 4. Logging and audit
+
+Screening requests and outcomes, tool and model versions, authorizer identity, the target provider or facility, and refusals are all recorded as retained evidence. Refusals are kept, not discarded, because a pattern of refused requests is itself a signal. The audit record is reviewable by an assurance owner who is not the implementer, per ADR-009.
+
+### 5. Alignment with evolving norms, cited only where verified
+
+Mindclade tracks external frameworks as inputs; the internal precondition above does not depend on which version is in force.
+
+- **United States:** the 2023 HHS _Screening Framework Guidance for Providers and Users of Synthetic Nucleic Acids_, which sets out recommended baseline standards for providers ([ASPR](https://www.aspr.gov/S3/Pages/Synthetic-Nucleic-Acids.aspx)).
+- **United States:** the OSTP _Framework for Nucleic Acid Synthesis Screening_ of 2024-04-29, under which recipients of federal life-sciences research funding procure synthetic nucleic acids and benchtop synthesizers only from compliant providers ([ASPR](https://www.aspr.gov/S3/Pages/OSTP-Framework-for-Nucleic-Acid-Synthesis-Screening.aspx)).
+- **United States:** Executive Order 14292, _Improving the Safety and Security of Biological Research_, signed 2025-05-05, whose section 4(b) directs OSTP to revise or replace that 2024 framework within 90 days, with enforcement mechanisms and review at least every four years ([Federal Register document 2025-08266](https://www.federalregister.gov/documents/full_text/html/2025/05/08/2025-08266.html)). As of 2026-09-26 this author did not verify a published replacement, so the successor framework's content is an open external dependency.
+- **United Kingdom:** _UK screening guidance on synthetic nucleic acids_, published by the Department for Science, Innovation and Technology on 2024-10-08 ([gov.uk](https://www.gov.uk/government/publications/uk-screening-guidance-on-synthetic-nucleic-acids)).
+- **Community tooling:** IBBIS publishes the Common Mechanism, a free, open-source screening tool that providers run locally ([IBBIS](https://ibbis.bio/our-work/common-mechanism/)).
+
+Any adopted screening mechanism, provider, or tool is a separate decision with its own review; naming these sources here selects none of them.
+
+### Non-goals
+
+This ADR is not a biosafety manual, a containment or facility procedure, or an incident-response plan. It contains no hazard information: no agents, sequences, thresholds, hazard lists, or anything about how screening could be evaded, and the repository does not become a place where such material is stored. It does not approve any laboratory adapter, synthesis provider, or screening vendor, does not authorize generative design or experiment execution, and is not a legal compliance opinion or a claim of compliance with any framework. It changes no contract, Codegen, or graph law.
+
+## Consequences
+
+- Any future gate that introduces a generative-design capability or a laboratory or experiment-execution adapter must name hazard screening among its acceptance criteria and its stop conditions. A gate that omits it is rejected at criteria review.
+- Nothing currently implemented is blocked: no design capability and no laboratory adapter exists today, so this ADR is a precondition on future work rather than a change to present behaviour.
+- A subsequent ADR must select the concrete screening mechanism and define the screening evidence and decision records before the S-gates in the [roadmap](../implementation-roadmap.md#gate-sequence) can close. That ADR owns the operational detail this one deliberately omits.
+- Screening decisions become part of the evidence, claim, policy, and decision model rather than a side channel: a screening pass is evidence, and eligibility to order remains a separate recorded decision.
+- Being external, the referenced frameworks can change without notice. A change to them is an input to review, never an automatic change to Mindclade policy.
+- Status stays **Proposed** until Rob accepts it. Until then no gate may cite it as an accepted law, and no capability may claim it as satisfied.
+
+## Alternatives
+
+Not stated.
+
+## Related
+
+<CardGroup cols={2}>
+  <Card title="ADR-006 Biological Authority" icon="dna" href="/architecture/adr/adr-006-biological-world-model-authority">
+    Canonical biological semantics that this ADR protects.
+  </Card>
+
+  <Card title="ADR-011 Agent Attenuation" icon="user-lock" href="/architecture/adr/adr-011-agent-capability-attenuation">
+    Capability scoping for models and outputs.
+  </Card>
+
+  <Card title="Programmable Biology" icon="flask" href="/architecture/programmable-biology">
+    The scientific roadmap where these controls apply.
+  </Card>
+
+  <Card title="Implementation Roadmap" icon="road" href="/architecture/implementation-roadmap">
+    The gate sequence where biosecurity criteria must appear.
+  </Card>
+</CardGroup>

@@ -1,0 +1,50 @@
+---
+title: "ADR-005: Evidence, Claim, Policy and Decision Law"
+sidebarTitle: "ADR-005"
+description: "Architecture decision recording the separation of evidence, claims, policy, and decisions as distinct primitives, accepted 2026-09-22."
+---
+
+This page records ADR-005, the law governing how evidence, claims, policy, and decisions are modeled and separated. It is authoritative: architecture-law changes require explicit ADR review.
+
+## Status
+
+| Attribute | Value |
+| --- | --- |
+| Status | Accepted |
+| Date | 2026-09-22 |
+
+## Context
+
+Without clear separation, observed data, assertions, rules, and outcomes can collapse into a single undifferentiated primitive, making qualification and review impossible.
+
+## Decision
+
+Evidence, claims, policies, and decisions are separate primitives.
+
+Evidence is observed proof material. A claim is an assertion about a subject. A policy determines whether evidence supports the claim. A decision records the outcome.
+
+## Consequences
+
+- A benchmark result is evidence, not a scientific claim.
+- A passing test is evidence, not release qualification.
+- Human approval and automated qualification share the same decision model.
+
+## Related
+
+<CardGroup cols={2}>
+  <Card title="ADR-000" icon="file-code" href="/architecture/adr/adr-000-mindclade-vnext-architecture-constitution">
+    Architecture constitution that freezes this law.
+  </Card>
+
+  <Card title="ADR-006" icon="file-code" href="/architecture/adr/adr-006-biological-world-model-authority">
+    Biological world model authority and canonical semantics.
+  </Card>
+
+  <Card title="VS-001 Handoff" icon="handshake" href="/developer/vs001-handoff">
+    Where qualification and decision evidence are recorded.
+  </Card>
+
+  <Card title="Architecture Overview" icon="map" href="/architecture/overview">
+    High-level architecture documentation and map.
+  </Card>
+</CardGroup>

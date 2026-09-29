@@ -1,0 +1,54 @@
+---
+title: "K1-12 and K1-31 compatibility reports"
+sidebarTitle: "K1 Compatibility Reports"
+description: "Source compatibility observations for K1-12 and K1-31 with policy change, three non-passing reports and reproduction instructions for the K1 candidate."
+---
+
+Date: 2026-09-26. Source compatibility observations for the K1 criteria ([K1-12 and K1-31](/superpowers/specs/2026-09-26-k1-codegen-contracts-hardening-criteria)). They are not a baseline acceptance, a waiver or a qualification. Every report returned exit 2 and is **non-passing**. Contract-owner acceptance of the B1 baseline remains **pending Rob**.
+
+## Policy change
+
+K1-12 (Track B, `65d6560`) changed one line of the compatibility policy (`POLICY` in `codegen/src/compatibility.rs`). The line `expanded-declarations=directional; mixed-representation=unsupported` became two lines: `expanded-declarations=directional` and `mixed-representation=compact-lifted-to-expanded(public,intrinsic-bounds,one-success-alternative)`. A compact public declaration is now lifted to the expanded form before it is compared, so a namespace move or a representation change no longer hides a public narrowing.
+
+| Policy | Digest |
+| --- | --- |
+| B1a through main `72b762d` | `sha256:7b6758981bc12b7f89b65142e4b5b20ebfa384cc5cb79b2aa2d85baabcdfeea8` |
+| K1 (`65d6560` onward) | `sha256:9d65f35902c2dfaa19e21534446376684f76e011cc1e8fb54f48df27e9df7c9d` |
+
+Each report records its policy digest in its bytes. The [B1a reports](/architecture/reviews/2026-09-23-vs001-wire-values#retained-compatibility-impact) stay bound to their old digests and were not overwritten or regenerated.
+
+## Reports
+
+Created with `compat --direction old-client-new-server` from the Codegen CLI of the K1 candidate. The compatibility code is unchanged from `65d6560` through `827cade`. The CLI creates each report with `create_new` and never overwrites a path.
+
+| Transition | Graph identities | Result | Report SHA-256 |
+| --- | --- | --- | --- |
+| [Renamed foundation → post-K1](https://github.com/Mindclade-org/mindclade-internal-monorepo/blob/main/docs/architecture/reviews/evidence/k1/renamed-foundation-to-post-k1.json) (K1-12) | `4fa8f310f4f6426666e7bf7f8d3d0e25196de792b23cab03d802358e7fb1ee1f` → `38da553cec2c71110d56a9ec7fe90b27c49a00fc9d646b1cc7799a1bd8a79320` | 8 breaking, 32 unsupported, 18 compatible | `fb9b61b62f3b393e821115cb9bf263ee698db517b3fb5092faec19dd57148f26` |
+| [Foundation → post-K1](https://github.com/Mindclade-org/mindclade-internal-monorepo/blob/main/docs/architecture/reviews/evidence/k1/foundation-to-post-k1.json) (K1-31 refresh of the B1 baseline report) | `1ae176bb0076b981c0e35cf1d805f01094c466890f2d1f40f9144bcb28fd731b` → `38da553cec2c71110d56a9ec7fe90b27c49a00fc9d646b1cc7799a1bd8a79320` | 4 breaking, 32 unsupported, 21 compatible | `ef57ce5499e376e9ff7fa47bed6abf0445dc003da9ebbe2fd6866894ea54fb0d` |
+| [Post-B1a → post-K1](https://github.com/Mindclade-org/mindclade-internal-monorepo/blob/main/docs/architecture/reviews/evidence/k1/post-b1a-to-post-k1.json) (K1-31 delta) | `6c4b2cb3cbfc5c101cd186226d899f8437e1eef30efe387593f2b98d0f5b972b` → `38da553cec2c71110d56a9ec7fe90b27c49a00fc9d646b1cc7799a1bd8a79320` | 1 unsupported | `8cfd20327b17d7a34112210ddc2d0f9847cf528fb7bac79b8d881483ec11976c` |
+
+The foundation and post-B1a graph identities equal those in the B1a record.
+
+### K1-12: the public narrowing, itemized
+
+The renamed foundation fixture declares the same public `EchoRequest`, `EchoResponse` and `echo` as the current contract, so they are matched rather than reported as removed. The report itemizes these breaking changes:
+
+- `EchoRequest`: `message` gains `max_length` 4096; `tags` gains `max_items` 128; `tags[]` gains `max_length` 64; `tags` changes type from `string[]` to `Tag[]`.
+- `echo`: `requestId` gains the pattern `^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$`, `max_length` 128 and `min_length` 1; the resolved HTTP response alternatives change (`http-alternatives-changed`, the new 400, 409 and 503 alternatives).
+
+`EchoResponse.message` gaining `max_length` 4096 is response-domain narrowing: compatible by policy, and still itemized. No `EchoRequest`, `EchoResponse` or `echo` change is reported as `declaration-removed` or `unsupported-representation-change`. The `official_frontend_tests` test `k1_12_renamed_foundation_fixture_itemizes_public_narrowing_as_breaking` asserts the same items.
+
+### K1-31: capability on Admission
+
+The post-B1a → post-K1 report has one change: `Mindclade.Internal/Admission`, `unclassified-field-added` (field `capability`), class `unsupported`. `Admission` is an internal record that no operation references, so its use direction is unclassified and the addition fails closed. This is the admission-key change Rob decided (tenant, environment, capability, requestId). It is not a waiver.
+
+## Inputs
+
+[Input digests](https://github.com/Mindclade-org/mindclade-internal-monorepo/blob/main/docs/architecture/reviews/evidence/k1/input-digests.json) bind the four semantic inputs:
+
+- `foundation-input.json`: the official `//codegen/frontend/typespec:echo` output. Its digest equals the B1a foundation input.
+- `post-b1a-input.json`: the official `//codegen/frontend/typespec:vs001` output for the contract sources at main `72b762d`. Its digest equals the B1a post-B1a input; the vs001 contract sources did not change from B1a to `72b762d`.
+- `post-k1-input.json`: the official `//codegen/frontend/typespec:vs001` output for this branch's contract sources, including K1-31's `execution.tsp` (`sha256:2522f19a848146d21690569d54de8d3fe47dbaf3844b7f6d4b285e023e1fd715`).
+- `renamed-foundation-input.json`: `foundation-input.json` with two exact text replacements, the same transformation the K1-12 test applies. Every `"namespace":"Mindclade.Foundation"` becomes `"namespace":"Mindclade.Public"`, and the package `{"namespace":"mindclade","name":"foundation","version":"v1"}` becomes the current package `{"namespace":"mindclade","name":"vs001","version":"v1"}`.
+
+To reproduce, build the official frontend targets at each revision, apply the replacements, and run `mindclade-codegen compat --old-input OLD --new-input NEW --direction old-client-new-server --out REPORT`. Compare the report, graph and policy identities above. These inputs are evidence, not additional authored contracts.

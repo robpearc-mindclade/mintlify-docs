@@ -1,0 +1,99 @@
+---
+title: "Mindclade Engineering Workflow Implementation Plan"
+description: "User-approved plan to establish enforceable authority for supervised agent development at Mindclade, with Git, Linear, and Notion governance integration."
+sidebarTitle: "Engineering Governance"
+---
+
+Status: User-approved implementation scope, 2026-09-23; not acceptance evidenceStatus: User-approved implementation scope, 2026-09-23; not acceptance evidence.
+
+**Goal:** Establish enforceable authority for supervised agent development.
+
+**Architecture:** Git owns technical authority, Linear owns engineering work, and Notion holds context and outcome links. Codegen remains the sole semantic compiler. A work packet is neither permission to execute nor a concurrency lock.
+
+**Execution:** Fresh implementer and reviewer per bounded task, then a fresh whole-branch review and Rob's acceptance. The parent runs all local validation commands and owns any Codex Process Jobs; workers never launch or monitor jobs.
+
+**Stack:** Existing pinned Nix, Bazel, Rust, TypeSpec foundation, Python standard library for non-semantic governance checks, GitHub CLI for read-only API facts.
+
+**Basis:** The user-approved plan in this task, AGENTS.md, accepted ADRs, current architecture YAML, and the reviewed Notion WF-01 principles.
+
+**Goal:** Establish enforceable authority for supervised agent development.
+
+**Architecture:** Git owns technical authority, Linear owns engineering work, and Notion holds context and outcome links. Codegen remains the sole semantic compiler. A work packet is neither permission to execute nor a concurrency lock.
+
+**Execution:** Fresh implementer and reviewer per bounded task, then a fresh whole-branch review and Rob's acceptance. The parent runs all local validation commands and owns any Codex Process Jobs; workers never launch or monitor jobs.
+
+**Stack:** Existing pinned Nix, Bazel, Rust, TypeSpec foundation, Python standard library for non-semantic governance checks, GitHub CLI for read-only API facts.
+
+**Basis:** The user-approved plan in this task, AGENTS.md, accepted ADRs, current architecture YAML, and the reviewed Notion WF-01 principles.
+
+## Global ConstraintGlobal Constraints
+
+- Preserve concurrent VS-001 work. Do not edit another agent's checkout or adopt its unreviewed source. Consume its B4 boundary checker; do not duplicate it.
+- YAML architecture remains authoritative; placeholder JSON registries stay inactive.
+- No hand-edits to generated outputs or blanket resealing of scaffold stubs.
+- Separate source verification, remote CI, protected review, runtime, scientific, release, and deployment claims. Missing evidence is BLOCKED, never PASS.
+- Agents cannot accept their own work or relax policy in the same candidate.
+- Rob accepts scope and merges; fresh agent review is not organizationally independent scientific or release assurance.
+- Private GitHub Enterprise Cloud destination: `Mindclade-org/mindclade-vnext`. SAML authorization, entitlement, permissions, and inherited access are prerequisites.
+- No coding or documentation App bypass, standing admin token in worker environments, vendor purchases, duplicate backlog, or automatic production publication.
+- n8n and Mintlify are follow-on pilots, not prerequisites or installations here.
+
+## Tasks
+
+1. **Agent procedures and authority reconciliation:** populate roles, lifecycle, and security policy; replace the PR stub; add Linear work template and operator runbooks. Reconcile factual stale docs without importing unfinished VS-001.
+2. **Admission:** strict versioned work packets and revision-bound reports, immutable accepted-policy inputs, approved packet digest, safe owned paths, stale-source rejection, and focused negative tests. Commands in packets are data, never eval.
+3. **Remote governance and evidence:** read-only GitHub audit with API failure handling, exact-revision, check, and approval validation, local digest-bound evidence bundles, tamper verification, and operator-only immutable-release archival instructions.
+4. **Integration:** activate only implemented scaffold paths, regenerate the mechanical tree, add merge_group CI, run focused and pinned verification, and independent review.
+5. **Connected acceptance:** preflight and private transfer; scope the GitHub App; protect main, then activate queue only after merge_group runs. Test denials on a disposable protected probe. Complete one Linear-to-main-to-evidence loop.
+6. **Documentation completeness:** provide the complete proposed engineering-system blueprint, document map, and requirements and evidence traceability. Distinguish implemented source, blocked operating gates, and optional future adapters; elaborate the existing platform blueprint without redesigning its semantics.
+
+- Preserve concurrent VS-001 work. Do not edit another agent's checkout or adopt its unreviewed source. Consume its B4 boundary checker; do not duplicate it.
+- YAML architecture remains authoritative; placeholder JSON registries stay inactive.
+- No hand-edits to generated outputs or blanket resealing of scaffold stubs.
+- Separate source verification, remote CI, protected review, runtime, scientific, release, and deployment claims. Missing evidence is BLOCKED, never PASS.
+- Agents cannot accept their own work or relax policy in the same candidate.
+- Rob accepts scope and merges; fresh agent review is not organizationally independent scientific or release assurance.
+- Private GitHub Enterprise Cloud destination: `Mindclade-org/mindclade-vnext`. SAML authorization, entitlement, permissions, and inherited access are prerequisites.
+- No coding or documentation App bypass, standing admin token in worker environments, vendor purchases, duplicate backlog, or automatic production publication.
+- n8n and Mintlify are follow-on pilots, not prerequisites or installations here.
+
+## Tasks
+
+1. **Agent procedures and authority reconciliation:** populate roles, lifecycle, and security policy; replace the PR stub; add Linear work template and operator runbooks. Reconcile factual stale docs without importing unfinished VS-001.
+2. **Admission:** strict versioned work packets and revision-bound reports, immutable accepted-policy inputs, approved packet digest, safe owned paths, stale-source rejection, and focused negative tests. Commands in packets are data, never eval.
+3. **Remote governance and evidence:** read-only GitHub audit with API failure handling, exact-revision, check, and approval validation, local digest-bound evidence bundles, tamper verification, and operator-only immutable-release archival instructions.
+4. **Integration:** activate only implemented scaffold paths, regenerate the mechanical tree, add merge_group CI, run focused and pinned verification, and independent review.
+5. **Connected acceptance:** preflight and private transfer; scope the GitHub App; protect main, then activate queue only after merge_group runs. Test denials on a disposable protected probe. Complete one Linear-to-main-to-evidence loop.
+6. **Documentation completeness:** provide the complete proposed engineering-system blueprint, document map, and requirements and evidence traceability. Distinguish implemented source, blocked operating gates, and optional future adapters; elaborate the existing platform blueprint without redesigning its semantics.
+
+Each task uses red and green focused tests where executable behavior is introduced, an independently reviewable change set, and a fresh task review. Parent-owned test receipts are supplied to reviewers rather than delegated process executionEach task uses red and green focused tests where executable behavior is introduced, an independently reviewable change set, and a fresh task review. Parent-owned test receipts are supplied to reviewers rather than delegated process execution.
+
+## Required Interfaces and Cases
+
+WorkPacket@v1 binds Linear task, spec path and digest, base and policy revision, owners, allowed authored and generated paths, acceptance criteria, mutation ceiling, and stop conditions. GovernanceReport@v1 binds packet digest, source and policy and base and candidate, checks and evidence, and explicit PASS, FAIL, or BLOCKED scope. Neither is a capability grant.
+
+## Required Interfaces and Cases
+
+WorkPacket@v1 binds Linear task, spec path and digest, base and policy revision, owners, allowed authored and generated paths, acceptance criteria, mutation ceiling, and stop conditions. GovernanceReport@v1 binds packet digest, source and policy and base and candidate, checks and evidence, and explicit PASS, FAIL, or BLOCKED scope. Neither is a capability grant.
+
+Negative tests cover missing owners, overlapping or escaping paths, stale revisions or specification, self-acceptance, policy substitution, unavailable GitHub APIs, missing, failed, skipped, cancelled, or stale checks, tampered evidence, and missing B4. Tests use independent fixtures and never mutate GitHub. A source pass cannot substitute for the live acceptance loopNegative tests cover missing owners, overlapping or escaping paths, stale revisions or specification, self-acceptance, policy substitution, unavailable GitHub APIs, missing, failed, skipped, cancelled, or stale checks, tampered evidence, and missing B4. Tests use independent fixtures and never mutate GitHub. A source pass cannot substitute for the live acceptance loop.
+
+## Connected Rollout and Evidence
+
+Inventory refs, collaboration, PRs, Actions, App permissions, secret names, runners, and identity bindings without retrieving secret values. Pause publication and verify destination access before transfer; verify the same repository ID, refs, and metadata afterward. Preserve old-path redirects and update remotes.
+
+## Connected Rollout and Evidence
+
+Inventory refs, collaboration, PRs, Actions, App permissions, secret names, runners, and identity bindings without retrieving secret values. Pause publication and verify destination access before transfer; verify the same repository ID, refs, and metadata afterward. Preserve old-path redirects and update remotes.
+
+Main requires PRs, Rob's code-owner approval, dismissed stale approvals, resolved threads, exact required checks, no force push or deletion, and no agent bypass. Enable merge_group CI before a one-change-at-a-time human-admitted merge queue. Use repository-scoped short-lived App tokens, with signing keys outside workers. Archive accepted bundles with protected evidence tags and immutable private releases, never latest product releases; download and verify before Linear closure. This is operational retention, not independently controlled compliance custodyMain requires PRs, Rob's code-owner approval, dismissed stale approvals, resolved threads, exact required checks, no force push or deletion, and no agent bypass. Enable merge_group CI before a one-change-at-a-time human-admitted merge queue. Use repository-scoped short-lived App tokens, with signing keys outside workers. Archive accepted bundles with protected evidence tags and immutable private releases, never latest product releases; download and verify before Linear closure. This is operational retention, not independently controlled compliance custody.
+
+## Follow-On PilotsFollow-On Pilots
+
+n8n coordinates Linear, GitHub, and Notion after governance acceptance. Qualify duplicate events, uncertain effects, approval expiry, and reporting-only retry. Mintlify publishes reviewed developer guides and Codegen-owned approved OpenAPI projections after the Echo consumer milestone. Require authenticated previews, test raw spec and search exposure, and use PR-only documentation changes. Keep other vendors as candidates for demonstrated gaps; do not install overlapping dispatchersn8n coordinates Linear, GitHub, and Notion after governance acceptance. Qualify duplicate events, uncertain effects, approval expiry, and reporting-only retry. Mintlify publishes reviewed developer guides and Codegen-owned approved OpenAPI projections after the Echo consumer milestone. Require authenticated previews, test raw spec and search exposure, and use PR-only documentation changes. Keep other vendors as candidates for demonstrated gaps; do not install overlapping dispatchers.
+
+## AcceptanceAcceptance
+
+Only declare supervised engineering readiness after actual protected PR, merge-group and main evidence, separate review, Rob approval, and verified archival. Unattended execution, independent assurance, and deployment remain unqualified. The original planning-only footer was superseded by the user's implementation request; prerequisites and approval gates were not waived.
+
+Only declare supervised engineering readiness after actual protected PR, merge-group and main evidence, separate review, Rob approval, and verified archival. Unattended execution, independent assurance, and deployment remain unqualified. The original planning-only footer was superseded by the user's implementation request; prerequisites and approval gates were not waived.

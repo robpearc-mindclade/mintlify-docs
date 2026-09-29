@@ -1,0 +1,115 @@
+---
+title: "Engineering Governance Source Review: Task Verification and Findings"
+sidebarTitle: "Governance Review"
+description: "Source review of engineering governance tasks with findings, fix verification, CI policy changes, and parent source evidence. Not operational acceptance."
+---
+
+This page records the 2026-09-23 source review of engineering governance work. It covers the admission reader, Git preflight, audit integration, CI policy, and cross-task findings. It is a source review record, not operational acceptance, protected CI, release, deployment, or scientific qualification.
+
+## Scope and outcome
+
+| Date | Scope | Outcome |
+| --- | --- | --- |
+| 2026-09-23 | Review and fix admission reader, Git preflight, audit integration, CI policy, and cross-task findings | Source review complete; external gates remain blocked |
+
+Base: `bef879d2d5d9e72cc36fec82ec8e17e0ffa1b976`. Branch: `codex/engineering-governance`. Work authority is tracked under [MIN-14](https://linear.app/mindclade/issue/MIN-14/vnext-establish-supervised-engineering-authority-and-enterprise).
+
+## Findings and disposition
+
+Resumption on 2026-09-23: initial fresh reviewer attempts hit account quota and provided no verdict. Retried review completed: Task 4 PASS; Task 2 reader and Git-preflight implementation PASS with a regression-fixture finding R2-T1; Task 3 found R3-F1. Both findings were fixed and passed fresh scoped re-review. Fresh whole-branch review then PASS with no actionable source findings. Rob's merge request does not waive protected review.
+
+Fresh task implementers and reviewers receive bounded source scope. The parent owns process execution, Git, integration metadata, and receipts. Workers do not run tests or certify their own results. A fresh whole-candidate review and Rob's acceptance remain separate gates. Agent separation does not establish independent organizational scientific or release assurance.
+
+| Review | Finding | Disposition |
+| --- | --- | --- |
+| Procedure review | Distinct supervised attempts were implicit despite an attempt budget. | Fixed: integrator records attempt identity, exact inputs, lifecycle, execution references, and receipts; re-execution consumes budget, reporting retries reuse completed results. Fresh scoped review approved. |
+| Procedure review | "No dispatcher with broader authority" left equal/lower-privilege duplicate dispatch ambiguous. | Fixed: exactly one registered route, duplicate reconciliation and retirement before replacement. Fresh scoped review approved. |
+| Parent CI review | A shared main concurrency group can replace pending runs even with cancellation disabled. | Fixed: unique main/merge-group run groups; feature/PR supersession remains enabled. Negative-first CI test passes. |
+| Parent audit integration | Strict empty-query parsing differed on host Python; invalid pagination fixture IDs blocked normal observations. | Corrected; final 44-test audit suite passes. Fresh source review remains pending. |
+| Parent audit integration | Main SHA must not be conflated with reviewed PR head after squash/queue integration. | Corrected with distinct PR-head/main binding and negative fixtures; included in 44-test pass. Fresh source review remains pending. |
+| Task 2 review R1 (P2) | FIFO packet input could hang while waiting for a writer or EOF. | `admission.read_packet` now opens nonblocking, verifies a regular file with `fstat`, and reads bounded bytes from that descriptor. Two timeout RED cases preceded three focused GREEN reader tests. Fresh scoped review remains pending. |
+| Task 2 review R2 (P2, audit ownership) | Audit omitted shared Git-root/graft trust preflight. | Audit `CheckedGit` now calls `Git.root()` before trusted reads. Actual temporary-Git graft/non-root and ordering regressions are included in the 44-test pass. Fresh scoped review remains pending. |
+| Task 6 documentation review | Blueprint and requirements traceability specification and quality. | PASS, no owned-document defects. Review does not accept tools or connected readiness. |
+| Task 6 cross-task CT1 (P2), CT2 (P3) | Portable checkpoint omitted specific fixes, execution state, and structural receipts. | Parent expanded tracked handoff with concrete todos, owners, failure/fix evidence, uncommitted state, and no-job status. Final integration review remains pending. |
+| Task 2 scoped R2-T1 (P2) | Real-Git graft/non-root fixtures could pass due to unrelated absent-policy/ancestry failures when preflight was omitted. | Corrected with valid root/nested policy/specification and positive controls. Parent preflight-bypass mutation makes both tests fail; fresh scoped re-review PASS. |
+| Task 3 R3-F1 (P2) | Main-stage Actions evidence checked SHA/event but not `head_branch`, allowing same-SHA feature-push substitution. | Corrected: main branch required; missing/malformed identity BLOCKED. Newer feature success beside failed main is rejected. RED reproduced the defect; 47-test audit GREEN; fresh scoped re-review PASS. |
+| Task 4 final static review | CI, metadata activation, architecture docs, mechanical tree, and checkpoint consistency. | PASS with no actionable scoped defects; external gates remain blocked. |
+
+Admission scoped fix, audit/evidence, integration, and whole-candidate source reviews are complete. Reviewer identities: Halley (admission scoped findings), Feynman (audit/evidence), Popper (integration), Galileo (fix re-review), and a fresh Fermat session (whole branch). Review reports remain retained in the original task workspace and recovery materials; these source approvals do not replace protected human review or immutable operational evidence custody.
+
+## Parent source evidence
+
+| Check | Observed result | Scope |
+| --- | --- | --- |
+| Baseline bootstrap/inventory | PASS; 835 files, 24 roots | Pre-change structure only |
+| CI policy | Negative first, then 3 tests PASS | Workflow source, not remote merge-group delivery |
+| Admission | Missing-module RED; focused selections of 1, 8 and 12 tests PASS | Valid packet and adversarial local Git/policy/spec/path behavior; not full-suite evidence |
+| Reader/FIFO fix | Timeout RED, then 3 tests PASS in 0.649s | Exact-byte, size/type and FIFO behavior; not full admission-suite evidence |
+| Audit | 44 tests PASS in 0.431s | Offline GitHub fixtures and temporary Git preflight tests; no live governance claim |
+| Evidence integrity | 27 tests PASS in 0.133s | Offline local packing/tamper fixtures, not archival or acceptance |
+| Integrated inventory/link check | PASS; 856 files, 24 roots, 353 local links | Snapshot before final review edits; anchors/remote URLs are not validated |
+| Wrap-up inventory/link check | PASS; 858 files, 24 roots, 374 local links | Regenerated complete tree including platform diagram; rendering/anchors/remote content not validated |
+| Scaffold | PASS; 706 original directories, 124 named files, 37 extensions, 708 stubs | Original inventory and preserved stub digests |
+| CLI missing-input smoke | All three commands emit JSON FAIL and exit 2 | No API or publication was invoked |
+| Pinned aggregate | NOT RUN for final candidate | Must be run by parent after source review |
+| Resumed host admission | 74 tests PASS in 41.411s | Full admission suite on pre-review-fix dirty source |
+| Resumed pinned aggregate | PASS before final review fixes; 223 Python tests and four executed Bazel targets, plus Cargo and drift checks | Local dirty-tree source, unchanged locks; final clean candidate and remote CI still required |
+| Review-fix audit suite | 47 tests PASS in 0.949s | Includes valid controls and main-branch evidence rejection |
+| Preflight-bypass mutation | Both real-Git tests FAIL as required, zero errors | In-memory test-only patch; source unchanged; proves the tests detect missing preflight |
+| Post-fix pinned aggregate | PASS; 226 Python tests, Cargo, four cached Bazel targets, scaffold/tree and drift | Combined source before final receipt-only documentation edits; clean-commit and remote CI evidence must be observed separately |
+
+Wrap-up also reran bootstrap, scaffold, CI policy (3 tests), and Git whitespace checks successfully. Audit/evidence direct-script smoke passed under isolated Python with expected JSON FAIL/exit 2 for missing inputs. The source remains uncommitted and has no immutable candidate acceptance. All remaining work is enumerated in the tracked handoff; no long-running process job was started.
+
+<Note>
+  Transient fixture and review reports live in the original worktree's ignored SDD directory. This tracked summary preserves their meaning for another clone; it is not immutable custody. The later approved evidence archive must contain full revision-bound check and review records, including failures and fixes.
+</Note>
+
+## Decisions
+
+The following decisions were reached during review:
+
+- Exactly one registered route exists per dispatcher; duplicates are reconciled and retired before replacement.
+- Unique main/merge-group run groups prevent concurrent run replacement; feature/PR supersession remains enabled.
+- Audit `CheckedGit` calls `Git.root()` before all trusted reads.
+- Main-stage evidence requires `head_branch` validation; missing or malformed identity is BLOCKED.
+- Reviewer identities and attempt lifecycles are recorded with exact inputs, execution references, and receipts.
+
+## Follow-ups
+
+- Protected human review and immutable operational evidence custody remain required before any operational acceptance.
+- Destination SAML authorization, Enterprise entitlement, private audience, and transfer prerequisites are outstanding.
+- Accepted evaluator/policy/packet trust, dedicated scoped App, effective main protection, and probe denials remain required.
+- Actual merge-group/final-main results, Rob approval, and verified immutable private archive remain outstanding.
+- No remote transfer, settings change, App installation, vendor deployment, or release publication occurred.
+
+## Concurrent main reconciliation
+
+After publishing governance commit `ea6114c1985daf1ffde67bc4ac5e45068f8663e0` as draft PR 1, main advanced to `0d5bba1a484f6b852a3fbe29115b6bdb70c68a04`. The governance branch incorporates that reviewed VS-001 A1-A3 source; it does not import changes from another working checkout. Compiler, contracts, generated artifacts, locks, and foundation evidence implementations remain byte-identical to the new main.
+
+Resolved conflicts in master blueprint, roadmap, CI tests, and mechanical tree. The automatic merge also duplicated the workflow concurrency key: a new negative test failed on two keys, then passed after retaining one queue-safe policy. Upstream Node 24 action pins and run-attempt artifact names are retained. The generated-output policy now describes integrated journaled publication; foundation source-evidence export and governance ZIP integrity retain distinct contracts. No generated bytes were manually edited.
+
+Fresh reconciliation reviewer Boole returned PASS with no Important or Critical findings. Parent combined pinned aggregate PASS: 243 Python tests, 67 Rust tests, five doctests, five Bazel targets, unchanged locks and generated drift, 874 files and 414 local links. This precommit run is not clean-commit remote CI evidence. Publication/CI URLs and exact final SHA belong in PR 1 and MIN-14.
+
+## Evidence
+
+No JSON evidence files are produced by this review. All evidence is described in the observed results tables above.
+
+## Related
+
+<CardGroup cols={2}>
+  <Card title="Governance Status" icon="shield-check" href="/architecture/engineering/governance-status">
+    Current governance tooling and operational status
+  </Card>
+
+  <Card title="Agent Handoff" icon="arrow-right" href="/developer/agent-handoff">
+    Source, checkpoint, and task register handoff
+  </Card>
+
+  <Card title="Governance Tools" icon="tools" href="/developer/governance-tools">
+    G1 source implementation, checkout binding, and verification tooling
+  </Card>
+
+  <Card title="Foundation Next Steps" icon="road" href="/developer/foundation-next-steps">
+    Preserved next-task decisions from B3a integration
+  </Card>
+</CardGroup>

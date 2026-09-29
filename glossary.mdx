@@ -1,0 +1,208 @@
+---
+title: "Glossary of Mindclade vNEXT Terms and Kernel Primitives"
+sidebarTitle: "Glossary"
+description: "Definitions for Mindclade vNEXT kernel primitives, Codegen and generated products, runtime components, supervised workflow roles, and status terms."
+---
+
+This glossary defines terms used across the Mindclade vNEXT architecture, developer and runbook pages. Each entry names what the term means and, where it matters, what it does **not** establish. For how the parts fit together, see the [codebase map](/developer/codebase-map) and [system design](/architecture/system-design).
+
+<Note>
+Definitions summarize the source documents. Where they differ, accepted ADRs, [maturity metadata](https://github.com/Mindclade-org/mindclade-internal-monorepo/blob/main/docs/architecture/maturity.yaml) and the [agent handoff](/developer/agent-handoff) take precedence over this page.
+</Note>
+
+## A
+
+### ADR
+
+Architecture Decision Record. A numbered, reviewed decision in `docs/architecture/adr/`. The set runs from ADR-000 to ADR-023. ADR-018 through ADR-023 are **Proposed**. The architecture evolves only through reviewed ADR changes and evidence-backed vertical slices. See [ADR-000](/architecture/adr/adr-000-mindclade-vnext-architecture-constitution).
+
+### Artifact
+
+A kernel primitive: immutable content with identity, kind, digest and provenance. It does not imply a content-addressed store, signature verification or a populated scientific artifact catalogue. See [kernel and provenance](/architecture/foundations/kernel-and-provenance#the-shared-vocabulary).
+
+## B
+
+### BLOCKED
+
+A status meaning a gate cannot proceed because a recorded prerequisite is missing or unavailable. For example, operational bootstrap admission stays BLOCKED until an independent accepted evaluator and its approved inputs exist, even if local tests pass. In WorkPacket@v1 admission, unavailable inputs are BLOCKED, while non-regular or oversized inputs FAIL.
+
+## C
+
+### Capability
+
+A kernel primitive that declares an operation with ownership and a policy reference. It does not grant credentials or permission to execute the operation.
+
+### Claim
+
+A kernel primitive: an assertion about an explicit subject, with supporting evidence references. A stored claim is not an accepted fact.
+
+### Codegen
+
+The Rust crate in `codegen/` (`mindclade-codegen`) and the only semantic compiler. It reads `SemanticInput@v1`, the architecture YAML and the Proto field registries, validates them, seals one immutable `MindcladeGraph@v1`, lowers it to a target IR, runs the emitters and publishes the generated products. See [ADR-002](/architecture/adr/adr-002-codegen-is-the-sole-semantic-compiler).
+
+### Common handoff
+
+The tracked [agent handoff](/developer/agent-handoff) that owns current task status. It is dated recovery context, not authority, approval, a lock or an execution grant.
+
+### Conformance suite
+
+Black-box tests in `tests/conformance/vs001` that check the generated products and real drivers. They are authored separately from the emitters. They are source checks, not independent qualification.
+
+## D
+
+### Decision
+
+A kernel primitive that binds a claim and a policy to an outcome. It carries no authority beyond that policy, subject, environment and scope. See [ADR-005](/architecture/adr/adr-005-evidence-claim-policy-and-decision-law).
+
+### DependencyFacts@v1
+
+The record format that the B4 collectors produce when they observe actual Cargo, Bazel and TypeScript dependencies. `just verify-boundaries` hands these facts to `codegen check-boundaries`, which checks them against the `allow`, `deny` and `external` rules in `docs/architecture/model/architecture.yaml`.
+
+### Digest
+
+Content identity for exact bytes under the declared algorithm (SHA-256 in the kernel). Hash equality is not authorship, safety, scientific truth or permission.
+
+## E
+
+### Evidence
+
+A kernel primitive: observed material about a subject, attributable to the Run that produced it. It does not prove every claim that cites it, and it is not automatically adequate for another qualification lane.
+
+## F
+
+### Foundation Echo
+
+The service in `services/foundation_echo` (`mindclade-foundation-echo`). It composes the generated HTTP adapter over RuntimeKit with the in-memory `TestAdmission` port. It is a non-durable, partial VS-001 service (B3b). See [run Foundation Echo](/runbooks/run-foundation-echo) and the [VS-001 Echo API](/api/vs001-echo).
+
+### FoundationEchoReady@v1
+
+The ready receipt that Foundation Echo prints on startup. Its `address` field reports the ephemeral `127.0.0.1` port the service is listening on.
+
+## G
+
+### Generated products
+
+Owned projections that only Codegen writes: `generated/foundation/` and `generated/vs001/`. Never hand-edit them; regenerate instead. See [generated output policy](/architecture/generated-output-policy) and [regenerate generated outputs](/runbooks/regenerate-generated-outputs).
+
+### Graph snapshot
+
+Immutable compiled meaning, addressed by exact graph identity and content. Runtime observations do not mutate a sealed snapshot. `MindcladeGraph@v1` is the sealed graph that Codegen produces. See [ADR-003](/architecture/adr/adr-003-mindcladegraph-and-typed-graph-views).
+
+## I
+
+### Identity
+
+A namespaced, named, versioned subject. A human-readable name alone cannot identify bytes or prove eligibility. See [ADR-004](/architecture/adr/adr-004-identity-reference-and-artifact-law).
+
+### Implementation
+
+A kernel primitive that identifies how a capability is realized and references its source artifact. It does not establish eligibility for every tenant, environment or scientific task.
+
+### Integrator
+
+The parent integration owner in supervised development. The integrator owns validation commands, process jobs, Git, combined-candidate integration and exactly one registered engineering dispatch route. See [supervised development](/developer/supervised-development).
+
+## K
+
+### Kernel
+
+The shared semantic foundation in `core/` (`mindclade-core`). It provides identity, digest, typed reference, artifact, capability, run, evidence, claim, policy, decision and provenance primitives as partial Rust value types. It does not provide a durable store, policy evaluator, credential issuer or scientific qualification system.
+
+## L
+
+### Linear task
+
+The single tracker item that holds scope, priority, ownership, blockers and closure for a change. Git holds the reviewed specification, contracts, source and evidence references. A tracker comment never silently changes Git authority. See the [Linear task template](/developer/linear-task-template).
+
+### Location
+
+A path, registry address or other retrieval hint. Availability can change without changing semantic identity, so retrieval must verify the expected content.
+
+## M
+
+### Maturity
+
+Metadata in `docs/architecture/maturity.yaml` that records how far each part of the bootstrap is implemented. It owns current scope together with the agent handoff.
+
+## P
+
+### Policy
+
+A kernel primitive: versioned scope and rule input for assessment. It is not a policy engine or proof that the policy was independently accepted.
+
+### Provenance
+
+A kernel primitive for attribution and source linkage on a record. It does not establish complete trusted custody, authenticity or transitive completeness of the whole lineage. The current record is not the full engineering or scientific receipt described in [provenance requirements](/architecture/provenance-requirements).
+
+## R
+
+### `Reference<T>`
+
+Identity and digest constrained to a kernel-defined target kind. A typed reference rejects a wrong kind; constructing it does not retrieve or authenticate the object. A heterogeneous reference is the checked tagged form for subjects with several legitimate kinds.
+
+### Revision
+
+The selected version of a named subject. A newer revision is a different input and cannot silently replace the one an assessment used.
+
+### Run
+
+A kernel primitive that records execution identity and links capability, implementation, inputs, outputs and evidence. It does not provide scheduling, retry, durable state transitions, budget enforcement or proof of successful execution.
+
+### RuntimeKit
+
+The platform crate in `platform/runtimekit` (`mindclade-runtimekit`). It provides checked `TestAdmission` config, lifecycle and bounded drain, bounded HTTP/1.1 and closed telemetry. It is partial (B3b) and non-durable. See [ADR-008](/architecture/adr/adr-008-runtimekit-and-testkit) and [ADR-017](/architecture/adr/adr-017-runtimekit-transport-engine).
+
+## S
+
+### SemanticInput@v1
+
+The JSON document that the official TypeSpec frontend (`codegen/frontend/typespec`) writes after running the TypeSpec compiler. Codegen consumes it as semantic input.
+
+### Service descriptor
+
+The authored deployable-service contract, such as `services/foundation_echo/service.descriptor.yaml`. See [service descriptor v1](/architecture/service-descriptor-v1) and [service config v1](/architecture/service-config-v1).
+
+## T
+
+### TestAdmission
+
+The in-memory admission port that Foundation Echo uses today in place of durable execution.
+
+### TestKit
+
+The test-only crate in `platform/testkit` (`mindclade-testkit`) that provides `ManualClock`, `FixedIdentity`, `FaultBarrier` and `RecordingSink`. It has no fake stores, workers or models, and only tests may depend on it.
+
+### Transactional outbox
+
+The durable execution substrate that ADR-016 accepts: PostgreSQL state plus a transactional outbox. See [ADR-016](/architecture/adr/adr-016-postgresql-outbox-durable-execution).
+
+### Trusted evaluator
+
+A separately accepted, operator-controlled tool checkout or artifact (`TOOL_ROOT`) that runs admission against a candidate repository. A candidate can never bootstrap its own evaluator, accepted policy or approval. See [WorkPacket@v1](/developer/work-packet-v1#trusted-evaluator).
+
+## V
+
+### VS-001
+
+The first vertical slice, which proves the smallest useful end-to-end Mindclade architecture path: from authored TypeSpec through Codegen, generated projections, RuntimeKit, durable execution, evidence, independent assurance and policy decision to a sealed replay capsule. See [VS-001 semantic development loop](/architecture/vs-001-semantic-development-loop).
+
+### VS001TransportProfile@v1
+
+The transport profile declared on the VS-001 public API (`x-mindclade-transport-profile`). It sets limits such as a 65,536-byte maximum request body.
+
+## W
+
+### WorkPacket@v1
+
+A UTF-8 JSON packet with a fixed set of required fields that describes proposed work for local admission. A packet or its report grants no execution capability, path lock, acceptance, publication permission or remote qualification. See [WorkPacket@v1 and local admission](/developer/work-packet-v1).
+
+## Related
+
+<CardGroup cols={2}>
+  <Card title="Codebase map" icon="map" href="/developer/codebase-map">
+    See where each component lives and how data flows between them.
+  </Card>
+  <Card title="Kernel and provenance" icon="fingerprint" href="/architecture/foundations/kernel-and-provenance">
+    Read the full design reference for the kernel vocabulary.
+  </Card>
+</CardGroup>

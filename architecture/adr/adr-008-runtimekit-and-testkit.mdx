@@ -1,0 +1,79 @@
+---
+title: "ADR-008: RuntimeKit and TestKit"
+sidebarTitle: "ADR-008"
+description: "Architecture decision recording RuntimeKit and TestKit as platform primitives for service lifecycle and deterministic testing, accepted 2026-09-22."
+---
+
+This page records ADR-008, the decision to make RuntimeKit and TestKit platform primitives for Mindclade vNEXT. It is authoritative: architecture-law changes require explicit ADR reviewThis page records ADR-008, the decision to make RuntimeKit and TestKit platform primitives for Mindclade vNEXT. It is authoritative: architecture-law changes require explicit ADR review.
+
+## Status
+
+| Attribute | Value |
+| --- | --- |
+| Status | Accepted |
+| Date | 2026-09-22 |
+
+## Context
+
+Without standardized platform primitives, services accumulate divergent lifecycle logic, configuration handling, and test infrastructure, making qualification and agent-assisted development harder.
+
+## Decision
+
+RuntimeKit and TestKit are platform primitives.
+
+RuntimeKit standardizes service lifecycle, configuration, health, identity, middleware, telemetry, error handling, and shutdown. TestKit standardizes deterministic fixtures, fake clocks, fake workers, fake storage, fake events, fake models, and assertions.
+
+## Status
+
+| Attribute | Value |
+| --- | --- |
+| Status | Accepted |
+| Date | 2026-09-22 |
+
+## Context
+
+Without standardized platform primitives, services accumulate divergent lifecycle logic, configuration handling, and test infrastructure, making qualification and agent-assisted development harder.
+
+## Decision
+
+RuntimeKit and TestKit are platform primitives.
+
+RuntimeKit standardizes service lifecycle, configuration, health, identity, middleware, telemetry, error handling, and shutdown. TestKit standardizes deterministic fixtures, fake clocks, fake workers, fake storage, fake events, fake models, and assertions.
+
+## Consequences
+
+- Services stay thin.
+- Agents have a narrow path for adding service behavior.
+- VS-001 uses a deterministic fake Clade worker for system proof, not scientific validation.
+
+## Related
+
+<CardGroup cols={2}>
+  <Card title="ADR-000DR-000" icon="file-code" href="/architecture/adr/adr-000-mindclade-vnext-architecture-constitution">
+    Architecture constitution that freezes this lawconstitution that freezes this law.
+  </Card>
+
+  <Card title="ADR-005" icon="file-code" href="/architecture/adr/adr-005-evidence-claim-policy-and-decision-law">
+    Evidence, claim, policy and decision primitives.
+  </Card>
+
+  <Card title="VS-001 Handoff" icon="handshake" href="/developer/vs001-handoff">
+    Where the fake worker is used for system proof.
+  </Card>
+
+  <Card title="Architecture Overview" icon="map" href="/architecture/overview">
+    High-level architecture documentation and map.
+  </Card>
+
+  <Card title="ADR-005" icon="file-code" href="/architecture/adr/adr-005-evidence-claim-policy-and-decision-law">
+    Evidence, claim, policy and decision primitives.
+  </Card>
+
+  <Card title="VS-001 Handoff" icon="handshake" href="/developer/vs001-handoff">
+    Where the fake worker is used for system proof.
+  </Card>
+
+  <Card title="Architecture Overview" icon="map" href="/architecture/overview">
+    High-level architecture documentation and map.
+  </Card>
+</CardGroup>

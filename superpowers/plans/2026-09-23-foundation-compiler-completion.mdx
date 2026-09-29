@@ -1,0 +1,336 @@
+---
+title: "Final V1 Products, Runtime And Boundaries Implementation Plan"
+description: "Complete the remaining B1-B4 foundation behavior with generated consumers, descriptor-composed runtime, and real configured dependency graph enforcement."
+sidebarTitle: "Foundation Compiler Plan"
+---
+
+> **For agentic workers:** Follow the tracked [foundation workflow](../../../.agents/workflows/foundation-development.md), or available `superpowers:subagent-driven-development` tooling with equivalent fresh criteria/implementation/task-review and whole-candidate-review separation. The parent owns commands, jobs, receipts, Git and remote operations. No installed plugin is required; this plan grants no operational admission. Written criteria review precedes implementation.
+
+**Goal:** Complete the remaining B1-B4 foundation behavior with generated consumers, descriptor-composed runtime and evidence from real configured dependency graphs.
+
+**Architecture:** Extend the existing sealed v1 graph and official TypeSpec adapter in place. Codegen lowers public/internal typed views into owned products and compiled descriptors; RuntimeKit consumes those products without parsing authored semantics. Collectors observe dependencies, while Codegen applies authoritative YAML rules.
+
+**Tech Stack:** Existing pinned Nix/Bazel/Rust/TypeSpec/Node/pnpm/Python; reviewed exact additions for TypeScript conformance, YAML parsing and local HTTP. protoc comes from locked nixpkgs. No new deployment system, database implementation or second compiler.
+
+**Spec:** [VS-001 design](../specs/2026-09-23-vs001-durable-capability-design.md), [existing B interfaces](2026-09-23-vs001-b-composition.md), [master completion plan](2026-09-23-v1-integration-readiness.md), [descriptor contract](../../architecture/service-descriptor-v1.md).
+
+## Global Constraints
+
+- Preserve Bazel 9.1.1, Rust 1.96.1, TypeSpec compiler/HTTP 1.16.0, Node 22.23.2, pnpm 12.3.4, Python 3.12.14, and the committed Nix lock baseline.
+- Nix supplies tools; Bazel owns product compilation and tests. No downloads or package installation within build/test actions.
+- Architecture YAML remains authoritative. Planned JSON architecture placeholders remain inactive.
+- Update SemanticInput@v1 and MindcladeGraph@v1 in place, as explicitly directed by the user on 2026-09-23. Do not introduce parallel v2 APIs or schemas.
+- Generated clients must not depend on internal execution contracts. RuntimeKit contains lifecycle/transport infrastructure, not domain execution policy.
+- Keep service semantics modular-monolith-first until deployment evidence justifies a split.
+- Public limit: 64 KiB transport body, 4096 Unicode scalar values per message, 128 tags with 64 scalar values per tag, requestId using the kernel component grammar.
+- Source proposals and generated fixtures are not independent acceptance. Preserve original compatibility failures until a contract owner explicitly accepts the proposed baseline.
+
+## Review Focus
+
+1. Invalid dates/UTF-8/surrogates, duplicate object keys, unsafe numeric representations and generation exhaustion fail before storage/transport conversion: B1a/B2a.
+2. Public TS/OpenAPI/Proto/MCP/docs must exclude internal types transitively and agree with independent expectations, not merely with each other: B2a/B2b.
+3. Descriptor duplicate keys/aliases/tags/unknown sections, embedded secret values and unresolved references cannot reach RuntimeKit: B3a.
+4. Slow/incomplete bodies, spoofed identity, oversized input, disconnect and shutdown cannot bypass bounds or leave unowned processes: B3b.
+5. Missing configurations, unresolved imports, test-to-production leakage, cycles and forged dependency facts never pass from directory inventory: B4.
+
+---
+
+## Common integration surface
+
+The parent owns `Cargo.toml`, `Cargo.lock`, `MODULE.bazel`, `MODULE.bazel.lock`, `flake.nix`, `flake.lock`, `package.json`, `pnpm-lock.yaml`, `tools/build/`, `codegen/src/generator.rs`, `scripts/validate_generator_inputs.py`, `generated/README.md`, `docs/architecture/model/{blueprint-scaffold.json,repository-layout.json}`, tree and maturity. A worker may propose changes to these only in its explicit brief; the parent serializes them. Keep existing directory markers. Build wrappers, collector code and new emitters must enter the real source fingerprint/build inventory before generation.
+
+Every code task below ends with parent-run focused tests, applicable Bazel tests, read-only generated drift, independent source review and scoped commit. When source paths change, the parent runs `python3 scripts/validate_repository.py --write-tree`; nobody edits the inventory manually.
+
+## Task B1a: Freeze and enforce final-v1 wire value semantics
+
+**Files:** Modify `contracts/typespec/internal/execution.tsp`, `contracts/typespec/internal/assurance.tsp`, official frontend `codegen/frontend/typespec/src/declarations.mjs`, `codegen/src/frontend/declarations.rs`, `codegen/src/visibility.rs`, `codegen/src/graph/model.rs`, `codegen/src/compatibility/declarations.rs`, `codegen/src/lib.rs`; create `codegen/src/wire_rules.rs`, `codegen/tests/cases/wire_values.rs`; register in `codegen/tests/foundation.rs` and frontend tests. Parent updates inventories and source-bound manifest through Codegen.
+
+**Interfaces:** Retain `SemanticInputV1::from_json(&[u8], &str)` and `Compiler::compile`. Add typed string-format metadata to v1 constraints only for represented formats; unknown formats produce located diagnostics. Proposed `ValueRule::{TimestampUtcMillis, CanonicalArtifactJson, GitCommitSha, Generation}` and `validate_wire_value(rule: &ValueRule, json: &[u8]) -> Result<Vec<u8>, Diagnostic>` validate one JSON-encoded scalar and return its canonical wire bytes. `next_generation(value: i32) -> Result<i32, Diagnostic>` rejects nonpositive input and exhaustion. These are proposed Codegen reference-rule APIs; generated runtime products materialize equivalent validation and must never import Codegen.
+
+**Proposed exact profiles for contract-owner review:** Timestamp is `YYYY-MM-DDTHH:MM:SS.mmmZ`, Gregorian year 0001-9999, valid calendar date, seconds 00-59, UTC only; no leap-second/offset coercion. Git commit identity is 40 lowercase hex, while ordinary `Identity.version` remains its existing opaque validated label. Generation is 1..2147483647, with checked increment. Schema/workflow fields retain exact authored v1 literals. Canonical artifact JSON is a UTF-8 string containing compact recursively key-sorted JSON plus one newline; reject duplicate keys, invalid Unicode, floating-point/exponent syntax, negative zero and integers outside JavaScript's exact safe-integer range. Sort keys by Unicode scalar order consistently, preserve array order and Unicode text without normalization. The existing general Codegen canonical serializer keeps its documented integer domain; the narrower cross-language artifact profile is explicit, not a hidden global behavior change. The contract-owner must review these tightened profile rules and their compatibility impact before acceptance.
+
+- [ ] Step 1: Add these tests in `wire_values.rs`, importing the proposed APIs from `mindclade_codegen::wire_rules`. Test input byte strings below contain JSON wire values.
+
+```rust
+#[test]
+fn timestamp_rejects_invalid_calendar_and_generation_never_wraps() {
+    assert!(validate_wire_value(&ValueRule::TimestampUtcMillis,
+        br#""2024-02-29T12:00:00.000Z""#).is_ok());
+    assert!(validate_wire_value(&ValueRule::TimestampUtcMillis,
+        br#""2023-02-29T12:00:00.000Z""#).is_err());
+    assert!(next_generation(i32::MAX).is_err());
+    assert_eq!(next_generation(1).unwrap(), 2);
+}
+```
+
+- [ ] Step 2: Parent runs `nix develop --no-write-lock-file -c cargo test --locked -p mindclade-codegen timestamp_rejects_invalid_calendar_and_generation_never_wraps`. Retain relevant RED; add independent table cases for month/day/leap rules, year zero, offsets, trailing content, uppercase/malformed commit, unsupported schema, zero/negative/overflow generation, duplicate keys, floats, unsafe integers, astral keys and invalid UTF-8/surrogates. Include exact expected canonical bytes.
+- [ ] Step 3: Represent profiles in authored TypeSpec using reviewed standard decorator metadata, including proposed exact `@format("mindclade-utc-millis")` and `@format("mindclade-canonical-json")` string profiles, a `^[0-9a-f]{40}$` Git revision pattern, and the existing int32/minimum generation constraint; extend official resolved extraction, strict v1 input parsing and sealed graph validation. Do not identify a semantic rule merely by a type's display name. Unknown/mismatched format/type combinations fail with source locations. Implement duplicate-aware JSON parsing before conversion to `serde_json::Value`; ordinary serde/JSON.parse last-key-wins parsing is insufficient.
+
+```rust
+pub fn next_generation(value: i32) -> Result<i32, Diagnostic> {
+    if value <= 0 {
+        return Err(Diagnostic::new("generation-range", "generation must be positive"));
+    }
+    value.checked_add(1)
+        .ok_or_else(|| Diagnostic::new("generation-exhausted", "generation exhausted"))
+}
+```
+
+- [ ] Step 4: Add directional compatibility rules for the newly represented constraints: proven narrowing/widening follows input/output use direction; unclassified format relationships remain unsupported. Run the old foundation fixture and retain its explicit breaking/unsupported transition report. Update baseline documentation with exact graph/report digests; request contract-owner acceptance of the proposed expanded baseline without deleting regression cases.
+- [ ] Step 5: Parent runs official frontend tests and `bazel test //codegen:tests //codegen:official_frontend_tests`, then pinned aggregate/inventory/drift checks. Commit `feat(codegen): validate final v1 wire values`. This completes rule representation, not generated runtime enforcement or all B1 descriptor views.
+
+## Task B2a: Generate checked TypeScript client and Rust DTOs
+
+Source checkpoint and remaining review/evidence gates are recorded in the [checked-product record](../../architecture/reviews/2026-09-23-vs001-products.md).
+
+**Files:** Create `codegen/src/target_ir.rs`, `codegen/src/emit/{mod.rs,typescript.rs,rust.rs}`, `tests/conformance/vs001/{BUILD.bazel,client.test.mjs,expectations.json}`, and authored `tests/conformance/vs001/{Cargo.toml,src/lib.rs,tests/dto.rs}` plus BUILD targets for generated Rust consumer compilation. Modify pipeline/CLI/BUILD/publication ownership through the parent. Outputs are manifest-owned below `generated/vs001/` only. This is a reviewed activation of the relevant tests/generated paths.
+
+**Interfaces:** Compiler-private `TargetBundle` holds resolved public operation/model definitions and internal Rust DTO definitions; `lower(graph: &MindcladeGraph) -> Result<TargetBundle, Vec<Diagnostic>>`; `emit(bundle: &TargetBundle) -> Result<Publication, Vec<Diagnostic>>` uses A1's publisher. Generated TS API and Rust trait are exactly:
+
+```typescript
+export function createEchoClient(options: {
+  baseUrl: string;
+  fetch?: typeof globalThis.fetch;
+}): {
+  echo(requestId: string, body: EchoRequest,
+       options?: { signal?: AbortSignal }): Promise<EchoResponse>;
+};
+```
+
+```rust
+pub trait EchoCapability: Send + Sync {
+    fn echo(&self, request_id: &str, request: EchoRequest)
+        -> Result<EchoResponse, EchoError>;
+}
+```
+
+`EchoRequest` is `{message: string, urgent?: boolean, tags: string[]}`; `EchoResponse` is exactly `{message: string}`. Error body is the authored code/message alternative for 400/409/503. Rust uses `Option<bool>` for urgent. Generated internal named DTO bridges call the existing kernel Identity/Digest/Reference constructors, validate the literal target kind and never construct unchecked references. Array-item constraints and Unicode scalar counting apply at effective use sites.
+
+- [x] Step 1: Freeze independently authored expectations for POST `/echo/{requestId}`, exact request/response shapes, media type, limits and error codes. Add this test to `client.test.mjs`, importing the emitted module through the declared Bazel runfile:
+
+```javascript
+test("invalid Unicode never reaches fetch", async () => {
+  let calls = 0;
+  const client = createEchoClient({baseUrl: "http://127.0.0.1:8123", fetch: async () => {
+    calls += 1;
+    return new Response('{"message":"ok"}', {headers: {"content-type": "application/json"}});
+  }});
+  await assert.rejects(client.echo("r-1", {message: "\ud800", tags: []}));
+  assert.equal(calls, 0);
+  assert.deepEqual(await client.echo("r-1", {message: "😀", tags: []}), {message: "ok"});
+  assert.equal(calls, 1);
+});
+```
+
+- [x] Step 2: Parent adds the real `//tests/conformance/vs001:client` target and observes failure before generation. Add emitted Rust tests with forged reference kind/bad digest/schema and the same Unicode/value corpus; a failed client case must not emit a request. Pin TypeScript in this tranche and add separate real type-check and compile-fail fixtures for wrong optional/array/internal fields.
+- [x] Step 3: Implement graph-to-target lowering through the borrowed public view and typed internal definitions; no second public graph and no public generator that silently filters an internal dependency. Emit strict request and response decoders, checked reference conversions, exact public error variants, one fetch call and AbortSignal forwarding. Unknown response fields, bad media type, malformed/duplicate-key JSON and unsupported statuses fail. No automatic POST retries; distinguish transport errors from declared API errors.
+- [x] Step 4: Emit UTF-8/Unicode-safe validators and canonical artifact handling from B1a rules. TS uses scalar counting after explicit surrogate validation, not UTF-16 `.length`; Rust uses valid UTF-8 plus `chars().count()`. JSON body byte limit is checked after serialization with UTF-8 encoding, including escapes. Test 4096/4097 scalar messages, 128/129 tags, 64/65 scalar tags, astral characters, lone surrogates and escaped-body overflow against independently expected outcomes.
+- [ ] Step 5: Test two clean generations, relocation, ownership collisions, interrupted publication/recovery and read-only drift for the VS-001 output set. Extend A1 publisher ownership explicitly rather than broadening arbitrary writable paths. Parent updates fingerprint/inventory/locks and runs client/type/Rust/Bazel/aggregate checks. Commit `feat(codegen): emit checked Echo clients and DTOs`.
+
+## Task B2b: Public protocol conformance and stable Proto numbering
+
+**Dependencies:** B2a and B3a's shared strict YAML adapter. Execute B3a before this task; the old broad B2-before-B3 ordering omitted the field-registry parser dependency.
+
+**Files:** Create `codegen/src/emit/{openapi.rs,proto.rs,mcp.rs,docs.rs}`, `contracts/registries/vs001-proto-fields.yaml`, protocol conformance tests under `tests/conformance/vs001/`; modify emit registration, generated manifest policy and BUILD/Nix tool declarations through the parent.
+
+**Interfaces:** The same `TargetBundle` produces OpenAPI 3.1 JSON, Proto3 source, MCP input/result/error metadata and public Markdown. Field registry identifies `(fully_qualified_message, field_name) -> positive field_number`, plus reserved names/numbers for removals. Codegen owns registry validation through B3a's `parse_yaml_strict` adapter; protoc checks syntax using locked nixpkgs. No parser outside Codegen decides semantic field identity.
+
+- [ ] Step 1: Add separate consumer assertions for required/optional message/tags/urgent, path/method/media type, error alternatives and scalar/item limits. For Proto, compile emitted source with locked protoc and inspect its descriptor rather than grepping text. Add a regression that renaming/sorting fields does not silently reassign existing numbers and reusing a reserved number fails.
+- [ ] Step 2: Parent runs the new protocol target and records the relevant failure. Define registry fixture `EchoRequest.message=1`, `urgent=2`, `tags=3`, and `EchoResponse.message=1`; `InvalidInput`, `IdempotencyConflict` and `Unavailable` each reserve `code=1`, `message=2` in their own message namespace. Literal code constraints remain adapter metadata and validation; Proto string fields alone do not enforce literal equality. Add missing/duplicate/out-of-range/reserved-number failures with a valid control.
+- [ ] Step 3: Implement deterministic emitters over the public typed IR. Preserve optional presence and scalar/item constraints in applicable protocol metadata; where a protocol cannot enforce a runtime rule, retain explicit documented validation metadata and rely on generated adapters, never claim transport encoding alone enforces it. Omit every internal model/operation from the public package and reject transitive internal references at lowering.
+
+```javascript
+assert.equal(openapi.paths["/echo/{requestId}"].post.responses["409"].description,
+             expectations.responses["409"].description);
+assert.deepEqual(descriptor.echoRequestFields.map(f => [f.name, f.number]),
+                 [["message", 1], ["urgent", 2], ["tags", 3]]);
+```
+
+Here `openapi`, `descriptor` and `expectations` are independently parsed generated OpenAPI, protoc descriptor and authored fixture loaded by the conformance test; the Proto decoder must be an actual descriptor parser, not the emitter's in-memory IR.
+
+- [ ] Step 4: Parent runs client/type/Proto/OpenAPI/MCP/docs conformance plus canonical-byte/inventory/drift gates on both hosts. Inspect generated-public files for internal names/imports and enforce compile-fail leakage cases. Commit `feat(codegen): verify public protocol conformance`. Independent owner acceptance of expectations remains distinct from implementation tests.
+
+## Task B3a: Compile a precise descriptor and shared architecture views
+
+**Files:** Create `codegen/src/descriptor.rs`, `codegen/src/yaml.rs`, `codegen/src/architecture.rs`, `codegen/tests/cases/descriptor.rs`, `codegen/tests/cases/architecture.rs`, `services/foundation_echo/service.descriptor.yaml`; update sealed graph/view definitions, `codegen/src/pipeline.rs`, authoritative `docs/architecture/model/architecture.yaml`, and `docs/architecture/service-descriptor-v1.md` through reviewed contract changes. Add a maintained YAML parser only after reviewing its exact pinned event/node API for duplicate-key/alias/tag rejection. The parent also owns integration changes to `codegen/src/projection.rs`, `codegen/src/main.rs`, `codegen/src/generator.rs`, `codegen/frontend/typespec/src/{cli.mjs,index.mjs,declarations.mjs}`, `codegen/frontend/typespec/{BUILD.bazel,test/frontend.test.mjs}`, `tools/build/{typespec.bzl,frontend_action.py}`, `scripts/generate_foundation.py`, `scripts/generate_vs001.py`, their validation/tests, BUILD exports, workspace/locks, aggregate/CI retention, source inventory and mechanical tree. New parser, descriptor, architecture, limit and service-projection tests use declared official frontend and fixture inputs.
+
+**Interfaces:** `parse_yaml_strict(bytes: &[u8], source: &str) -> Result<YamlDocument, Vec<Diagnostic>>` constructs a located syntax tree under the shared strict YAML profile in the [descriptor contract](../../architecture/service-descriptor-v1.md#shared-strict-yaml-input-profile). `parse_architecture(bytes: &[u8], source: &str) -> Result<ArchitectureModel, Vec<Diagnostic>>` validates the one authoritative architecture model. Both types expose read-only state; they are not unchecked semantic graph constructors. `compile_descriptor(bytes: &[u8], source: &str, graph: &MindcladeGraph) -> Result<CompiledServiceDescriptor, Vec<Diagnostic>>` requires a graph already bound to that architecture, validates one supplied descriptor and neither attaches it nor publishes output. The compiled descriptor has private checked fields and no unchecked Deserialize. `public_view`, `service_view` and `architecture_view` borrow one final sealed snapshot. RuntimeKit consumes a distinct checked runtime `ServiceConfig` and generated adapters; it never imports Codegen, the compiler descriptor type or the YAML parser. The [configuration contract](../../architecture/service-config-v1.md) freezes the generated constructor ABI and descriptor JSON; B3b proves actual runtime construction and lifecycle behavior.
+
+**Architecture ownership prerequisite, owned here rather than B4:** Introduce `parse_architecture(bytes: &[u8], source: &str) -> Result<ArchitectureModel, Vec<Diagnostic>>` in `codegen/src/architecture.rs`, using the shared strict YAML adapter. Its fields are private. Extend the existing YAML node records with required `owner_role` and `memberships` for every model node, while retaining planned maturity for unimplemented components; a membership is `{kind: cargo|bazel|typescript, id: string, configuration: string}`. Source paths remain the existing `path` property. Reject duplicate IDs, invalid/escaping paths, overlapping ownership roots, unknown fields and malformed target/package IDs. Register the service and runtime/testkit ownership in this task, retaining planned maturity for unimplemented runtime roots; membership declarations alone do not establish observed execution or allowed dependencies.
+
+```text
+Pure compiler orchestration:
+
+DescriptorSource<'a> { path: &'a str, bytes: &'a [u8] }
+    is exported from codegen::descriptor.
+
+Compiler::compile_with_architecture(
+    &self, input: &SemanticInputV1, architecture: &ArchitectureModel,
+) -> Result<MindcladeGraph, Vec<Diagnostic>>
+    supports descriptor-free input only.
+
+Compiler::compile_services(
+    &self, input: &SemanticInputV1, architecture: &ArchitectureModel,
+    descriptors: &[DescriptorSource<'_>],
+) -> Result<MindcladeGraph, Vec<Diagnostic>>
+    validates and seals explicitly supplied descriptor bytes.
+```
+
+`compile_services` requires a duplicate-free bijection between SemanticInput descriptor inventory and supplied sources. Paths are normalized repository-relative paths; every inventory location has positive coordinates and the same path; digests bind exact supplied bytes. Missing, duplicate, unexpected or mismatched sources fail. Compiler-private staging resolves declarations and architecture, validates descriptor references/visibility/ownership against that context, and seals all descriptor payloads into the final graph. Staging never escapes as an unresolved executable graph or second authority. Final sealing rechecks those invariants. `compile_with_architecture` rejects nonempty descriptor inventory with `descriptor-source-required`; original `compile` preserves existing compact/expanded behavior and rejects descriptor-bearing input without architecture. No compiler call performs hidden filesystem I/O. Descriptor bindings must not be erased during staging. Descriptor payloads bind source/architecture identities without embedding the digest of their enclosing graph. B4 extends this same checked model and membership vocabulary; it does not introduce another ownership parser.
+
+The [architecture source and ownership profile](../../architecture/architecture-source-profile.md) freezes lexical rules, owner membership and validated-model lookup for this task.
+
+**Schema reconciliation:** The current descriptor contract names 15 conceptual sections; the old B task's unexplained "16 sections" is not a schema. Freeze a reviewed exact wire-key/field table before coding: `apiVersion` discriminator plus `identity`, `ownership`, `capabilities`, `protocols`, `dependencies`, `configuration`, `secrets`, `health`, `resources`, `scaling`, `topology`, `telemetry`, `security`, `deployment`, `qualification`. This is 15 sections plus a discriminator. Map lifecycle settings explicitly inside configuration and execution behavior to RuntimeKit; do not invent a sixteenth section. Reconcile the historical source-blueprint example to this reviewed schema rather than silently accepting two representations.
+
+- [ ] Step 1: Preserve the following independently reviewed bounded local-test descriptor and copy its accepted bytes to `services/foundation_echo/service.descriptor.yaml`. Update the descriptor contract with the field rules below in the same task; no alternate historical shape is silently accepted.
+
+```yaml
+apiVersion: ServiceDescriptor@v1
+identity: {namespace: Mindclade.Foundation, name: foundation-echo, version: v1}
+ownership: {component: services.foundation_echo}
+capabilities:
+  public: [Mindclade.Public.echo]
+  internal: [admission]
+protocols:
+  http: {bind: "127.0.0.1:0", operation: Mindclade.Public.echo}
+dependencies:
+  postgres: {kind: postgresql, required: false}
+configuration:
+  admission: test
+  lifecycle: {request_timeout_ms: 2000, shutdown_timeout_ms: 5000}
+secrets: []
+health: {readiness: local-admission}
+resources: {max_body_bytes: 65536, max_in_flight: 8}
+scaling: {min_replicas: 1, max_replicas: 1}
+topology: {mode: single-process}
+telemetry: {log_level: info, include_request_body: false}
+security:
+  identity_mode: local-test
+  tenant: {namespace: Mindclade.Test, name: tenant, version: v1}
+  environment: {namespace: Mindclade.Test, name: local, version: v1}
+deployment: {enabled: false}
+qualification: {status: pending}
+```
+
+All shown fields are required and closed; reject unknown fields recursively. Identity objects use the existing kernel constructor. `ownership.component` must resolve to reviewed architecture membership and the descriptor's own service path. Public operation references resolve through the public graph; `internal: [admission]` selects the one generated service-local AdmissionPort mapping, not an arbitrary executable/plugin path. For this first profile, all enum literals and topology/scaling/deployment/qualification values are exactly those shown. `bind` accepts only numeric IPv4/IPv6 loopback plus port 0..65535; normalize only after strict parsing. Timeouts are integers 1..30000 milliseconds, `max_body_bytes` exactly 65536, `max_in_flight` integer 1..64. Accept `log_level` only `error|warn|info`; request-body logging must be false. `secrets` is empty in TestAdmission; future durable secret references are a separately reviewed C1/C2 profile extension. PostgreSQL is a declared optional future dependency here: `required: true` is rejected until the durable profile and readiness probe exist. This prevents a non-durable service advertising a live durable dependency. Register `services.foundation_echo` ownership with its reviewed source root before the descriptor can compile; that registration grants no dependency pass.
+
+### Explicit descriptor inventory and service generation
+
+The official frontend inventories descriptor files without parsing their YAML or assigning their semantics. Add `descriptor_sources` as an explicit YAML label list on `typespec_compile`. Declare those files as action inputs, stage their exact bytes in the existing source mapping, and record the sorted repository- relative inventory in the action manifest. Reject duplicate declarations before map insertion can hide them. Add `//codegen/frontend/typespec:vs001_services` with the existing expanded TypeSpec entrypoint/visibility policy and the single `services/foundation_echo/service.descriptor.yaml` source, exported through its BUILD boundary. Existing `echo` and `vs001` targets remain descriptor-free.
+
+`frontend_action.py` passes repeated `--descriptor-source REPO_RELATIVE_PATH` arguments only for declared staged inputs to the same JS CLI. Extend `cli.mjs`, `compileInput` and `compileDeclarations` with explicit `descriptorSources`. Reject descriptor flags when expanded source policy is absent; do not silently ignore them in compact-foundation extraction. The frontend checks canonical source-root confinement and performs regular-file bounded reads. It emits sorted `{path, digest, location}` records, with raw-byte SHA-256 and the binding location `{path, line: 1, column: 1}`. A bounded UTF-8 document with malformed YAML can still be inventoried; Codegen owns YAML syntax/profile rejection. There is no discovery scan, environment substitution or second YAML semantic authority in JS/Python.
+
+The service generation API is:
+
+```rust
+pub fn generate_vs001_services(
+    input_bytes: &[u8], input_name: &str,
+    architecture_source: &str,
+    source_root: &std::path::Path, out_dir: &std::path::Path,
+    check: bool,
+) -> Result<Generation, Vec<Diagnostic>>;
+```
+
+`architecture_source` is one explicit normalized repository-relative file path. The driver reads that architecture file and exactly the descriptor inventory; the original TypeSpec/source checks and build-bound generator verification stay in force. Reject non-regular files and out-of-root symlink resolution before content reads. Read at most 1,048,577 bytes and reject the extra byte before parsing; a metadata-length check alone cannot enforce the 1 MiB limit if a file grows. No fallback to cached or implicitly located source is permitted. General descriptor-free source-reader behavior is not silently broadened by this task.
+
+Validate every input, parse/compile/seal, lower and assemble the complete candidate before any publication, old-transaction recovery, lock/stage creation or success receipt. Invalid new input must preserve existing products and any legitimate pending journal/stage. Read-only failure also preserves bytes, modes, mtimes and receipts. The initial service route requires exactly the canonical foundation Echo descriptor; empty inventory, extra identities or alternate locations cannot produce a successful service catalog.
+
+Add the explicit CLI route:
+
+```text
+compile-vs001-services --input PATH --architecture REPO_RELATIVE_PATH
+  --source-root PATH --out-dir PATH [--check]
+```
+
+The generation wrapper gains the explicit service mode `generate_vs001.py --services --architecture REPO_RELATIVE_PATH`. It builds the actual `vs001_services` artifact and passes it to that CLI. Require architecture in service mode and reject architecture without service mode. These exact flags are part of the reviewed command contract; Python only orchestrates pinned actions.
+
+The service catalog contains exactly these nine files below `generated/vs001/`:
+
+```text
+public/client.ts
+rust/mod.rs
+rust/public.rs
+rust/internal.rs
+rust/wire.rs
+graph.json
+manifest.json
+service/descriptor.json
+service/config.rs
+```
+
+The manifest hashes all eight non-manifest outputs and adds:
+
+```json
+{
+  "architecture_input": {
+    "path": "docs/architecture/model/architecture.yaml",
+    "digest": "sha256:<exact authored bytes>"
+  },
+  "descriptor_inputs": {
+    "services/foundation_echo/service.descriptor.yaml": "sha256:<exact authored bytes>"
+  }
+}
+```
+
+The supplied explicit architecture path replaces the example. Descriptor keys exactly match the validated inventory; values are checked Digests and canonical JSON sorts the map. Preserve existing input/source/compiler/locks/transport- profile/graph/output bindings. No host path, timestamp, self-hash or descriptor- to-enclosing-graph hash cycle is added. The original descriptor-free route omits these fields and retains its seven-file contract. Its manifest may change when the source-bound generator fingerprint changes.
+
+Once service mode owns the repository's actual `generated/vs001` tree, aggregate and drift recipes consistently invoke that mode. Test descriptor-free seven-file compatibility in isolated roots; do not alternate seven- and nine-file publishers against the live tree. Keep service constructor source separate from DTO module glue: `rust/mod.rs` must not acquire a RuntimeKit dependency. Retain legacy publisher compatibility and exercise every new catalog interruption boundary.
+
+The [configuration contract](../../architecture/service-config-v1.md) freezes the separate constructor ABI, closed descriptor JSON and their independent checks. B3a emission does not prove B3b runtime behavior. The nine-file catalog above is a planned extension until its actual generated outputs and checks exist.
+
+- [ ] **Step 2: Independent corpus and wiring.** Preserve the accepted TestAdmission example and full field rules in `service-descriptor-v1.md`. Integrate the independent descriptor/architecture/YAML-limit corpus and the corrections below. Declare its complete data inventory; `B3A_FIXTURES` names the exact `cases.json` runfile, not its directory. Fixture helpers derive its parent and strip the manifest's `fixtures/` prefix. Use official `VS001_INPUT`; missing inputs or unresolved APIs are failures, never substitute graphs. Standalone descriptor tests compile the real input with checked architecture first. Pure compiler failures prove no final graph, not filesystem no-publication behavior.
+- [ ] **Step 3: Actual frontend and driver cases.** Test exact descriptor binding and a comment-only byte change; missing/duplicate/escaping/undeclared paths; non-regular/oversized inputs; compact-route rejection; and unchanged descriptor-free targets. At least one service-generation test consumes the actual declared `vs001_services` frontend artifact. Malformed bounded UTF-8 YAML must be inventoried there, then rejected by the Rust service driver. Do not replace this case with JSON-only inventory mutation.
+- [ ] **Step 4: Behavioral RED.** Parent wires callable APIs and declared inputs, then executes the independent cases against explicitly incomplete behavior and retains relevant failures. A rejecting initial API skeleton can expose the accepted positive controls; missing imports, data or tools are wiring failures rather than behavioral RED. Implementation follows fresh criteria review.
+- [ ] **Step 5: Driver acceptance matrix.** Require exact nine-file catalog/eight recomputed output hashes, input manifest bindings and one resolved service/operation/ owner; unchanged second generation and relocation; exact provenance changes for comment/key-order changes; stale descriptor digest failure. Invalid YAML, ownership/profile/visibility/inventory/path/digest inputs must preserve absent or existing output/receipt trees, including a legitimate pending old journal. Include source confinement and symlink escape; exact 1 MiB and limit+1 regular reads; directories/special files rejected without blocking; read-only drift preservation; nine-file interruption/recovery/stale-cleanup ownership; and isolated legacy seven-file route compatibility. Compare bytes/modes/mtimes, not reading access times. Parent bounds the process harness.
+- [ ] **Step 6: Integration and review.** Implement the strict adapter, checked architecture, descriptor compilation, final sealing and generation through one Codegen. Parent reviews exact parser/dependency resolution, updates build/fingerprint/ catalog/scaffold ownership and tree, regenerates through Codegen and records focused frontend/compiler/compatibility/consumer and aggregate/drift evidence on Apple Silicon and Linux. Refresh affected reviews. Keep runtime roots planned until actual implementation evidence. Commit the reviewed source checkpoint as `feat(codegen): compile service descriptors`. B2b then reuses the same strict adapter; B3b supplies real runtime constructor/composition checks.
+
+## Task B3b: Real bounded RuntimeKit/TestKit composition
+
+**Files:** Create `platform/runtimekit/{Cargo.toml,BUILD.bazel,src/lib.rs,src/config.rs,src/lifecycle.rs,src/http.rs}`, `platform/testkit/{Cargo.toml,BUILD.bazel,src/lib.rs,src/clock.rs,src/identity.rs,src/faults.rs}`, `services/foundation_echo/{Cargo.toml,BUILD.bazel,src/main.rs,src/lib.rs,src/composition.rs,src/ports.rs,tests/composition.rs}`. Keep directory markers; parent owns root activation and workspace/locks.
+
+**Interfaces:** Preserve existing B plan: `Clock::now_millis() -> u64`, `IdentityProvider::identity() -> Identity`, `ShutdownSignal::requested() -> bool`, all Send+Sync. `serve(config: ServiceConfig, capability: Arc<dyn EchoCapability>, lifecycle: Lifecycle) -> Result<RunningService, RuntimeError>`; `ServiceConfig` is defined in `platform/runtimekit/src/config.rs` with private fields and the exact checked constructor in the [configuration contract](../../architecture/service-config-v1.md); generated service code passes compiler-derived values to that constructor. `Lifecycle` in `src/lifecycle.rs` holds `Arc<dyn Clock>`, `Arc<dyn IdentityProvider>` and `Arc<dyn ShutdownSignal>`; `RunningService::address()` returns bound socket address; `shutdown(self) -> Result<(), RuntimeError>` consumes the handle. `RuntimeError` distinguishes config/identity/bind/transport/shutdown. TestKit ManualClock::advance(u64), FixedIdentity and FaultBarrier::arrive(name)/release(name) supply deterministic collaborators. Service `AdmissionPort::execute(&self, context: &AdmissionContext, request_id: &str, request: EchoRequest) -> Result<EchoResponse, EchoError>`; context is trusted tenant/environment/identity plus descriptor digest. TestAdmission is an explicitly non-durable collaborator.
+
+- [ ] Step 1: Add real-socket tests before implementation: loopback ephemeral bind, generated client success, identity spoofing rejection/ignoring caller tenant selection, invalid required-dependency configuration, max-body rejection, malformed framing, slow/incomplete body, disconnect, concurrency bound and finite shutdown. The harness owns child/socket handles and shuts them down in `finally`/explicit teardown; missing server readiness is failure, not a skipped test.
+- [ ] Step 2: Parent observes RED in the new `//services/foundation_echo:composition_tests` target. Before admitting the planned tiny_http dependency, prove the chosen pinned transport can enforce body/header deadlines and shut down connections already handed to handlers. `recv_timeout` only bounds waiting for a request, and server drop does not close requests already returned: those APIs alone do not prove bounded shutdown. If that library cannot satisfy the tests, prepare a reviewed transport-spec amendment; do not claim a timeout by abandoning a live thread. [Server behavior](https://docs.rs/tiny_http/latest/tiny_http/struct.Server.html).
+- [ ] Step 3: Implement generated transport invocation, trusted configured identity, readiness, bounded active work, body byte limits independent of claimed Content-Length, deadlines and graceful drain/shutdown. Reject unsupported framing and non-loopback test identity. Configuration/logging redact secret references, DSNs and bodies. The service wrapper supplies AdmissionContext; public headers cannot select a tenant.
+
+```javascript
+assert.deepEqual(await client.echo("composition-1", {
+  message: "hello", urgent: false, tags: ["fixture"]
+}), {message: "hello"});
+await assert.rejects(client.echo("bad/id", {message: "hello", tags: []}));
+```
+
+The test launches the actual Bazel-built service and B2 client, waits for a bound-address/readiness receipt and verifies process termination after shutdown. Test the second shutdown through an idempotent supervisor/control signal; do not call consuming `shutdown(self)` twice on a moved Rust value.
+
+- [ ] Step 4: Run the transport-negative matrix and TestKit determinism repeatedly without timing-based sleeps for domain interleavings. Real socket deadlines use bounded wall-clock harness timeouts and distinguish test timeout from product success. Socket disconnect does not imply domain Run cancellation. Parent verifies no owned process/listener remains.
+- [ ] Step 5: Parent runs `//platform/runtimekit:tests`, `//platform/testkit:tests`, `//services/foundation_echo:composition_tests`, generated client conformance and aggregate on both hosts. Commit `feat(platform): compose generated Echo`. Record non-durable partial VS-001; C1-C5 still supply real persistence/execution.
+
+## Task B4: Enforce actual configured dependencies and activate validators
+
+**Files:** Extend authoritative `docs/architecture/model/architecture.yaml`; create `codegen/src/boundaries.rs`, `codegen/tests/cases/boundaries.rs`, `tools/build/dependency_facts.bzl`, `tools/validation/dependency_facts.py`, `tools/validation/typescript_facts.mjs`, `tools/validation/test_boundary_entrypoints.py`. Replace exactly `tools/validation/{arch-lint.py,dependency-lint.py,descriptor-lint.py,generated-provenance.py}` through manifest transitions. Parent updates compiler CLI/inventory/BUILD, justfile, CI tests, root membership and tree.
+
+**Interfaces:** `DependencyFactsV1 { candidate: String, source_inventory_digest: Digest, configurations: Vec<String>, edges: Vec<ObservedDependency> }`; each edge has `from`, `to`, `kind` (Production|Build|Test), `configuration`, `origin: SourceLocation`. `check_boundaries(graph: &MindcladeGraph, facts: &DependencyFactsV1) -> Result<BoundaryReport, Vec<Diagnostic>>`; report exposes `is_passing() -> bool` and contains sorted `violations: Vec<BoundaryViolation>`, model/graph/facts digests and covered configurations. Violation fields: code/from/to/location/reason. Missing coverage is diagnostic failure, never an empty passing graph. CLI `check-boundaries --input PATH --architecture PATH --facts PATH --out PATH`: 0 pass, 2 violations, 1 invalid/missing input or I/O. These are the existing B4 proposed interfaces, now tied to completed B2/B3 products.
+
+- [ ] Step 1: Define `BoundaryFixture::runtimekit_depends_on_service()` with graph built through Compiler and allowed YAML ownership/rules, plus an observed forbidden edge in facts. Add valid service→RuntimeKit positive control. Test:
+
+```rust
+#[test]
+fn runtimekit_cannot_depend_on_domain_service() {
+    let fixture = BoundaryFixture::runtimekit_depends_on_service();
+    let report = check_boundaries(&fixture.graph, &fixture.facts).unwrap();
+    assert!(!report.is_passing());
+    assert!(report.violations.iter().any(|v| v.code == "forbidden-dependency"));
+}
+```
+
+- [ ] Step 2: Parent runs `cargo test --locked -p mindclade-codegen runtimekit_cannot_depend_on_domain_service` and records RED. Reuse B3a's compiled component IDs, owner roles and target/module memberships; extend the reviewed YAML with production/build/test edges, required configuration coverage and external dependency allowlist. Reject overlapping/ownerless/unknown membership, cycles and unresolved references before checking facts.
+- [ ] Step 3: Implement collectors from `cargo metadata --format-version 1 --locked`, a configured Bazel aspect emitting structured JSON, and the pinned TypeScript compiler's real module resolver. Collect normal/build/dev edges, declared features/configurations and transitive imports/re-exports; computed/unresolved public imports fail. Python/TypeScript collect observations only. They cannot decide allowed edges or fabricate facts from hand-maintained import lists.
+- [ ] Step 4: Bind facts to candidate, source inventory, locks, graph/model and explicit complete configuration matrix for Apple Silicon/Linux and admitted test/production targets. A source/lock/model/configuration change invalidates facts. At qualification the independent owner regenerates them; a self-reported digest is not trust. Tests omit each collector/configuration in turn and substitute old candidate/source/model to prove fail-closed coverage.
+- [ ] Step 5: Enforce public client→internal/store, core→Codegen/service, RuntimeKit→domain service/production TestKit, forbidden external packages including tch/tch-rs/Triton, cycles and ownerless components. Add Rust compile-fail module-visibility tests preventing transport from directly accessing the concrete execution store once C activates it. B4 initially covers activated B components; rerun with new C/D dependencies rather than grandfathering them.
+- [ ] Step 6: Replace the four wrappers with thin invocations of the real Codegen boundary/descriptor checks or A1 provenance verifier. Subprocess tests force each backend's own violation and assert nonzero exit/diagnostic propagation; missing executable/collector also fails. No wrapper may return zero for a presence check. Keep unrelated stubs and directory markers intact.
+- [ ] Step 7: Add `just verify-boundaries` and wire the actual matrix into aggregate/Linux CI after outputs/facts exist. Parent runs real graph and negative fixtures on both hosts, source fingerprint/drift/scaffold checks and fresh review. Commit `feat(architecture): enforce actual dependencies`. G3 separately adopts this evidence into code admission; a passing source gate alone does not establish protected ownership.
+
+## Completion rule
+
+B1-B4 complete only with all generated consumer, descriptor, lifecycle and actual dependency gates passing on the reviewed candidate. Keep each library's implementation evidence distinct from a real service invocation, each conformance test distinct from independent criteria acceptance, and local source readiness distinct from O1-O4 protected operation. C/D remain open until their own real database, replay and independent assessment gates pass.

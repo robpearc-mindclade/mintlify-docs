@@ -1,0 +1,151 @@
+---
+title: "Design Audit Review: Platform, Connected Loop, and Science Findings"
+sidebarTitle: "Design Audit"
+description: "Three independent read-only design audits of vNEXT covering platform/toolchain, connected agent loop, and science platform, with Rob's disposition decisions."
+---
+
+This page records the 2026-09-26 design audit review. Three separate audit agents each reviewed the vNEXT design for platform/toolchain/supply chain, the connected agent loop, and the science platform. Rob decided on their recommendations. This record states what the audits observed and what Rob decided; it is not evidence that any recommendation is implemented, and it qualifies nothing.
+
+## Scope and outcome
+
+| Date | Scope | Outcome |
+| --- | --- | --- |
+| 2026-09-26 | Three independent read-only audits of platform/toolchain, connected agent loop, and science platform | Approved groups A and B now; group C deferred to E1; group D as ADR drafts before S1 |
+
+Base: `main` `8bea4a4`, with the audits also reading the unmerged `claude/p1b-criteria`, `claude/c-reconcile`, and `claude/e1-criteria` heads. Reviewer: three separate audit agents, each with its own brief, plus the parent's consolidation. Each auditor read design documents, accepted ADRs, and actual source, and checked ecosystem facts against live sources. None of them edited a file, ran a build, or touched Git.
+
+## Findings and disposition
+
+### Platform, toolchain, and supply chain
+
+**Critical**
+
+- No dependency or vulnerability monitoring: [`.github/dependabot.yml`](https://github.com/Mindclade-org/mindclade-internal-monorepo/blob/main/.github/dependabot.yml) is a stub, the flake has no `cargo-audit` ([C criteria 3](../../superpowers/specs/2026-09-26-c-durability-criteria#3-owner-decisions-evidence) records an ad hoc RustSec range check), and the Node pin trails a released security fix.
+
+**Important**
+
+- No provenance, signing, or SBOM: [toolchain](../toolchain) names them, `tools/provenance/` is stubs, and no workflow requests `id-token`; receipts use a bespoke format rather than in-toto statements.
+- The RuntimeKit transport is dated: synchronous `std::net` HTTP/1.1 with thread per connection and `connection: close` blocks MCP Streamable HTTP and gRPC for the emitted Proto, and the reason for avoiding an async runtime ends at C1, because the approved `postgres = 0.19.14` client embeds tokio (C criteria OD-2).
+- Telemetry has no correlation: the closed event set forbids request and trace identifiers, so no W3C `traceparent` reaches the outbox.
+- Durability has no ADR: C1–C5 build a durable-execution engine with no recorded alternatives; DBOS validates the PostgreSQL-native model but publishes no Rust SDK, and Restate does publish one.
+- Node 22 and TypeScript 5.9 are aging against Node 24/26 and a released TypeScript 7.
+- Host matrix and caching: `flake.nix` and `foundation.bzl` exclude aarch64-linux, `MODULE.bazel` keeps a dead x86_64-apple-darwin triple, CI is x86 Linux only, and the `.bazelrc` disk cache dies with each runner.
+- Codegen's promised differential oracle is missing: [developer products](../developer-products) requires parity with the official TypeSpec emitter, which is not a dependency.
+
+**Minor**
+
+- Version drift in Rust, Bazel, Python, Nix, and the emitted OpenAPI revision.
+- CI hardening: no organization-wide SHA-pinning enforcement, no workflow linter, no push protection.
+
+### Connected agent loop
+
+**Critical**
+
+- Rob's approval is built into every merge (AGENTS.md agent rules, the [supervised roles](https://github.com/Mindclade-org/mindclade-internal-monorepo/blob/main/.agents/roles/supervised.md), the [GitHub runbook](../../operations/github-governance), and `github_audit.py`), so no change can ever merge unattended.
+- The trust anchors sit on the laptop: the App key, the token minting helper, and `TOOL_ROOT` are all local, so the loop stops when the laptop sleeps.
+- Codex's Linear integration cannot author as the App: it writes under the connected human identity, so the App-identity check would fail.
+
+**Important**
+
+- No dispatcher and no run ledger: attempts, budgets, and effect keys in [execution reliability](../execution-reliability#effects-and-recovery) are manual duties.
+- Code-class admission waits on P1b and then O3, although the hermetic sandbox is unrelated to maintenance risk.
+- The evaluations are checklists: every row of the [planned failure matrix](../execution-reliability#planned-failure-matrix) is "Not run", and `.agents/evals/` has no runnable task set or revert metric.
+- Over-engineering: governance depth is roughly three times what routine maintenance needs, and the ruleset audit rejects any key it does not know, which would block GitHub's required-reviewer rule.
+
+**Minor**
+
+- Policy as code: JSON plus a Python validator is enough now; a policy engine is worth it only for many work classes or gated tool calls.
+- MCP and A2A: remote MCP to Linear and Notion over OAuth 2.1 is fine and should stay read-only in unattended runs; A2A is not needed.
+
+### Science platform
+
+**Critical**
+
+- No training substrate is chosen: `ml/` and `pyproject.toml` are scaffold stubs, so the S2 gate in the [roadmap](../implementation-roadmap#gate-sequence) has nothing to train with.
+- The blanket Triton ban in [ADR-007](../adr/adr-007-compute-models-learning-and-runtime-boundaries) and the [architecture laws](../architecture-laws) now bans compiled training, because PyTorch's own compiler emits Triton.
+- Hand-writing the `compute/kernels/` pairformer, triangle, and attention kernels duplicates released open implementations that should be adopted and parity-qualified first.
+
+**Important**
+
+- The "Codegen C ABI plus CPU references first" step in [programmable biology](../programmable-biology) duplicates upstream stable-ABI custom-op registration and gates on an impractical full-size CPU oracle.
+- Clade-Embed risks rebuilding a commodity: S2 should have to beat a frozen open-weights baseline or consume it behind the capability contract.
+- The frozen-evaluator law names no benchmark, and `ml/evaluation/benchmarks/` and `contracts/schemas/evaluation/` are empty.
+- Leakage doctrine is right but tool-free: `data/splits/` and `contracts/schemas/datasets/` name no clustering tool, identity threshold, or temporal cutoff.
+- No experiment tracking, data versioning, lineage, or registry choice; `models/registry/` is empty.
+- The budget ledger has no scheduler: no gang scheduling, quota, preemption, or checkpoint-resume interaction is named.
+- Post-training is undefined: `ml/posttraining/` verifier and reward directories are empty.
+- Closed-loop and active learning are absent: `platform/experiments/` is empty directories, with no acquisition function, uncertainty, or stopping rule.
+- No dual-use or biosecurity policy exists anywhere in `docs/`, although the north star includes generative design and experiment execution. Published 2025 work showed that screening tools used by synthesis providers needed patching before they reliably flagged AI-designed sequences (Wittmann et al., _Science_ 390:82-87, [doi:10.1126/science.adu8578](https://doi.org/10.1126/science.adu8578), retrieved through PubMed).
+
+**Minor**
+
+- Naming and scaffold drift: model directory names imply adoption the reviews deny, and `agents/evaluation/` is empty against ADR-014's ambition.
+
+## Judged clearly right
+
+- Hermetic builds: the Nix flake and locks are the toolchain authority, Bazel 9 is bzlmod-only with a strict lockfile, and the wrapper passes `--nosystem_rc --nohome_rc`.
+- Rust discipline: edition 2024, resolver 3, `unsafe_code = "forbid"` and exact pins.
+- One sealed graph with byte-exact projections across hosts, and disposable attributable generated surfaces.
+- PostgreSQL 18 plus a transactional outbox, and [modular monolith first](../adr/adr-010-modular-monolith-first-deployment), as boring choices that avoid a workflow server's operating cost.
+- Governance invariants: a dedicated App with no bypass, checks bound to the exact merge-group SHA, policy read at an immutable accepted revision so a candidate cannot approve itself, Linear for work and Git for technical authority, effect keys with reconciliation before retry, reporting-only retries, retrieved text treated as untrusted, and honest PASS/FAIL/BLOCKED.
+- Evidence law: [independent assurance](../adr/adr-009-independent-assurance), registration separated from eligibility and deployment, frozen evaluators, protected holdouts, leakage checkers validated with deliberately contaminated fixtures, licence and permitted-use before adoption, atomic budget reservation and settlement, checkpoint-compatibility revalidation on resume, and the falsifiable cell-state contract. The audits judged this ahead of common 2026 practice.
+- [ADR-012](../adr/adr-012-synthesis-qualification-signing-promotion-gitops)'s staged signing and GitOps promotion remains modern; it is simply not built yet.
+
+## Decisions
+
+Rob approved the parent's recommendation in chat on 2026-09-26 ("proceed with your recommendation"), which was: approve groups A and B now, take C at the E1 checkpoint, and take D as ADR drafts before S1 with biosecurity first.
+
+| Group | Items | Decision |
+| --- | --- | --- |
+| A — before C1 | W3C `traceparent` in the C1 outbox and event schema; a durability ADR recording PostgreSQL plus the outbox against DBOS, Restate, and Temporal with its revisiting triggers; a transport ADR swapping RuntimeKit's engine to hyper on tokio behind `Handler` before C5 | Approved now |
+| B — supply chain | Node 24 (after taking the current Node 22 security release), Renovate, cargo-deny and osv-scanner, artifact attestations plus a CycloneDX SBOM, arm64 CI, and a remote cache written only by `main` and the merge queue | Approved now |
+| C — automation loop | An unattended docs-only lane with zero base approvals and Rob required only on sensitive paths; moving the App key into CI; `codex exec` in Actions with an untrusted diff job and a trusted push job | Deferred to E1 checkpoint A |
+| D — science gates | ADRs for the training substrate, the kernel rule amendment, the frozen-baseline gate, pinned benchmarks and splits, and biosecurity | ADR drafts before S1, biosecurity first |
+
+## Where each item is executed
+
+| Item | Executed in |
+| --- | --- |
+| A1 `traceparent` | The C criteria, as a separate dated amendment on the `claude/c-reconcile` branch; this record only notes it. At the time of writing, that amendment is not on `main` |
+| A2 durability ADR | [ADR-016](../adr/adr-016-postgresql-outbox-durable-execution) |
+| A3 transport ADR | [ADR-017](../adr/adr-017-runtimekit-transport-engine), implementation before C5 |
+| B4-B7 supply chain | Separate reviewed changes (the Node 24 move is on the `claude/node24` branch); recorded here only |
+| C8-C10 automation | The E1 criteria draft, decided at its checkpoint A |
+| D15 biosecurity | [ADR-018](../adr/adr-018-biosecurity-and-dual-use-controls), Status Proposed, awaiting Rob |
+| D11-D14 science | Later ADR drafts before S1; not written here |
+
+## Follow-ups
+
+- Group B items land as separate reviewed changes with their own lock review.
+- Group C is decided at E1 checkpoint A; nothing in this record authorizes an unattended merge lane, a credential move, or an executor route.
+- Group D still needs the training-substrate, kernel-rule, frozen-baseline, and benchmark ADRs; only the biosecurity draft exists, and it is Proposed.
+- The ADR-008 wording about RuntimeKit's telemetry, and the RuntimeKit redaction rule, need a reviewed amendment before any trace identifier is emitted. ADR-017 names that amendment.
+- `REPOSITORY_TREE.md` needs the integration owner's mechanical refresh for the files this change adds.
+
+## Verification boundary
+
+The audits were read-only analyses of design documents and source at the stated base, plus public ecosystem facts. Nothing here was executed, measured, or independently qualified. The verdicts are judgements about design currency, not evidence about behaviour: C1-C5 remain BLOCKED (not run), every failure-matrix row remains "Not run", and no remote CI, deployment, release, or scientific qualification is claimed. Findings that quote unmerged branches stay bound to those heads and need reconciliation with merged source before they are treated as current.
+
+## Evidence
+
+No JSON evidence files are produced by this audit. Evidence is design document analysis and live ecosystem fact-checking only.
+
+## Related
+
+<CardGroup cols={2}>
+  <Card title="ADR-016: PostgreSQL Outbox" icon="database" href="/architecture/adr/adr-016-postgresql-outbox-durable-execution">
+    Durability ADR for PostgreSQL outbox and durable execution
+  </Card>
+
+  <Card title="ADR-017: Transport Engine" icon="bolt" href="/architecture/adr/adr-017-runtimekit-transport-engine">
+    Transport ADR swapping RuntimeKit to hyper on tokio
+  </Card>
+
+  <Card title="ADR-018: Biosecurity" icon="shield-halved" href="/architecture/adr/adr-018-biosecurity-and-dual-use-controls">
+    Biosecurity and dual-use controls, Status Proposed
+  </Card>
+
+  <Card title="Implementation Roadmap" icon="road" href="/architecture/implementation-roadmap">
+    Gate sequence and S2 readiness criteria
+  </Card>
+</CardGroup>

@@ -1,0 +1,207 @@
+---
+title: "ServiceDescriptor@v1 Schema Reference"
+sidebarTitle: "Service Descriptor"
+description: "Reference the canonical descriptor schema, Foundation Echo TestAdmission profile, strict YAML parsing rules, and checked compiler interface."
+---
+
+`ServiceDescriptor@v1` is the canonical descriptor for a deployable Mindclade service or worker. Codegen may derive RuntimeKit bootstrap, protocol adapters, service docs, Kubernetes or GitOps plan material, telemetry defaults, policy checks, and architecture graph nodes.
+
+<Info>
+  Status: reviewed bounded B3a source contract with strict YAML parsing, checked descriptor compilation, and service projection source implemented. See the [B3a checkpoint](/architecture/reviews/2026-09-23-vs001-service-compilation).
+</Info>
+
+## Descriptor structure
+
+```text
+ServiceDescriptor@v1
+├── identity
+├── ownership
+├── capabilities
+├── protocols
+├── dependencies
+├── configuration
+├── secrets
+├── health
+├── resources
+├── scaling
+├── topology
+├── telemetry
+├── security
+├── deployment
+└── qualification
+```
+
+The descriptor is source authority for service shape, but deployment still follows synthesis, qualification, signing, promotion, and GitOps.
+
+## Foundation Echo TestAdmission profile
+
+There are fifteen sections plus the `apiVersion` discriminator. All keys below are required, closed, and case-sensitive. Duplicate keys are errors before decoding.
+
+| Field | YAML type | B3a rule |
+| --- | --- | --- |
+| `apiVersion` | string | Exactly `ServiceDescriptor@v1` |
+| `identity` | mapping | Exactly `namespace`/`name`/`version`; kernel `Identity::new`. Initial service identity is exactly `Mindclade.Foundation/foundation-echo@v1` |
+| `ownership` | mapping | Exactly `component` |
+| `ownership.component` | string | Exactly registered `services.foundation_echo`; owner role service, root `services/foundation_echo` |
+| `capabilities` | mapping | Exactly `public`/`internal` |
+| `capabilities.public` | sequence of string | Exactly one `Mindclade.Public.echo`, resolved to the public HTTP operation in this graph |
+| `capabilities.internal` | sequence of string | Exactly `[admission]`; compiler-owned generated service-local AdmissionPort mapping |
+| `protocols` | mapping | Exactly `http` |
+| `protocols.http` | mapping | Exactly `bind`/`operation`; no alternate ports list |
+| `protocols.http.bind` | string | Strict numeric IPv4 `address:port` or bracketed IPv6 `[address]:port`; numeric loopback only. Port 0..65535 |
+| `protocols.http.operation` | string | Exactly the same resolved operation as `capabilities.public[0]` |
+| `dependencies` | mapping | Exactly `postgres` |
+| `dependencies.postgres` | mapping | Exactly `kind`/`required` |
+| `dependencies.postgres.kind` | string | Exactly `postgresql` |
+| `dependencies.postgres.required` | boolean | Exactly `false`; declaration of future dependency only |
+| `configuration` | mapping | Exactly `admission`/`lifecycle` |
+| `configuration.admission` | string | Exactly `test` |
+| `configuration.lifecycle` | mapping | Exactly `request_timeout_ms`/`shutdown_timeout_ms` |
+| `configuration.lifecycle.request_timeout_ms` | integer | 1..30000 inclusive |
+| `configuration.lifecycle.shutdown_timeout_ms` | integer | 1..30000 inclusive |
+| `secrets` | sequence | Exactly empty; no string, map, reference, DSN or embedded value |
+| `health` | mapping | Exactly `readiness` |
+| `health.readiness` | string | Exactly `local-admission` |
+| `resources` | mapping | Exactly `max_body_bytes`/`max_in_flight` |
+| `resources.max_body_bytes` | integer | Exactly 65536; must equal the B2 compiler-owned transport profile |
+| `resources.max_in_flight` | integer | 1..64 inclusive |
+| `scaling` | mapping | Exactly `min_replicas`/`max_replicas` |
+| `scaling.min_replicas`, `scaling.max_replicas` | integer | Both exactly 1 |
+| `topology` | mapping | Exactly `mode` |
+| `topology.mode` | string | Exactly `single-process` |
+| `telemetry` | mapping | Exactly `log_level`/`include_request_body` |
+| `telemetry.log_level` | string | `error`, `warn`, or `info` only |
+| `telemetry.include_request_body` | boolean | Exactly `false` |
+| `security` | mapping | Exactly `identity_mode`/`tenant`/`environment` |
+| `security.identity_mode` | string | Exactly `local-test` |
+| `security.tenant` | mapping | Kernel identity; initial profile exactly `Mindclade.Test/tenant@v1` |
+| `security.environment` | mapping | Kernel identity; initial profile exactly `Mindclade.Test/local@v1` |
+| `deployment` | mapping | Exactly `enabled` |
+| `deployment.enabled` | boolean | Exactly `false` |
+| `qualification` | mapping | Exactly `status` |
+| `qualification.status` | string | Exactly `pending` |
+
+Future widening requires a reviewed profile change; identity syntax validity alone does not grant another service, tenant, or production environment.
+
+## Shared strict YAML input profile
+
+Codegen owns one event-based adapter for descriptors, architecture, and the later Proto field registry. It parses supplied bytes without includes, environment substitution, network, or object construction.
+
+### Limits and syntax
+
+- Require exactly one nonempty document and reject trailing documents/invalid syntax.
+- Reject duplicate decoded string keys; reject non-string and complex keys, aliases, anchors, explicit tags, `%TAG` directives, and `<<` keys.
+- Inclusive limits: 1,048,576 input bytes, depth 64 with root depth 1, 65,536 nodes counting mapping keys/values/containers, and 262,144 decoded scalar UTF-8 bytes including keys.
+- Check byte length, UTF-8, and literal NUL before parser construction.
+- Stop event iteration at a violated bound before attaching that node.
+- Do not use a recursive whole-document loading API.
+
+### Scalar resolution
+
+- Plain `true`/`false` become Boolean.
+- `null`, `Null`, `NULL`, `~`, and empty plain scalars become Null.
+- Signed decimal lexemes `[+-]?[0-9]+` become Integer preserving spelling.
+- Other plain text and every quoted/block scalar remain String.
+- Integer use sites require canonical unsigned decimal `0|[1-9][0-9]*` plus their checked range.
+- Reject decoded NUL in values and keys.
+- Do not apply YAML-1.1 yes/no or implicit timestamp conversions.
+
+Diagnostics carry fixed/redacted messages, source path, one-based Unicode-scalar line/column, and original UTF-8 byte spans.
+
+### Read-only syntax-tree API
+
+```rust
+impl YamlDocument {
+    pub fn root(&self) -> &YamlNode;
+}
+impl YamlNode {
+    pub fn span(&self) -> &SourceSpan;
+    pub fn kind(&self) -> &YamlKind;
+}
+impl YamlEntry {
+    pub fn key(&self) -> &str;
+    pub fn key_span(&self) -> &SourceSpan;
+    pub fn value(&self) -> &YamlNode;
+}
+```
+
+`YamlKind` exposes `Mapping(Vec<YamlEntry>)`, `Sequence(Vec<YamlNode>)`, `String(String)`, `Boolean(bool)`, `Integer(String)`, and `Null`. Only the adapter constructs checked nodes.
+
+`SourceSpan` has private state and read-only accessors:
+
+| Accessor | Type |
+| --- | --- |
+| `source()` | `&str` |
+| `start_line()` / `end_line()` | `u32` |
+| `start_column()` / `end_column()` | `u32` |
+| `start_byte()` / `end_byte()` | `usize` |
+
+Lines and Unicode-scalar columns are one-based. Byte offsets are zero-based, half-open `[start_byte, end_byte)`.
+
+### Vendor and error mapping
+
+The reviewed parser is `saphyr-parser =0.1.0`, checksum `7429158804c36e705d9423b7848018e535b3e92d439a763e364ee12670ef473b`, MIT OR Apache-2.0, package MSRV 1.85.0.
+
+Use exact pinned vendor `info()` matches only for these stable error mappings:
+
+| Exact vendor text | Stable code |
+| --- | --- |
+| `while parsing node, found unknown anchor` | `yaml-alias` |
+| `the handle wasn't declared` | `yaml-tag` |
+| `while parsing a quoted scalar, found invalid Unicode character escape code` | `yaml-encoding` |
+| `while parsing a quoted scalar, did not find expected hexadecimal number` | `yaml-encoding` |
+
+Other vendor failures use a generic located `yaml-syntax`. Parser upgrades require renewed review of the event/marker/error mappings.
+
+### Independent parser boundary cases
+
+- Use explicit scalar-key syntax `? "<large scalar>"\n: x\n` for decoded key max/max+1 tests.
+- Reject literal NUL after valid YAML, in a comment, and in a quoted scalar.
+- Reject decoded `\0`, `\x00`, `\u0000`, `\U00000000` in values and quoted keys.
+- Cover unknown alias, undeclared tag handle, surrogate `\uD800`, above-range `\U00110000`, nonhex `\uZZZZ`, and unknown `\q`.
+- Assert start/end byte offsets and scalar columns for keys/nodes after same-line multibyte text.
+- Isolate inclusive max/max+1 byte/depth/node/scalar limits and retain all earlier duplicate/alias/tag/merge/multiple-document/type/ownership positives/negatives.
+
+## Checked descriptor interface
+
+```rust
+pub fn compile_descriptor(
+    bytes: &[u8],
+    source: &str,
+    graph: &MindcladeGraph,
+) -> Result<CompiledServiceDescriptor, Vec<Diagnostic>>;
+```
+
+The graph must already have the checked architecture and source context. This validates one explicitly supplied descriptor without attaching it, publishing it, or mutating the graph. Only final `compile_services` sealing establishes service-view membership.
+
+### CompiledServiceDescriptor accessors
+
+| Method | Returns |
+| --- | --- |
+| `source_path()` | `&str` |
+| `source_digest()` | `&Digest` |
+| `identity()` | `&Identity` |
+| `owner_component()` | `&str` |
+| `operation()` | `&Identity` |
+
+Its resolved checked configuration projection remains a compiler-owned value for emission; it is not RuntimeKit's `ServiceConfig`. It binds supplied source and architecture provenance without a digest of the enclosing final graph. Standalone validation does not prove driver-verified source bytes, final graph membership, or publication.
+
+## Related
+
+<CardGroup cols={2}>
+  <Card title="Service Config V1" icon="file-code" href="/architecture/service-config-v1">
+    Foundation Echo generated configuration contract and runtime API.
+  </Card>
+
+  <Card title="Architecture Source Profile" icon="book-open" href="/architecture/architecture-source-profile">
+    Ownership model, path rules, and compiler API.
+  </Card>
+
+  <Card title="B3a Checkpoint" icon="clipboard-check" href="/architecture/reviews/2026-09-23-vs001-service-compilation">
+    Reviewed source-and-evidence checkpoint for B3a.
+  </Card>
+
+  <Card title="Generated Output Policy" icon="shield" href="/architecture/generated-output-policy">
+    Rules for generated artifacts and provenance.
+  </Card>
+</CardGroup>

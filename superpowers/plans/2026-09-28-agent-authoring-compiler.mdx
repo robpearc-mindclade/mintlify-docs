@@ -1,0 +1,390 @@
+---
+title: "Agent Authoring Compiler Plan: Tranche A Implementation"
+sidebarTitle: "Agent Compiler Plan"
+description: "Implementation plan for Mindclade's agent platform tranche A: filesystem agent authoring compiled deterministically into AgentIrV1 without activating runtime, sessions, or sandbox."
+---
+
+This plan sequences the approved AGA1 design into test-first compiler tasks while preserving Mindclade authority, provenance and runtime boundaries. Audience: the integration owner, native implementer, fresh reviewers and Rob as acceptance owner.
+
+<Warning>
+  Approved planning record, 2026-09-28. Implementation remains BLOCKED pending independent criteria review and the P1b to O3 code-admission prerequisites.
+</Warning>
+
+## Summary
+
+| Attribute | Value |
+| --- | --- |
+| Status | Approved planning record; implementation BLOCKED |
+| Goal | Implement tranche A of Mindclade's agent platform: Eve-quality filesystem agent authoring compiled deterministically through the existing Rust Codegen into the one immutable MindcladeGraph and AgentIrV1 |
+| Architecture | Reuse the existing `ServiceDescriptor@v1` pattern: filesystem/YAML/Markdown sources are explicit compiler inputs; strict Rust Codegen performs parsing, normalization, reference resolution and graph sealing |
+| Tech stack | Existing pinned Nix/Bazel/Rust/TypeSpec toolchain; Rust Codegen; existing `saphyr-parser`, `serde`, `serde_json`, kernel `Identity`/`Digest`/`Reference<T>`, strict YAML and safe filesystem utilities |
+| Spec | [Agent authoring compiler design](/superpowers/specs/2026-09-28-agent-authoring-compiler-design) |
+
+## Goal
+
+Implement tranche A of Mindclade's agent platform: Eve-quality filesystem agent authoring compiled deterministically through the existing Rust Codegen into the one immutable `MindcladeGraph` and `AgentIrV1`, without activating a model runtime, tool execution, sessions, sandbox, memory, or a competing execution authority.
+
+## Scope and non-goals
+
+**In scope:**
+
+- Exact capability references with stable digests under graph insertion order changes.
+- Agent filesystem discovery and `AgentSourceV1` normalization.
+- Compile tools, policies, and explicit child authority.
+- Attach agents to the one `MindcladeGraph` via `AgentGraphView`.
+- Lower `AgentIrV1` with provider-neutral tool contracts.
+- Retained projection, CLI, and drift checking.
+- Build integration and independent conformance.
+- Architecture docs, maturity updates, and scaffold transitions.
+- Whole-candidate verification and governed integration.
+
+**Out of scope:**
+
+- Model execution, durable agent sessions, sandboxing, memory, schedules, channels, provider SDKs, or tool execution.
+- Product runtime activation under `agents/` or `services/agent_service`.
+- Tranches B--E (runtime, sessions, sandbox, memory, subagent runtime).
+- Scientific qualification.
+
+## Global constraints
+
+- Preserve one Codegen and one immutable `MindcladeGraph`; `AgentGraphView` is a borrowed view, never another graph authority.
+- Preserve TypeSpec as authority for the capability contract used by the representative fixture.
+- Do not activate or place implementation under product `agents/`.
+- Do not activate `services/agent_service`.
+- Do not introduce model execution, durable agent sessions, sandboxing, memory, schedules, channels, provider SDKs, or tool execution.
+- Effectful execution remains the platform Run/Attempt/PostgreSQL/outbox authority.
+- Reuse the existing strict YAML parser, canonical serializer, safe filesystem layer and recoverable publisher.
+- Do not introduce a policy language. `AgentCompileContext` resolves exact already-typed `Reference<Policy>` values supplied as trusted compiler inputs.
+- Tool bindings use exact `Reference<Capability>` values, including content digest.
+- Path-derived semantic names are limited to the existing ASCII Mindclade `Component` grammar. Rejecting non-ASCII semantic names eliminates Unicode-normalization ambiguity without adding a Unicode dependency.
+- Instructions are exact valid UTF-8 source content. Source digest covers exact bytes; Codegen performs no invisible Unicode or newline rewriting.
+- Existing foundation/VS-001 canonical bytes must remain unchanged when no agents are compiled.
+- Generated files are never manually edited.
+- The dedicated `mindclade-monorepo-engineer` App authors governed repository PRs; `robpearc-mindclade` remains acceptance/CODEOWNER, not the coding author.
+
+## Review focus
+
+1. Transitive capability changes change a capability reference digest; unrelated graph changes do not.
+2. Filesystem ambiguity, case-fold collisions, non-ASCII path-derived names, symlink components and traversal fail before bytes are trusted.
+3. A child that does not explicitly declare a parent's tool does not receive it in compiled state or IR.
+4. Empty agent collections do not alter existing foundation/VS-001 canonical graph bytes.
+5. Hand mutation, missing files, stale source/capability references and check-mode writes never appear as valid generated agent output.
+
+## Execution preconditions
+
+- [ ] Commit the approved design and criteria through the governed App-authored path.
+- [ ] Independent technical criteria review passes.
+- [ ] Freeze exact criteria digest and source/base.
+- [ ] Create WorkPacket with separate implementation, review, integration and acceptance owners.
+- [ ] Obtain Rob approval of the exact WorkPacket digest and accepted-policy anchors.
+- [ ] Use a dedicated-App-authored branch/PR; no human-authored PR bypass.
+
+## Work breakdown
+
+### Task 1: Exact capability references
+
+**Files:**
+
+- Create: `codegen/src/graph/capability_reference.rs`
+- Create: `codegen/tests/cases/agent_capability_reference.rs`
+- Modify: `codegen/src/graph.rs`
+- Modify: `codegen/src/lib.rs`
+- Modify: `codegen/BUILD.bazel`
+- Modify: `codegen/Cargo.toml` only if test registration is needed; no dependency changes
+
+**Interfaces:**
+
+```rust
+impl<'a> CapabilityView<'a> {
+    pub fn reference(
+        &self,
+        identity: &Identity,
+    ) -> Result<Reference<targets::Capability>, Vec<Diagnostic>>;
+}
+```
+
+Internal digest material is `CapabilityReferenceMaterial@v1`: root capability semantic node, exact owning contract identity, transitive resource/declaration dependency closure and relevant DependsOn edges. Source locations and unrelated graph nodes are excluded.
+
+- [ ] Write failing tests: `capability_reference_is_stable_under_graph_insertion_order`, `capability_reference_changes_when_transitive_resource_changes`, `capability_reference_ignores_unrelated_resource_changes`, `capability_reference_rejects_non_capability_identity`, `capability_reference_binds_owner_identity`.
+- [ ] Run `nix develop --no-write-lock-file -c bazel test //codegen:agent_capability_reference_tests`; expected RED because `CapabilityView::reference` is absent.
+- [ ] Implement deterministic canonical transitive capability closure and hash it with existing canonical serializer plus `Digest::sha256`.
+- [ ] Return `Reference::<targets::Capability>::new(identity.clone(), digest)`; never use whole-graph digest.
+- [ ] Run focused target plus existing Codegen graph/foundation tests; expected GREEN with no existing graph fixture change.
+- [ ] Commit: `feat(codegen): derive exact capability references`.
+
+### Task 2: Agent filesystem discovery and AgentSourceV1
+
+**Files:**
+
+- Create: `codegen/src/agent/{mod.rs,source.rs,descriptor.rs}`
+- Create: `codegen/tests/cases/agent_source.rs`
+- Create: `codegen/tests/fixtures/agents/negatives/**`
+- Modify: `codegen/src/safe_fs.rs`
+- Modify: `codegen/src/lib.rs`
+- Modify: `codegen/BUILD.bazel`
+- Modify: `codegen/src/generator.rs`
+
+**Interfaces:**
+
+```rust
+pub fn load_agent_source(
+    source_root: &Path,
+    agent_root: &str,
+) -> Result<AgentSourceV1, Vec<Diagnostic>>;
+```
+
+Serialized schema is exactly `AgentSource@v1`. Caller supplies a repository-relative root ending in `/agent`; agent name derives from the parent component.
+
+- [ ] Write positive RED cases for minimal agent, path-derived root/tool/child names, and checkout-root-independent canonical bytes.
+- [ ] Write negative RED cases for absolute/dot/dotdot/repeated paths, symlink component/leaf, non-ASCII name, ASCII case-fold collision, unknown slot, missing descriptor/instructions, invalid UTF-8/NUL, and nonempty reserved slots.
+- [ ] Run `nix develop --no-write-lock-file -c bazel test //codegen:agent_source_tests`; expected RED because loader is absent.
+- [ ] Add a beneath-root safe_fs read primitive: reject traversal/symlinks/non-regular files; bounded single-descriptor reads; no unsafe reopen.
+- [ ] Recognize only `agent.yaml`, `instructions.md`, `tools/*.yaml`, and `subagents/<name>/agent/**`; reserved slots nonempty fail `agent-source-unsupported`, unknown slots fail `agent-source-slot`.
+- [ ] Strictly parse `AgentDescriptor@v1` fields `apiVersion`, `kind`, `metadata`, `capabilityPolicy`; metadata exactly `namespace`, `version`.
+- [ ] Strictly parse `ToolBinding@v1` fields `apiVersion`, `kind`, `capability`, `description`; use strict YAML node API so duplicates are not lost.
+- [ ] Emit deterministic `AgentSourceV1`: logical root, identity, exact inventory/digests, instructions content/digest, policy ref, sorted tools/children and located diagnostic provenance; no absolute paths or time.
+- [ ] Run focused plus existing YAML/safe-fs tests.
+- [ ] Add all new build-bound compiler files to sorted unique `GENERATOR_INPUTS`.
+- [ ] Commit: `feat(codegen): normalize filesystem agent sources`.
+
+### Task 3: Compile tools, policies, and explicit child authority
+
+**Files:**
+
+- Create: `codegen/src/agent/{model.rs,compile.rs}`
+- Create: `codegen/tests/cases/agent_compile.rs`
+- Create: `contracts/fixtures/agents/authoring-v1/policy-refs.json`
+- Create positive fixture under `contracts/fixtures/agents/authoring-v1/echo-agent/agent/**`
+- Modify: `codegen/src/agent/mod.rs`
+- Modify: `codegen/BUILD.bazel`
+- Modify: root `BUILD.bazel`
+
+**Interfaces:**
+
+```rust
+pub struct AgentCompileContext<'a> {
+    pub policies: &'a [Reference<targets::Policy>],
+}
+
+pub fn compile_agent(
+    source: &AgentSourceV1,
+    graph: &MindcladeGraph,
+    context: &AgentCompileContext<'_>,
+) -> Result<CompiledAgent, Vec<Diagnostic>>;
+```
+
+- [ ] Write RED cases for exact policy/capability resolution, wrong kinds, stale capability digest, missing capability, duplicate child identity, independent child surface and instructions not changing authority.
+- [ ] Run `nix develop --no-write-lock-file -c bazel test //codegen:agent_compile_tests`; expected RED.
+- [ ] Parse `capabilityPolicy` as `Reference<Policy>`; require exact match in trusted compile context; do not parse policy rules.
+- [ ] Resolve each tool by `graph.capability_view().reference(identity)`; require full equality with authored typed reference.
+- [ ] Compile children independently through the same source/compile path. Parent contents are not copied; record only explicit `CompiledDelegation`.
+- [ ] Run focused target plus Tasks 1--2 tests.
+- [ ] Commit: `feat(codegen): compile governed agent bindings`.
+
+### Task 4: Attach agents to the one MindcladeGraph
+
+**Files:**
+
+- Modify: `codegen/src/graph.rs`
+- Create: `codegen/tests/cases/agent_graph.rs`
+- Modify: `codegen/src/pipeline.rs`
+- Modify: `codegen/src/lib.rs`
+- Modify: `codegen/BUILD.bazel`
+
+**Interfaces:**
+
+```rust
+pub fn compile_agents(
+    &self,
+    input: &SemanticInputV1,
+    agents: &[AgentSourceV1],
+    context: &AgentCompileContext<'_>,
+) -> Result<MindcladeGraph, Vec<Diagnostic>>;
+```
+
+Add `pub fn agent_view(&self) -> AgentGraphView<'_>`.
+
+- [ ] Write RED cases for attaching agents, borrowed same snapshot, identity ordering, duplicate agent rejection, valid tool capability/delegation references, and exact canonical/digest stability for empty agents.
+- [ ] Run `nix develop --no-write-lock-file -c bazel test //codegen:agent_graph_tests`; expected RED.
+- [ ] Add `#[serde(skip_serializing_if = "Vec::is_empty")] agents: Vec<CompiledAgent>` so empty-agent existing bytes remain stable.
+- [ ] Implement `seal_agents` over checked values only: unique identities, exact references, deterministic sort, reseal.
+- [ ] Implement pure `Compiler::compile_agents`: existing compiler graph -> compile explicit `AgentSourceV1` values -> `seal_agents`. No filesystem I/O.
+- [ ] Run focused target and existing foundation/VS-001 graph/generation regressions.
+- [ ] Commit: `feat(codegen): add agent graph view`.
+
+### Task 5: Lower AgentIrV1
+
+**Files:**
+
+- Create: `codegen/src/agent/ir.rs`
+- Create: `codegen/tests/cases/agent_ir.rs`
+- Modify: `codegen/src/agent/mod.rs`
+- Modify: `codegen/BUILD.bazel`
+
+**Interfaces:**
+
+```rust
+pub fn lower_agent(
+    graph: &MindcladeGraph,
+    identity: &Identity,
+) -> Result<AgentIrV1, Vec<Diagnostic>>;
+```
+
+Serialized schema is `AgentIr@v1`.
+
+- [ ] Write RED cases for minimal lowering, deterministic tool/child order, capability-derived tool contract, exact graph/source digests, absence of secret/runtime fields, and unknown-agent failure.
+- [ ] Run `nix develop --no-write-lock-file -c bazel test //codegen:agent_ir_tests`; expected RED.
+- [ ] Define provider-neutral tool contract from existing represented TypeSpec declaration vocabulary: parameter names/types, optionality, Constraints, and return type. Do not carry HTTP/provider/credential objects.
+- [ ] Fail `agent-ir-capability` if a capability shape cannot be represented without dropping meaning.
+- [ ] Implement `lower_agent` from `AgentGraphView` only; no YAML/filesystem rereads.
+- [ ] Verify deterministic canonical IR under permuted discovery input.
+- [ ] Commit: `feat(codegen): lower agents to AgentIrV1`.
+
+### Task 6: Retained projection, CLI, and drift checking
+
+**Files:**
+
+- Create: `codegen/src/agent/projection.rs`
+- Create: `codegen/tests/cases/agent_projection.rs`
+- Modify: `codegen/src/main.rs`
+- Modify: `codegen/src/publication.rs` only if generic existing interface needs exposing
+- Modify: `codegen/src/generator.rs`
+- Modify: `codegen/BUILD.bazel`
+- Generate through Codegen only: `generated/tests/agents/authoring-v1/{agent.ir.json,tools.json,manifest.json}`
+
+**Interfaces:**
+
+CLI `capability-ref --input <SemanticInput@v1> --capability <namespace.name>` emits exact JSON `Reference<Capability>`.
+
+CLI `compile-agent --input <SemanticInput@v1> --source-root <repo> --agent-root <relative>/agent --policy-refs <json> --out <root> [--check]`.
+
+- [ ] Write RED cases for exact three-file catalog, manifest bindings, read-only check, mutation/missing/extra drift, and stale capability binding.
+- [ ] Run `nix develop --no-write-lock-file -c bazel test //codegen:agent_projection_tests`; expected RED.
+- [ ] Implement `capability-ref` by delegating to Task 1's compiler API; no duplicate digest logic.
+- [ ] Implement exactly `agent.ir.json`, `tools.json`, `manifest.json` with `AgentProjectionManifest@v1`; bind source digest, graph digest, identity, generator implementation/input identity and product digests.
+- [ ] Reuse existing publisher; publish manifest last. No agent-specific lock/journal.
+- [ ] Generate retained fixture through compiler, then run `--check`; second run writes nothing.
+- [ ] Commit: `feat(codegen): publish agent authoring fixture`.
+
+### Task 7: Build integration and independent conformance
+
+**Files:**
+
+- Create: `scripts/generate_agent_fixture.py`
+- Modify: `justfile`
+- Modify: root `BUILD.bazel`
+- Modify: `codegen/BUILD.bazel`
+- Create: `tests/conformance/agents/BUILD.bazel`
+- Create: independent conformance source/expectations under `tests/conformance/agents/**`
+- Modify generator-input expectations only as required by actual new inputs
+
+**Interfaces:** New recipes `just generate-agent-fixture` and `just verify-agent-fixture`; `just verify-generated` includes agent read-only drift check. Driver orchestrates pinned frontend + Codegen but never interprets agent semantics.
+
+- [ ] Write conformance RED first against absent generated/build exposure. Check `AgentIr@v1`, root identity, path-derived echo tool, `target_kind` capability, reviewer child, reviewer noninheritance, independently expected Echo signature, manifest hashes and absence of runtime/secret fields.
+- [ ] Add Bazel filegroups/targets exposing only the retained three files; no product runtime targets.
+- [ ] Add generation/check driver; it locates pinned frontend outputs, invokes Codegen, passes exact authored package and policy fixture, supports `--check`, and does no semantic parsing.
+- [ ] Integrate `verify-agent-fixture` into `just verify-generated`.
+- [ ] Run focused conformance plus existing generated/foundation/VS-001 checks.
+- [ ] Commit: `test(agents): add authoring compiler conformance`.
+
+### Task 8: Architecture, maturity, and scaffold transition
+
+**Files:**
+
+- Create: `docs/architecture/agent-descriptor-v1.md`
+- Create: `docs/architecture/agent-ir-v1.md`
+- Modify: `docs/architecture/foundations/scientific-and-agent-planes.md`
+- Modify: `docs/architecture/generated-surface-ownership.md`
+- Modify: `docs/architecture/maturity.yaml`
+- Modify: `docs/developer/codebase-map.md`
+- Modify: `contracts/README.md`
+- Modify: `generated/README.md`
+- Modify: `docs/architecture/model/blueprint-scaffold.json` only for actual transitioned placeholder paths
+- Regenerate mechanically: `docs/architecture/REPOSITORY_TREE.md`
+
+Documentation must say: agent authoring/compiler partial; product runtime planned; sessions/tool execution/sandbox/memory/subagent runtime planned; scientific qualification not established.
+
+- [ ] Write docs from implemented interfaces and exact CLI/YAML/IR shapes.
+- [ ] Update maturity without promoting `agents/` runtime or agent service.
+- [ ] Transition only exact placeholders actually replaced; never reseal stubs.
+- [ ] Integration owner runs `nix develop --no-write-lock-file -c just update-tree`.
+- [ ] Run documentation/tree/scaffold checks.
+- [ ] Commit: `docs(agents): document agent authoring compiler`.
+
+### Task 9: Whole-candidate verification and governed integration
+
+- [ ] Run all focused AGA1 targets and read all output.
+- [ ] Run `nix develop --no-write-lock-file -c just verify`; retain any unrelated baseline failure by exact test name rather than claiming green.
+- [ ] Run `nix develop --no-write-lock-file -c just verify-generated`.
+- [ ] Run `nix develop --no-write-lock-file -c just fmt-check`.
+- [ ] Fresh whole-candidate reviewer inspects capability closure, path/symlink handling, policy trust boundary, child noninheritance, canonical-byte regression, no `agents/` activation, no runtime/provider dependencies, generated ownership and maturity language.
+- [ ] Resolve Critical/Important findings in one TDD fix pass; ledger deferred minors.
+- [ ] Qualify exact PR head on supported hosts under current repository policy; do not reuse historical receipts.
+- [ ] Publish PR with `mindclade-monorepo-engineer[bot]`; Rob reviews/approves as CODEOWNER.
+- [ ] Preserve distinct PR-head, merge-group and resulting-main evidence.
+- [ ] Verify resulting main. Valid conclusion: "Agent authoring/compiler tranche A implemented. Agent runtime remains planned."
+
+## Acceptance gates
+
+| Gate | Condition |
+| --- | --- |
+| Exact capability references (Task 1) | `agent_capability_reference_tests` pass; stable under insertion order; changes when transitive resource changes; ignores unrelated changes |
+| Agent filesystem discovery (Task 2) | `agent_source_tests` pass; positive and negative cases covered; safe_fs rejects traversal/symlinks/non-regular files |
+| Tool/policy/child compilation (Task 3) | `agent_compile_tests` pass; exact policy/capability resolution; child noninheritance enforced |
+| Graph attachment (Task 4) | `agent_graph_tests` pass; empty agents do not alter existing canonical bytes; deterministic sort and reseal |
+| IR lowering (Task 5) | `agent_ir_tests` pass; provider-neutral tool contract; no secret/runtime fields; deterministic under permuted input |
+| Projection and CLI (Task 6) | `agent_projection_tests` pass; exact three-file catalog; read-only check; no drift on second run |
+| Conformance (Task 7) | `tests/conformance/agents` pass; independently expected Echo signature; manifest hashes match; no runtime/secret fields |
+| Docs and maturity (Task 8) | Agent authoring/compiler documented as partial; runtime remains planned; maturity updated without promoting `agents/` |
+| Governed integration (Task 9) | PR published by App bot; Rob approves as CODEOWNER; distinct PR-head, merge-group, and resulting-main evidence preserved |
+
+## Risks
+
+| Risk | Mitigation |
+| --- | --- |
+| Implementation starts before criteria review | Explicitly BLOCKED; all preconditions must pass before RED |
+| Whole-graph digest used for capability reference | Task 1 enforces transitive closure only; unrelated changes do not invalidate reference |
+| Child inherits parent tools implicitly | Task 3 records only explicit `CompiledDelegation`; noninheritance tested |
+| Empty agents alter foundation bytes | Task 4 uses `skip_serializing_if = "Vec::is_empty"`; regression tested |
+| Generated files hand-edited | Task 6 uses existing publisher with manifest-last; `--check` verifies no drift |
+
+## Self-review
+
+Spec coverage: filesystem authoring, exact capability/policy references, child noninheritance, one graph/borrowed view, deterministic IR, retained projection, unsupported runtime slots, provenance/security negatives, conformance, docs/maturity, and protected integration are covered. Tranches B--E remain excluded.
+
+Interface chain:
+
+```text
+CapabilityView::reference
+-> AgentSourceV1
+-> compile_agent + AgentCompileContext
+-> CompiledAgent
+-> MindcladeGraph::agent_view
+-> lower_agent
+-> AgentIrV1
+-> agent projection/publisher
+```
+
+No task defines an alternate capability digest, graph, publisher or semantic parser. No new external dependency is required.
+
+The principal design addition is capability-specific exact-reference derivation in `CapabilityView`, so agent tool bindings do not invent their own digest rule and unrelated graph changes do not invalidate a capability reference.
+
+## Related
+
+<CardGroup cols={2}>
+  <Card title="Agent Authoring Compiler Design" icon="compass" href="/superpowers/specs/2026-09-28-agent-authoring-compiler-design">
+    Approved AGA1 design document for the agent authoring compiler.
+  </Card>
+
+  <Card title="Agent Authoring Criteria" icon="list-check" href="/superpowers/specs/2026-09-28-agent-authoring-compiler-criteria">
+    AGA1 criteria for independent technical review before implementation.
+  </Card>
+
+  <Card title="Whole Repository Workplan" icon="map" href="/superpowers/plans/2026-09-28-whole-repository-workplan">
+    Cross-cutting workplan that includes agent compiler tranche A.
+  </Card>
+
+  <Card title="Supervised Development" icon="user-shield" href="/developer/supervised-development">
+    Developer guide for governed subagent-driven development workflows.
+  </Card>
+</CardGroup>

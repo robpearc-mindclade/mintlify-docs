@@ -1,0 +1,165 @@
+---
+title: "GitHub Governance Operator Runbook for Organization Transfer"
+sidebarTitle: "GitHub Governance"
+description: "Operator steps for preflight, same-ID repository transfer, branch protection, App setup, acceptance loops, evidence archival, and migration aftermath."
+---
+
+This runbook sets out the operator steps for preflight and same-ID transfer to `Mindclade-org`, App setup, protecting main, the acceptance loop, evidence archival, and the migration aftermath. Rob owns operator approvals; the parent or integrator handles process execution. Workers receive no transfer, administration, publication, or credential authority.
+
+<Warning>
+  Connected acceptance is BLOCKED. [MIN-14](https://linear.app/mindclade/issue/MIN-14/vnext-establish-supervised-engineering-authority-and-enterprise) was last recorded In Progress; refresh live assignment and state before dispatch.
+</Warning>
+
+## Baseline and destination
+
+The baseline records private source repository `robpearc-mindclade/mindclade-vnext`, unprotected main, and `linux-foundation` success on main `bef879d` in [run 35824604803](https://github.com/robpearc-mindclade/mindclade-vnext/actions/runs/35824604803). The repository was transferred on 2026-09-26 as `Mindclade-org/mindclade-vnext` and renamed to private `Mindclade-org/mindclade-internal-monorepo` on GitHub.com (repository ID `1382446493`; GitHub redirects both older names). The destination is on `github.com` with ordinary accounts. Enterprise entitlement and SAML access must be verified.
+
+Use [supervised development](/developer/supervised-development), the [WorkPacket contract](/developer/work-packet-v1), and [governance tools](/developer/governance-tools) for implemented source interfaces and command details. Review and operator adoption remain prerequisites to operational use.
+
+## Preflight and transfer
+
+These steps move private `robpearc-mindclade/mindclade-vnext` (repository ID `1382446493`) to the `Mindclade-org` organization by a same-ID transfer. The accepted policy pins `repository_id` `1382446493`, `repository` `robpearc-mindclade/mindclade-vnext` and `target_repository` `Mindclade-org/mindclade-internal-monorepo` (`.agents/policies/supervised.v1.json`).
+
+### Destination prerequisites (Rob, before O2)
+
+Rob verifies each fact below before the transfer (O2). Any failure stops O2: do not transfer, import, or recreate the repository. Record the failing fact in MIN-14 and the [task register](/developer/agent-handoff) and decide the route explicitly.
+
+| Prerequisite | How to check | If it fails |
+| --- | --- | --- |
+| `Mindclade-org` is an organization on `github.com`, not on a `*.ghe.com` host | The organization's URL is `https://github.com/Mindclade-org`, and `gh api --hostname github.com orgs/Mindclade-org` answers for it | Stop. Every governance tool reads only `github.com` and `api.github.com`. Moving to another host is not a same-ID transfer. |
+| The organization does not belong to an Enterprise Managed Users (EMU) enterprise | Rob confirms the enterprise type in the enterprise settings. EMU member logins have the form `handle_shortcode` | Stop. A repository cannot be transferred into an EMU enterprise from outside it. GitHub Enterprise Importer creates a new repository ID, which FAILs `github_audit.repository_link` and loses cited PRs, runs, and artifacts. |
+| The login is exactly `Mindclade-org`, including letter case | After SSO authorization, `gh api --hostname github.com orgs/Mindclade-org --jq .login` prints exactly `Mindclade-org` | Stop. `target_repository` is pinned in the policy and `admission._validate_policy`; a name that differs only in case is `policy` FAIL. |
+| O1 access works: SAML SSO is authorized for the operator's `gh` token, and the organization's OAuth App access restrictions allow GitHub CLI | The O1 read-only preflight returns 200, not 403 | Stop. Rob authorizes the token for SSO and approves GitHub CLI under the organization's OAuth App policy. |
+| No IP allow list blocks GitHub-hosted runners | Rob checks the organization's IP allow list setting | Stop. `linux-foundation` runs on GitHub-hosted `ubuntu-24.04`, whose addresses an allow list does not cover. |
+
+### Transfer steps
+
+1. Obtain Rob's authorization for the specific transfer and record it in MIN-14. Pause source publication, automated mutations, and queue admission. Record in-flight jobs, PRs, and effects; reconcile or finish them before taking the transfer snapshot. Preserve source private visibility throughout.
+2. Complete the [destination prerequisites](#destination-prerequisites-rob-before-o2) above. Then verify SAML-authorized operator access to both source and destination, transfer permissions, organization membership, the entitlement needed for private repository protection and queue features, repository-name availability, and any organization transfer restrictions. Confirm the effective audience, including organization base permissions, teams, outside collaborators, installed Apps, and inherited enterprise access.
+3. Inventory the repository's immutable ID, owner/name, visibility, default branch, all branch/tag refs, and object IDs. Inventory issues, PRs, comments, reviews, labels, milestones, releases/assets, wiki/discussions where enabled, branch rules and rulesets, Actions settings/runs/artifacts, webhooks, Apps, environments, runners, deploy-key identities, and integration endpoints. Inventory secret names and scopes and identity bindings only, never secret values. Retain the dated snapshot privately so transfer verification has a baseline. Refresh a verified all-refs bundle in an operator-private location:
+   ```bash
+   git bundle create <file> --all
+   git bundle verify <file>
+   ```
+   Then restore it into a temporary mirror and run `git fsck --strict`.
+4. Resolve SAML, entitlement, name, or access blockers before initiating transfer. HTTP errors or incomplete inventories keep the operation BLOCKED.
+5. Rob manually performs GitHub's transfer of the existing repository; only that same-ID transfer keeps ID `1382446493`. Never import, mirror, or recreate it. A new repository fails the identity check in `github_audit.repository_link` and loses the PRs, Actions runs, and artifacts cited as evidence.
+6. Verify the destination has the same repository ID, branch/tag refs, default branch, and expected collaboration metadata. Compare private visibility and effective access with the approved audience, and reconcile any missing or changed settings before resuming publication. Verify the old URL redirects. Never recreate `robpearc-mindclade/mindclade-vnext`; that breaks the redirect. Then check the code-owner route:
+   ```bash
+   gh api --hostname github.com repos/Mindclade-org/mindclade-internal-monorepo/collaborators/robpearc-mindclade/permission --jq .permission
+   gh api --hostname github.com repos/Mindclade-org/mindclade-internal-monorepo/codeowners/errors
+   ```
+   The first must print `write`, `maintain`, or `admin`; the second must return `{"errors":[]}`.
+
+### Source-verified settings for the Mindclade-org transfer
+
+Steps 7–15 are the post-transfer checklist, followed by the evidence step 16. Rob or the operator configures each setting; the parent then verifies it with read-only observations.
+
+7. Run `git remote set-url origin https://github.com/Mindclade-org/mindclade-internal-monorepo.git` once in each retained clone; the clone's shared `.git/config` serves all its linked worktrees. Git authenticates through `gh auth git-credential`. Keep the owner's bare mirror as a backup. It has `remote.origin.mirror` set, so any push from it is a mirror push that rewrites or deletes every destination ref: never push from it. Update CI references, webhooks, App installations, badges, and integration URLs. Reconcile OIDC subjects, trusted repository/owner names and IDs, environment bindings, runner scope, secret references, and provider trust conditions.
+8. Allow the workflow's actions, each pinned by full SHA, in the organization and repository Actions policy. Enable Actions and GitHub-hosted `ubuntu-24.04` runners for the private repository. Job `linux-foundation` also runs on `merge_group`. Jobs need outbound access to `releases.nixos.org`, `cache.nixos.org`, and `github.com`.
+9. Configure classic branch protection on `main`. The audit requires:
+   - `protected: true` on `/branches/main`
+   - Pull-request reviews with `required_approving_review_count` of at least 1, and `dismiss_stale_reviews` and `require_code_owner_reviews` true
+   - Empty `bypass_pull_request_allowances` users, teams, and apps
+   - `enforce_admins` and `required_conversation_resolution` enabled
+   - `allow_force_pushes` and `allow_deletions` disabled
+   - `required_linear_history` disabled, because main binding supports only ordinary two-parent `MERGE` provenance
+   - `required_status_checks.strict` true, with check `linux-foundation` from App ID `15368`. Choose **GitHub Actions** as the check's source. "Any source" records no App ID, so the check is BLOCKED.
+10. Create an active repository branch ruleset whose `ref_name` include selects main and whose exclude does not. It must have no bypass actors. The ruleset must carry one active applicable `merge_queue` rule:
+    - `max_entries_to_build`, `max_entries_to_merge`, and `min_entries_to_merge` each 1
+    - `merge_method` `MERGE`
+    - `grouping_strategy` `ALLGREEN` or `HEADGREEN`
+    - Positive `check_response_timeout_minutes`
+    - Non-negative `min_entries_to_merge_wait_minutes`
+
+    Mirror the classic settings in the same ruleset. The audit accepts only exact parameter key sets, and any other key is BLOCKED.
+11. Keep inherited organization rulesets compatible. Every active applicable branch ruleset, inherited or not, is held to step 10. `github_audit.protection_check` reports BLOCKED for enterprise-level rulesets, conditions besides `ref_name`, ambiguous `repository_name` patterns, and `ref_name` patterns other than `~ALL`, `~DEFAULT_BRANCH`, `refs/heads/*`, or a literal `refs/heads/<name>`.
+12. Keep `CODEOWNERS` unchanged while `robpearc-mindclade` keeps write access. Every rule must name exactly `@robpearc-mindclade`, with a `*` catchall. Connected-loop PRs come from the [dedicated App](#dedicated-github-app), and Rob approves their exact head.
+13. Before any archive, enable immutable releases and add a tag ruleset protecting `evidence/*`, as [private immutable evidence](#private-immutable-evidence) requires.
+14. Re-link the Linear and Notion GitHub integrations to the new path. Run the O1 read-only preflight against the new path. Retain statuses and selected identity fields, never tokens.
+15. Record verified post-transfer identity, refs, access, integration behavior, and remaining blockers. Keep publication paused until required protection and connected checks pass.
+16. Treat every pre-transfer evidence record as history. Run the audit with `--repository Mindclade-org/mindclade-internal-monorepo`. Then produce fresh evidence under the new name: a PR run, a queue capture, a main run, and a `workflow_dispatch` run of `linux-foundation` on the exact head.
+
+## Dedicated GitHub App
+
+Use a dedicated repository-scoped coding/documentation App, installed only on the approved repository. Minimum permissions: metadata read; contents read, adding write only for admitted branch commits; pull-request access only as needed to open or update PRs; and read access to Actions or checks only when required for evidence.
+
+Keep the signing key and token minting outside worker environments. A trusted operator or integration service issues short-lived installation tokens restricted to the required repository and operation. Workers have no ambient token, App private key, or standing admin access.
+
+The App has no ruleset or protection bypass. Rob approves bot-authored PRs through the protected review flow. A bot comment, self-review, or accepted packet cannot replace that approval.
+
+The App in use is `mindclade-monorepo-engineer` (App ID `5090624`), owned by `Mindclade-org` and installed on this repository only. Rob created it on 2026-09-26 with metadata read, contents write, pull requests write, and actions and checks read, no webhook events and no administration, secrets, or workflow permission. The accepted policy's `dedicated_app` names this App (decision D-17).
+
+## Protect main before queue activation
+
+The operator must configure and then inspect effective organization and repository rules, not just commit a workflow or CODEOWNERS file. Require:
+
+- Pull requests for all changes to main, including coding/documentation Apps
+- The designated CODEOWNER review and Rob's approval for bot-authored PRs
+- Dismissal of stale approvals after changes and resolution of review threads
+- Explicit required checks, tied to the expected workflow or check producer and exact candidate revision, with no missing, skipped, cancelled, or stale pass
+- No force pushes, branch deletion, or coding/documentation App bypass; the routine integration path must not rely on an administrator bypass either
+
+Enable the required workflows for `merge_group` and establish that their checks run on the synthetic queue candidate before activating the queue. Configure one-at-a-time queue processing and human admission by Rob. Record the effective configuration and evidence; workflow source by itself proves neither setting.
+
+On an operator-approved disposable protected probe with equivalent rules, exercise denial of direct pushes, missing approval or checks, stale approval, and bot bypass. Verify the expected denials and a valid protected PR or check path. Only the authorized operator configures probe rules or performs these actions; workers must not create or alter probes, execute denial cases, or clean them up. First prove merge-group check delivery there, then verify the target queue path after activation.
+
+## One Linear-to-main acceptance loop
+
+Use MIN-14 as the current work authority. Before any connected admission, Rob must approve immutable accepted-policy inputs and the exact WorkPacket@v1 digest. Bootstrap defaults or policy edited within the candidate cannot supply approval.
+
+1. Bind the reviewed specification, independently reviewed criteria, owners, source or base, and allowed paths to the packet. Record the integrator's admission result and actual credential or mutation ceiling.
+2. Prepare the PR with parent-owned source receipts, fresh task and whole-candidate review, GovernanceReport@v1, and explicitly scoped limitations. Confirm the effective protected rules and required checks at the exact current head.
+3. Resolve findings and threads and obtain Rob's current CODEOWNER approval of the bot-authored PR. A changed head, base, policy, or packet requires refreshed admission, applicable checks, and review; previous evidence stays historical.
+4. Rob admits one eligible change to the queue. Observe required merge-group checks for the exact synthetic candidate and base. Missing, failed, skipped, cancelled, or stale checks block merging; a changed base requires new evidence.
+5. Verify the resulting main commit and required main checks after merge. Record PR head, queue candidate or base, and final main identities separately; they need not be the same commit. Successful PR or queue checks cannot substitute for verification of main or proof that the protected path was used.
+6. Complete the evidence archival and download verification below, then have Rob accept the outcome. Only after every step passes may Linear close with the protected PR, verified main, and immutable archive links.
+
+If protection, SAML, policy approval, review, queue, or main evidence is unavailable, leave MIN-14 In Progress or explicitly blocked and record the missing step. The current loop is BLOCKED, so no evidence publication or Linear closure is authorized by source completion.
+
+## Private immutable evidence
+
+After the protected loop through main succeeds, the operator prepares a bundle containing the packet and approval references, accepted policy identity, exact source or base or PR or queue or main revisions, reports, check logs and receipts, review outcomes, effective governance audit, artifact digests, and explicit claim limitations. Use full immutable revision IDs in evidence. Exclude credentials and confirm every asset preserves the repository's private audience.
+
+Rob must authorize the particular archive. Use a protected, non-reusable tag under `evidence/` and an immutable private GitHub release. Confirm that release immutability is supported and enabled before publishing; if unavailable, archival and closure remain BLOCKED. Do not mark evidence as the latest product release or move an existing tag, replace an asset, or overwrite a prior bundle.
+
+Download the published assets and verify their bytes, bundle manifest and digests, revision and policy bindings, tag target, and private audience against the approved local bundle. Record release and asset identities and the download-verification result. Corrections produce a new linked archive; they do not rewrite history.
+
+Immutable release retention supports engineering operations. It is not independently controlled compliance custody, a signed product release, or a scientific qualification. GitHub release immutability does not prevent deletion of the entire release. Retention therefore still depends on operator controls.
+
+## Manual Enterprise migration aftermath
+
+Rob owns the manual transfer. This checklist is for fresh operator verification after it, not an instruction for an agent to migrate, install Apps, or change rules.
+
+- Verify the same repository ID `1382446493`, approved private audience, default branch, and all inventoried branch or tag objects; reconcile collaboration metadata and in-flight jobs or effects. Refresh clone URL and remotes on each retained checkout without replacing repositories or deleting common Git directories.
+- Refresh SAML or account or team access, actual private protection and queue entitlement, destination permissions, App installation or repository scope, and minimum permissions. Keys and token minting stay outside workers; routine identity has no bypass.
+- Observe effective inherited and repository rules, required contexts and producer IDs, CODEOWNER or stale-review or conversation rules, denial-test evidence, and actual merge-group workflow delivery before treating the queue as available.
+- Separately complete O3: immutable accepted evaluator or runtime or workflow or producer, execution and artifact or prior-PR custody, accepted-policy revision or digest, and Rob's exact packet approval. Code-class admission stays BLOCKED while the accepted policy's `boundary_checker_status` is `pending`.
+- Demonstrate the protected documentation lane, then eligible code lane: exact PR source or tested identity, queue member or base or synthetic candidate, human admission, resulting-main checks, and approved archive download verification.
+- Record all observed changes, unresolved blockers, owners, and receipt locations in the live Linear task and reviewed Git evidence references.
+
+## If it fails
+
+- **Missing gate.** If protection, SAML, policy approval, review, queue, or main evidence is unavailable, leave MIN-14 In Progress or explicitly blocked and record the missing step.
+- **Uncertain effect.** Uncertain publication requires inspection and reconciliation before retry; corrections produce a new linked archive.
+- **Escalation.** Stop connected publication and closure and route the specific gate to Rob and the operator. Local source success does not supply it.
+
+## Related
+
+<CardGroup cols={2}>
+  <Card title="O1–O4 integration readiness" icon="clipboard-check" href="/superpowers/plans/2026-09-23-v1-integration-readiness">
+    The integration readiness plan covering access, entitlement, and governance.
+  </Card>
+
+  <Card title="Governance tools" icon="screwdriver-wrench" href="/developer/governance-tools">
+    Implemented source interfaces and commands for governance.
+  </Card>
+
+  <Card title="Supervised development" icon="user-shield" href="/developer/supervised-development">
+    How supervised development and WorkPacket contracts operate.
+  </Card>
+
+  <Card title="Current task register" icon="list-check" href="/developer/agent-handoff">
+    The live task register with owner decisions and blockers.
+  </Card>
+</CardGroup>

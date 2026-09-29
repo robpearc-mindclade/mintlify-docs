@@ -1,0 +1,213 @@
+---
+title: "VS-001 Durable Capability Design"
+sidebarTitle: "VS-001 Design"
+description: "Proposed written design for a generated TypeScript client and Rust service composed through RuntimeKit, with PostgreSQL durability, sealed replay, and independent policy assessment."
+---
+
+This document specifies the VS-001 durable capability: a generated TypeScript client and a Rust service composed through RuntimeKit. PostgreSQL, outbox dispatch, scheduling, and workers remain internal to one modular monolith. Internal execution must prove real durability, failure recovery, sealed replay, provenance-bound artifacts and evidence, and an independently assessed policy decision.
+
+<Note>
+  Reading note, 2026-09-23: approval and source-gap observations below describe the original design/audit checkpoint. Subsequent A1–A3 and partial B1 source milestones are recorded in the [current handoff](/developer/agent-handoff#current-task-register). That source progress does not close runtime/replay/independent acceptance or alter the requirements in this specification. Follow the [master readiness plan](/superpowers/plans/2026-09-23-v1-integration-readiness) for remaining dependency order.
+</Note>
+
+**Status:** Proposed written design, awaiting user review. No implementation or qualification is established by this document.
+
+**Date:** 2026-09-23
+
+**Baseline inspected:** `bef879d2d5d9e72cc36fec82ec8e17e0ffa1b976`.
+
+## 1. Intent and authority
+
+The user approved a generated TypeScript client and a Rust service composed through RuntimeKit. PostgreSQL, outbox dispatch, scheduling, and workers remain internal to one modular monolith. Internal execution must nevertheless prove real durability, failure recovery, sealed replay, provenance-bound artifacts and evidence, and an independently assessed policy decision.
+
+The client depends only on the generated public capability contract. It cannot import Run, Attempt, scheduler, lease, database, or worker types. ServiceDescriptor@v1 governs composition; TestKit supplies deterministic collaborators, not a replacement database for durability tests.
+
+This design elaborates the accepted constitution, particularly ADR-002/003/004/005/008/009/013/015, and the [master blueprint](/architecture/master-blueprint), [VS-001 path](/architecture/vs-001-semantic-development-loop), [service descriptor](/architecture/service-descriptor-v1), and [execution reliability requirements](/architecture/execution-reliability). Architecture YAML remains authoritative. Planned JSON architecture placeholders remain inactive.
+
+User approval of the conversational design permits this written design and its companion plans. Implementation waits for review of these written artifacts. The earlier source-only foundation merge exception does not cover this work.
+
+## 2. Delivery boundaries
+
+Implement four ordered subprojects, each with its own testable deliverable and scoped commits:
+
+| Subproject | Deliverable | Does not establish |
+| --- | --- | --- |
+| A | Recoverable generation, directional compatibility, CI/evidence hygiene | Runtime or independent acceptance |
+| B | Generated public projections, descriptor-composed Rust service, and executable architecture/dependency checks | Durable execution when using an in-memory collaborator; independently controlled ownership |
+| C | Real PostgreSQL admission/outbox/worker path and fault tests | Independent acceptance or scientific validity |
+| D | Sealed replay and externally controlled assessment of the exact candidate | Release, deployment, production, or biological qualification |
+
+The existing required Proto/OpenAPI/SDK/MCP/Docs path is retained. TypeScript is the only SDK exercised end to end. Proto, OpenAPI, MCP tool metadata, and documentation are small conformance-tested projections of the same public capability; no additional service deployment, SDK framework, or MCP host is introduced.
+
+Excluded: cloud deployment, paid work, external effect providers, real NOVA/scientific workloads, full authorization infrastructure, message brokers, Temporal, Kubernetes, TileLang implementation, generated C ABI implementation, Triton, and tch-rs. Intel Mac remains configured but untested unless independently executed.
+
+## 3. Tools and ownership
+
+- Preserve Bazel 9.1.1, Rust 1.96.1, TypeSpec compiler/HTTP 1.16.0, Node 22.23.2, pnpm 12.3.4, Python 3.12.14, and the committed Nix lock baseline.
+- Nix supplies tools; Bazel owns product compilation and tests. No downloads or package installation within build/test actions. Cargo and Node focused checks supplement Bazel, not replace it.
+- Add only required dependencies: a maintained YAML parser in Codegen, `tiny_http` for local HTTP transport, `postgres` for synchronous PostgreSQL access, TypeScript for generated-client type checks, and `ed25519-dalek` for assessment verification. PostgreSQL and protoc come from the existing locked nixpkgs. Resolve exact dependency versions once at their introducing task, review licenses/MSRV/transitives, and commit all affected locks and Nix closure hashes. Do not substitute host tools if locked packages are unavailable.
+- One integration owner manages Cargo/pnpm/Bazel/Nix locks, generator input inventories, scaffold transitions, and canonical outputs. Acceptance criteria are proposed here; a separate acceptance owner must approve and control their authoritative revision before any accepted claim.
+- Keep every required scaffold directory. Retire a stub entry only when that exact path receives reviewed implementation, never by changing its placeholder hash. Mark roots present only for real source introduction and keep unimplemented areas planned.
+
+## 4. Publication and compatibility
+
+### Recoverable publication
+
+Preserve `generated/foundation/graph.json` and `manifest.json` and the current canonical byte contract. Extend the same publisher to explicitly owned VS-001 outputs.
+
+Use one permanent, generator-owned lock file per output root, an OS advisory writer lock, staged bytes, and a write-ahead journal. The journal records normalized owned names and old/new hashes; it never grants ownership of arbitrary paths. Sync staged files and journal before replacing outputs, publish the manifest last, sync directories, then remove the owned journal/staging files. Never remove/recreate the lock inode during normal use. It is an operational ignored file, not canonical output.
+
+A recovering writer holds the lock and accepts only a complete, hash-valid owned journal and the recorded old/new states. It finishes the interrupted transaction deterministically or fails with a located recovery diagnostic, preserving evidence. An unrecognized journal, symlink, unowned file, or hash outside the recorded states must not be repaired or deleted.
+
+This is recoverable publication, not a claim that two pathname replacements are one filesystem transaction. Readers use a common read-only verifier: reject an active journal, read the manifest, read/hash its declared outputs, then reread manifest and journal state. Accept only a consistent snapshot; concurrent change produces a retryable non-passing diagnostic. `--check` performs no repairs, creates no locks, and writes no receipt. Managed writers coordinate; hostile same-user filesystem mutation is outside this local publication threat model.
+
+Fault tests kill a writer before/after every publication checkpoint, including first generation and manifest replacement; start competing writer processes and readers; inject disk errors; preserve unrelated files. Require eventual consistent bytes after recovery and never accept a mismatched pair.
+
+### Compatibility
+
+Codegen compares two compiler-validated graphs, not unvalidated serialized graph objects. Match declarations by namespace/name/kind; opaque revision labels are recorded, not parsed as SemVer or used to infer compatibility. Require unique matching declarations and an explicit comparison direction: old client against new server.
+
+Return sorted changes with `compatible`, `breaking`, or `unsupported` classification, stable diagnostic code, subject, reason, old/new graph digests, and compatibility-policy digest. No changes are silently dropped.
+
+The first constrained public Echo contract is a reviewed evolution, not presumed backward-compatible with the unconstrained foundation fixture. Record its compatibility report and explicit contract-owner acceptance of a new baseline; do not weaken comparison rules to make that transition green.
+
+Inputs: adding a required field, removing an accepted field, changing an existing type, or changing optional to required is breaking. Adding an optional input field is compatible. Outputs: removing a field, changing its type, adding an unrecognized field under the strict response decoder, or changing required to optional is breaking. A field used in both directions takes the stricter result. Method/path/body/status/media-type/security changes are breaking. New enum/union alternatives are direction-sensitive; unsupported relationships remain unsupported and fail the compatibility gate. Recursive comparisons use visited declaration pairs.
+
+## 5. Contracts, compiler, and generated products
+
+### Public Echo contract
+
+Retain `POST /echo/{requestId}` and its success response: status 200, JSON `{message: string}`. Request JSON remains `{message: string, urgent?: boolean, tags: string[]}` and requestId is a required string path parameter. `urgent` and `tags` are persisted inputs, not extra output fields or fake scheduling guarantees.
+
+Promote an authored public source at `contracts/typespec/public/echo.tsp`, with the foundation fixture retained as a compatibility baseline. Add explicitly modeled error responses for 400 invalid input, 409 idempotency conflict, and 503 unavailable/deadline exceeded. Errors contain a stable public code and message, never internal execution identifiers. No 202, polling, cancellation, scheduler, or worker endpoint is public in this slice.
+
+The public call completes only after the durable result commits. HTTP disconnection/deadline does not imply Run cancellation: a retry with the same key reconciles the existing Run. The client performs no automatic POST retries and exposes typed status errors. Unknown response fields are rejected; this strictness is reflected in compatibility policy.
+
+Admission identity is `(tenant, environment, capability identity, requestId)`. Payload equivalence uses canonical validated request bytes: omitted `urgent` differs from explicit false, array order is preserved, and object key order is irrelevant. The local fixture uses explicit, server-configured test tenant/environment/identity. It binds loopback only and refuses non-loopback configuration without a separately implemented authentication adapter. Client-supplied headers cannot select an arbitrary tenant.
+
+### Internal typed contracts
+
+Author internal TypeSpec in `contracts/typespec/internal/execution.tsp`. It has no HTTP binding and cannot enter public projections. Define immutable Admission, WorkPacket, Dispatch, Lease, Attempt, Completion, CancelRequest, CancelConfirmation, ArtifactRecord, EvidenceRecord, ReplayRecord, Assessment, and Decision records. Exact wire identity/reference/digest representations reuse the kernel's validated semantics; generated conversion code calls kernel constructors. State, fault class, and decision outcome are closed enums; messages use explicitly discriminated unions, not arbitrary string tags.
+
+Update `SemanticInput@v1` and `MindcladeGraph@v1` in place, per the user's explicit 2026-09-23 direction. Do not create a parallel v2 schema or compiler API. Retain foundation regression fixtures and record canonical-byte changes and compatibility results explicitly rather than requiring frozen bytes after semantic expansion. The official TypeSpec frontend resolves named enums, discriminated unions, integer/status literals, public HTTP response alternatives, and non-HTTP internal operations into normalized v1 input. Codegen alone validates references, visibility, descriptor bindings, and seals the graph. Do not interpret internal TypeSpec or YAML in RuntimeKit or Python scripts.
+
+Reject unrepresented decorators, inheritance, generics, anonymous unsupported unions, duplicate tags/statuses, unknown descriptor fields, and public references to internal declarations with located diagnostics. Public generators operate on the transitive public view; a mixed-visibility dependency is an error, not a filtered-out field. Service and architecture views borrow the same snapshot.
+
+### Descriptor and outputs
+
+`services/foundation_echo/service.descriptor.yaml` declares one `foundation-echo` process with public Echo, internal execution ports, PostgreSQL dependency, local-test identity, lifecycle, bounded configuration, health/readiness, resource limits, security, telemetry, and non-deployable qualification status. Secret values are external references. Codegen checks all ServiceDescriptor@v1 sections, paths, capability references, and dependency policy before generating composition data. RuntimeKit consumes compiled descriptors only; no YAML parsing or business semantics at startup.
+
+Owned output roots are enumerated in a manifest under `generated/vs001/`: public TypeScript source, OpenAPI JSON, Proto source, MCP tool metadata, public docs, Rust transport/internal DTOs, compiled service descriptor, graph, and manifest. Generated TypeScript has no package dependency on internal Rust/runtime/database code and uses standard fetch. Generated files are retained only through reviewed ownership-policy changes. All emitted target IR and text is Codegen-owned.
+
+### Executable architecture and dependency boundaries
+
+The foundation audit correctly identified that inventory checks do not enforce architectural dependency direction. Add an explicit VS-001 boundary gate, not just a larger path inventory. Extend the existing authoritative `docs/architecture/model/architecture.yaml` with reviewed active components, owner roles, source/target membership and allowed edge kinds. Validate this model in Codegen and expose its rules through the same graph's architecture view. Keep competing JSON ownership/dependency/architecture stubs inactive.
+
+Collect actual Cargo dependency metadata, configured Bazel target dependencies and TypeScript-resolved module imports as declared, candidate-bound build facts. Collectors do not decide policy. Codegen compares observed edges against authored rules, rejects unowned/unknown active components, distinguishes production from test edges, and reports located violations. Public generated clients cannot depend on server/internal/database modules, RuntimeKit cannot depend on domain services or production TestKit, core cannot depend on Codegen/services, and cycles/forbidden dependencies fail. Rust private execution modules and compile-fail visibility tests prevent the public service adapter from accessing the concrete store outside its admitted ports.
+
+Replace `tools/validation/arch-lint.py`, `dependency-lint.py`, `descriptor-lint.py`, and `generated-provenance.py` only through reviewed scaffold transitions. They invoke Codegen and structured fact collectors or existing verification APIs; they do not become semantic compilers. Missing facts, unresolved imports, failed collectors or unimplemented entrypoints cannot be a successful check. Ownership-role coverage is a source property, not proof of independent GitHub identities or protected review.
+
+Require this gate before the durable milestone can be accepted and rerun it when C/D introduce new dependencies. Scope it to activated source/configuration; planned scientific/deployment roots remain planned, not exempted executable code. Observe negative violations as well as a clean real build graph. Full deployment synthesis/promotion enforcement remains a later gate.
+
+## 6. RuntimeKit and TestKit
+
+RuntimeKit handles configuration, descriptor identity, lifecycle, readiness, bounded HTTP framing, telemetry redaction, and graceful shutdown. Generated transport validates public requests and invokes the typed Echo capability. The authored service composes the public adapter, admission port, PostgreSQL store, dispatcher, scheduler, and worker in one process. The domain state machine belongs in `services/foundation_echo/src/execution/`, not RuntimeKit or core.
+
+RuntimeKit ports include Clock, IdentityProvider, ShutdownSignal, and lifecycle supervision. TestKit provides deterministic implementations plus fault barriers and a deterministic fake NOVA worker. Fixed clock and controlled interleavings test behavior without sleeping. Real-service tests use an actual loopback HTTP server; durable tests use a real isolated PostgreSQL cluster supplied by Nix. Fast in-memory tests remain explicitly non-durable evidence.
+
+Bound request bodies to 64 KiB, message to 4096 Unicode scalar values, at most 128 tags of 64 Unicode scalar values each, and requestId to the kernel identity-component grammar. Generated contract validation must represent these limits and reject malformed Unicode; tests cover astral characters and JSON escaping so JavaScript UTF-16 units are not confused with Rust characters. Limit active HTTP work and worker claims through descriptor configuration. Redact secret references, DSNs, and body content from routine logs. Shutdown stops admission, drains or records unresolved work, and never claims cancellation solely because a socket closed.
+
+## 7. Durable state and failure semantics
+
+### Storage and transactions
+
+Use PostgreSQL tables `runs`, `attempts`, `outbox`, `inbox`, `artifacts`, `evidence`, and `events`. Every row is tenant/environment scoped; schema/workflow/contract/policy/packet versions are persisted. Enforce unique admission keys, stable dispatch/event IDs, unique attempt generations, one authoritative completion per Run, and foreign keys. Store the small fake artifact bytes in PostgreSQL in this slice, so completion, artifact, evidence, terminal event, and outcome commit atomically. External object storage remains excluded.
+
+Run references bind immutable admission records. Subsequent execution state is a materialized projection of immutable versioned events, never a mutation of bytes behind an existing Reference. Assessment, capsule and replay records are schema-tagged artifacts referenced through the existing Artifact target marker; do not invent a second identity system.
+
+Admission inserts immutable request/packet references, initial `queued` state, and an outbox dispatch record in one transaction. Concurrent identical requests return the same Run; a different canonical payload on that key returns Conflict. Errors before commit leave neither state nor event; uncertain commit acknowledgement is reconciled by the same admission key, not another Run.
+
+Dispatcher claims eligible outbox rows using row locking and bounded batches. Handoff to scheduler records inbox deduplication and runnable state atomically before marking delivery. Delivery is at least once. A duplicate or reordered event cannot regress a terminal Run or create a second intended result. Attempts are not Runs.
+
+### Ownership and completion
+
+Claiming work allocates a monotonically increasing generation and a database-time lease. Completion performs a transactionally locked check of tenant, Run, current attempt/generation, non-expired lease, legal state, and absence of cancellation before inserting artifacts/evidence and advancing state. A failed predicate causes no authoritative writes. SQL and typed Rust APIs both enforce this boundary.
+
+The scheduler uses PostgreSQL time for real lease comparisons; TestKit fault controls explicitly advance stored lease fixtures. Arbitrary worker-supplied clocks cannot authorize completion. A stale worker may compute, but cannot publish or replace authoritative bytes. A completion committed before acknowledgement is reconciled by Run/generation/result digest and returned once.
+
+### State machine
+
+Allowed states: `queued`, `running`, `retry_wait`, `cancel_requested`, `succeeded`, `failed`, `cancelled`. Terminal states are immutable. `queued`/`retry_wait` move to running only on a successful claim; running can succeed, fail, enter bounded `retry_wait`, or record `cancel_requested`. Queued cancellation requires confirmation that no executor was dispatched. Active cancellation remains pending until the supervisor confirms termination or reconciles a dead process and fences its generation. Fencing alone is not proof of physical termination. Completion winning the database lock first makes a later cancel request an AlreadyTerminal result; cancellation winning first prevents completion.
+
+Retry only typed transient faults, at most three attempts, with persisted delays of 100 ms and 500 ms for this local slice. Deterministic input/policy faults terminate immediately. Lease loss and uncertain acknowledgement enter reconciliation before any retry. No assumption of exactly-once arbitrary external effects is made; there are no such effects in this slice.
+
+Tests include admission races, database restart, process termination at named checkpoints, lost commit acknowledgement, duplicate/reordered dispatch, overlapping claims, stale generation, expired lease, cancellation/completion races, and corrupt persisted versions. Never relax fsync or use an in-memory database to claim durability.
+
+## 8. Artifacts, evidence, replay, and independent decision
+
+### Provenance
+
+The deterministic fake NOVA artifact contains the canonical Echo result and an explicit non-scientific fixture marker. Artifact identity/digest and provenance bind source revision, source inventory, graph, generator, descriptor, runtime, dependency locks, packet, Run, Attempt, and result. Evidence records bind exact stimuli, observed outputs, fault schedule, test implementation, platform, and evaluator inputs. Wall clocks and host details belong to execution receipts, not canonical generated products. Real events may have timestamps; replay compares normalized causal events and semantic results, not invented identical wall clocks.
+
+### Acyclic sealing
+
+Avoid evidence/decision/capsule digest cycles:
+
+1. Seal `ExecutionCapsule@v1` over immutable inputs, causal events, state transition versions, output artifacts, and execution evidence. No assessment or final decision is inside this first seal.
+2. A separately controlled assessor verifies this capsule, reruns replay in a fresh database, and emits `Assessment@v1` referring to its digest and the candidate/policy/criteria/evaluator digests.
+3. Policy evaluation consumes the trusted assessment and emits a Decision referring to Claim, Policy, and evidence references.
+4. Seal `QualificationEnvelope@v1` over the execution-capsule, assessment, and decision digests. This final bundle contains the full replay handoff without any object hashing itself.
+
+Replay is offline with respect to external systems: consume only hash-verified inventory, compiled versions, and recorded inputs; recreate an isolated PostgreSQL store; reproduce causal transitions and canonical artifact bytes. Reject missing files, extra unlisted executable inputs, path traversal, symlinks, mismatched hashes, incompatible schema/workflow versions, or changed policy/evaluator references. Never replay against an existing service database.
+
+### Independent assessment is a required external gate
+
+The implementation can provide an assessor harness, negative fixtures, and a candidate policy, but cannot grant itself acceptance. The acceptance owner controls the frozen criteria/evaluator revision and a trust bundle outside candidate write access. An independently executed assessment is signed using that owner's key; verifier uses strict Ed25519 verification, rejects duplicate/unknown fields, and checks exact candidate/base/source/graph/manifest/runtime/descriptor/policy/criteria/evaluator/capsule bindings and required Mac/Linux evidence. Test keys can prove verifier behavior, never establish real acceptance.
+
+Decision outcomes: Approved only with complete passing evidence and authorized independent assessment; Rejected for a trusted assessment reporting failed criteria; Blocked for missing/inapplicable/untrusted evidence or owner; NeedsHumanReview only for a policy-defined escalation. An implementation-owned edited policy or different trust bundle cannot turn failure into approval. The claim is limited to VS-001 engineering conformance, not biology, release, or production.
+
+The actual independent owner and protected execution environment are not yet established. Their absence is an explicit completion blocker, not work that can be replaced by another test the implementation author writes. Fresh whole-branch code review is also required and is distinct from this artifact assessment.
+
+## 9. CI, evidence retention, and integration
+
+Keep source CI read-only, SHA-pin action revisions, and use supported action runtimes. Cancel superseded feature-branch/PR runs; main evidence runs have unique groups and are not cancelled by later pushes. Use only immutable dependency resolution. Separate foundation, generated-consumer, durable-fault, replay, and assessment results; a skipped or missing required result is non-passing.
+
+Produce an evidence bundle with a canonical file/digest index, source candidate/base, workflow URL and run attempt, tool versions, test/action receipts, artifact hashes, and a clear source/runtime/assessment classification. Package bytes safely; an archive timestamp is not evidence identity. Keep a Git-tracked index of evidence identities and verified retrieval locations, not large raw test logs in Git.
+
+CI artifact uploads are transport, not durable retention. Provide an explicit export/verify command to a user-owned retention directory, with exclusive creation and digest readback. Durable shared retention is satisfied only after an owner-controlled archival destination and retention/access policy are supplied and retrieval succeeds; no cloud account or paid storage is silently created. Preserve both local and Linux receipts before cleanup.
+
+Require clean-checkout Apple Silicon and Linux results for the same final reviewed candidate. Retest after changes. Existing GitHub protection access returned 403; do not change billing or repository privacy. No merge until applicable protected-review policy and independent acceptance are available, or the user gives a new explicitly scoped source-only exception. Such an exception still cannot make VS-001 qualified without its independent decision.
+
+## 10. Acceptance matrix
+
+| Requirement | Evidence required | Plan |
+| --- | --- | --- |
+| Publication | Writer kill/recovery, concurrency, read-only drift, unowned preservation | A1 |
+| Compatibility | Directional old/new fixtures, recursion, unknown/unsupported fail closed | A2 |
+| Public-only client | Negative internal-import/leak checks and generated type/runtime checks | B1-B2 |
+| Descriptor composition | Invalid references/config blocked; real generated HTTP transport | B3 |
+| Public projections | OpenAPI/Proto/MCP/docs agree with independently authored Echo expectations | B2 |
+| Architecture boundaries | Real resolved dependency/import violations, missing owners/facts and stale provenance fail the gate | B4, rerun C5/D3 |
+| Atomic admission | Real SQL rollback, races, same-key conflict, uncertain-commit recovery | C1-C2 |
+| Dispatch/fencing | Duplicates, reordering, leases and stale completion cannot create a result | C3 |
+| Crash/cancel/retry | Process restart, lost ACK, race schedules, bounded retries | C4 |
+| Real generated client path | HTTP through PostgreSQL and fake worker to committed response | C5 |
+| Provenance/replay | Tamper/version failures and fresh-store byte-identical artifact replay | D1-D2 |
+| Independent decision | Separate owner-controlled signed assessment over exact candidate and evidence | D3-D4 |
+| CI/retention | Both hosts, exact candidate, verified archival retrieval, fresh review | A3/D4 |
+
+No checklist row is passed by the existence of a directory, BUILD label, plan, or unsigned receipt.
+
+## Audit reconciliation
+
+The supplied audit covers `bef879d2d5d9e72cc36fec82ec8e17e0ffa1b976`, not execution of this proposed plan. Its verdict is accepted: blueprint-aligned executable foundation, full VS-001 and the platform still pending. See the [finding-to-task reconciliation](/architecture/reviews/2026-09-23-foundation-audit-reconciliation). Publication interruption is a source-reviewed risk awaiting crash-injection proof; it has not been fixed by documenting A1. B4 makes the previously implicit enforcement work explicit. The audit does not authorize scientific/deployment scope expansion or satisfy independent VS-001 acceptance.
+
+## 11. Reference notes
+
+The following primary documentation informs implementation details, not architecture authority:
+
+- Rust documents advisory file locks and platform behavior; verify APIs on pinned Rust 1.96.1: [File](https://doc.rust-lang.org/std/fs/struct.File.html).
+- PostgreSQL explains transaction isolation and row-lock behavior; use locks/constraints plus fault tests rather than a claim of exactly-once delivery: [isolation](https://www.postgresql.org/docs/current/transaction-iso.html), [SELECT](https://www.postgresql.org/docs/current/sql-select.html).
+- The synchronous Rust driver provides transaction APIs: [postgres](https://docs.rs/postgres/latest/postgres/).
+- Strict signature verification must be explicit: [VerifyingKey](https://docs.rs/ed25519-dalek/latest/ed25519_dalek/struct.VerifyingKey.html).
+- GitHub supports conditional cancellation by concurrency group: [workflow concurrency](https://docs.github.com/en/actions/how-tos/write-workflows/choose-when-workflows-run/control-workflow-concurrency).

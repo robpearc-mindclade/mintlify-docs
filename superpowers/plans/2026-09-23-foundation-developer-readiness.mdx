@@ -1,0 +1,146 @@
+---
+title: "Contributor and Agent Readiness Implementation Plan"
+sidebarTitle: "Developer Readiness"
+description: "Implementation plan for proving that authorized people and supervised agents can develop from a fresh checkout using tracked instructions, reproducible checks and recoverable handoffs."
+---
+
+This page documents the Contributor and Agent Readiness implementation plan. It is intended for implementers, reviewers, supervised agents, and new contributors who need to understand the entry point and rehearsal procedures.
+
+<Warning>
+  No installed plugin is required; this plan grants no operational admission. Written criteria review precedes implementation.
+</Warning>
+
+> **For agentic workers:** Follow the tracked [foundation workflow](https://github.com/Mindclade-org/mindclade-internal-monorepo/blob/main/.agents/workflows/foundation-development.md), or available `superpowers:subagent-driven-development` tooling with equivalent fresh criteria/implementation/task-review and whole-candidate-review separation. The parent owns commands, jobs, receipts, Git and remote operations.
+
+**Goal:** Prove that authorized people and supervised agents can develop from a fresh checkout using tracked instructions, reproducible checks and recoverable handoffs.
+
+**Architecture:** Documentation supplies one entry point into existing technical authority; a read-only preflight reports local prerequisites without granting admission. A controlled fresh-checkout rehearsal exercises real compiler/service/boundary workflows and interruption recovery. No second dispatcher, package manager or work tracker is added.
+
+**Tech Stack:** Existing pinned Nix/Bazel/Rust/TypeSpec/Node/pnpm/Python; Python standard library diagnostics and tests; existing WorkPacket/GovernanceReport interfaces.
+
+**Spec:** [Master completion plan](/superpowers/plans/2026-09-23-v1-integration-readiness), [AGENTS.md](https://github.com/Mindclade-org/mindclade-internal-monorepo/blob/main/AGENTS.md), [supervised lifecycle](https://github.com/Mindclade-org/mindclade-internal-monorepo/blob/main/.agents/workflows/supervised.md), [developer guide](/developer/supervised-development).
+
+## Global Constraints
+
+- Preserve Bazel 9.1.1, Rust 1.96.1, TypeSpec compiler/HTTP 1.16.0, Node 22.23.2, pnpm 12.3.4, Python 3.12.14, and the committed Nix lock baseline.
+- Nix supplies tools; Bazel owns product compilation and tests. No downloads or package installation within build/test actions.
+- Linear is the single authority for engineering work, including priority, scope, assignment, blockers and closure.
+- No ambient credentials, broad network access, or implicit privilege inheritance.
+- No automatic install, billing, remote mutation, lock refresh, reset, stash, worktree cleanup or secret disclosure from preflight/rehearsal.
+- A source-ready clone is not an approved WorkPacket or protected merge route. Apply all master-plan authority and evidence constraints.
+
+## Review Focus
+
+1. A missing Nix executable must produce setup guidance before any build invocation: DX1.
+2. Host tools, mismatched locks and unsupported architecture cannot silently substitute for pinned tools: DX1.
+3. Generated drift, missing targets and absent test execution must not pass from an old receipt or cache-only inspection: DX2.
+4. Duplicate resume signals and uncertain child-process outcomes cannot rerun completed work or report stopped work while it still runs: DX2.
+5. A new contributor must not need secrets, absolute paths from another machine, stale chat instructions or implicit source ownership: DX1/DX2.
+
+---
+
+## Task DX1: One Entry Point and Actionable Local Preflight
+
+**Files:** Modify `README.md`, `CONTRIBUTING.md`, `AGENTS.md`, `docs/developer/supervised-development.md`, `docs/developer/agent-handoff.md`, `docs/architecture/toolchain.md`, `justfile`. Create `docs/developer/start-here.md`, `docs/developer/troubleshooting.md`, `scripts/doctor.py`, `scripts/test_doctor.py`. Parent mechanically refreshes `docs/architecture/REPOSITORY_TREE.md`. No lock or generated-product changes.
+
+**Interfaces:** New `scripts/doctor.py` exports `diagnose(root: Path, runner: Callable) -> dict` and `main(argv=None) -> int`. `runner(argv, *, cwd, timeout)` returns an object with `returncode`, `stdout`, `stderr`; it is injected for tests. Diagnostic JSON has exactly `status` (`PASS|FAIL|BLOCKED`) and `checks` (ordered objects with `id`, `status`, `detail`, `remediation`). This is local diagnostic output, not GovernanceReport or admission. Exit 0/PASS, 2/FAIL, 3/BLOCKED. Known mismatch is FAIL; missing tools or unsupported platform is BLOCKED. No source/readiness permission is returned. Proposed recipe: `just doctor` runs `python3 -B scripts/doctor.py` inside Nix.
+
+- [ ] Step 1: Add the following failing preflight case in `scripts/test_doctor.py`, with `ROOT` a `TemporaryDirectory` containing a minimal fixture tree and `diagnose` imported from the new module. Missing-tool `runner` raises `FileNotFoundError`; no command after that tool is attempted for its dependent checks.
+
+```python
+def test_missing_nix_is_actionable_and_never_installs(self):
+    calls = []
+    def runner(argv, **kwargs):
+        calls.append(argv)
+        raise FileNotFoundError("nix")
+    result = diagnose(self.root, runner)
+    self.assertEqual(result["status"], "BLOCKED")
+    self.assertTrue(any(c["id"] == "nix" and c["remediation"] for c in result["checks"]))
+    self.assertFalse(any("install" in a or "sudo" in a for call in calls for a in call))
+```
+
+- [ ] Step 2: Parent runs `python3 -B -m unittest discover -s scripts -p test_doctor.py`; retain the relevant missing implementation failure. Add positive fixture responses for each declared tool and negative cases for timeout, malformed version, unsupported host, lock changes, dirty tree, non-root path and symlink escape. Dirty work is reported as recoverable context and blocks a clean-candidate claim, never triggers cleanup.
+- [ ] Step 3: Implement a fixed allowlist of local read-only commands: Git root/status/revision, `nix --version`, and pinned tool `--version` calls inside the Nix shell. Compare against `docs/architecture/toolchain.md`/committed toolchain definitions, with explicit OS-specific JDK values. Reject unexpected output instead of regex-matching a substring from arbitrary diagnostics. Bound subprocess time and output; sanitize diagnostics rather than embedding stderr. Inspect lock existence/bytes and supported platform; perform no `nix develop`, installation, dependency resolution, fetch, build, test or remote probe from `diagnose`.
+
+```python
+def main(argv=None):
+    args = parse_arguments(argv)  # argparse: only optional --repo, no command input
+    result = diagnose(args.repo, run_read_only)
+    print(json.dumps(result, sort_keys=True))
+    return {"PASS": 0, "FAIL": 2, "BLOCKED": 3}[result["status"]]
+```
+
+Define `parse_arguments(argv)` in this module using `argparse`, defaulting repo to the resolved script parent root; `run_read_only(argv, *, cwd, timeout)` enforces the allowlist, captures bounded output and never uses a shell. Neither function is an existing API. Tests must prove arbitrary command input is rejected before execution.
+
+- [ ] Step 4: Write the first-run guide with explicit private clone access, Nix prerequisite, supported Apple Silicon/Linux baseline and these existing commands. Separate credential-free local work from connected publication/admission; point to operator setup rather than asking agents to mint tokens.
+
+```bash
+command -v nix
+nix --version
+nix develop --no-write-lock-file -c just doctor
+nix develop --no-write-lock-file -c just verify
+nix develop --no-write-lock-file -c cargo run --locked -q -p mindclade-codegen -- --help
+```
+
+The `doctor` recipe is new in DX1; the other commands already exist. Before Nix is installed, the guide stops with the approved Nix setup route. It must explain initial networked dependency provisioning separately from offline build actions, expected runtime/disk observations, macOS linker prerequisites, and exact remediation for unavailable caches without substituting host tools. Do not claim a cold-cache test unless it was actually run.
+
+- [ ] Step 5: Document the edit map: authored contracts -> Codegen/graph -> generated outputs -> consumer tests; RuntimeKit infrastructure versus domain service; architecture YAML versus inventory; source checks versus admission/qualification. Include owner lookup, one registered dispatch route, required branch/worktree inventory, claim handoff, scoped commands, change review, cancellation, resumption and retained evidence. All paths are repository-relative except user-owned receipt examples explicitly labelled as examples. Correct the stale toolchain statement that expanded declaration comparison is unsupported; current source implements directional declaration comparison.
+- [ ] Step 6: Parent runs doctor tests, `just verify-fast`, `just verify-tree` and doc-link/scaffold checks. Run the preflight from a genuine clean clone in Nix; compare lock bytes and Git state before/after to prove it did not mutate. Commit only this task's reviewed files with `docs(dev): define reproducible contributor entry`.
+
+**Exit:** A new authorized contributor can find the starting command, ownership and blocked/implemented boundaries in at most three tracked-document hops, and every failed prerequisite names an actionable owner or local remediation. This does not accept future B/C/D functionality.
+
+## Task DX2: Prove Fresh Human and Agent Development Workflows
+
+**Dependencies:** DX1, generated products/composed service/B4, and reviewed G3 source. External publication may remain blocked; local and connected rehearsals have separate results.
+
+**Files:** Create `scripts/verify_developer_workflow.py`, `scripts/test_verify_developer_workflow.py`, `docs/developer/contributor-rehearsal.md`; modify `justfile`, `docs/developer/start-here.md`, `docs/developer/agent-handoff.md`, `docs/architecture/maturity.yaml`, and source CI only after the real local command exists. Parent refreshes tree and declared test inventory. Retained raw rehearsal logs stay outside Git; tracked report carries identities/digests and limitations.
+
+**Interfaces:** `run_checks(root: Path, runner: Callable) -> dict` in the new verifier invokes a fixed ordered matrix of required commands using `check=True`, no shell, no optional skip. It returns `candidate`, `tree_clean`, `platform`, `commands` with argv/exit/receipt hashes, `status` and `limitations`; it does not emit admission/qualification. `--repo` must name the explicitly owned fresh clone; outputs use exclusive creation in an explicitly owned evidence directory. `just verify-developer` runs this local matrix after its targets exist. Human/agent rehearsal identity is operator evidence, never inferred from this script.
+
+- [ ] Step 1: Add the following negative test; `self.root` is a fixture repo and `run_checks` is imported from the new verifier. Initialize `self.root` as an owned temporary Git fixture at a known commit. The implementation executes the fixed matrix with `check=True` before validating its collected receipts; it must not silently continue after a failed command. Use an injected fixed runner that records calls and returns successful results until the required boundary command, where it raises the shown exception. Receipt validation has separate tests with complete immutable fixture bytes, so empty output here cannot itself satisfy a successful rehearsal.
+
+```python
+def test_missing_boundary_execution_cannot_pass(self):
+    def runner(argv, **kwargs):
+        if argv == ["just", "verify-boundaries"]:
+            raise subprocess.CalledProcessError(1, argv)
+        return subprocess.CompletedProcess(argv, 0, stdout="", stderr="")
+    with self.assertRaises(subprocess.CalledProcessError):
+        run_checks(self.root, runner)
+```
+
+- [ ] Step 2: Parent runs `python3 -B -m unittest discover -s scripts -p test_verify_developer_workflow.py`, retains RED, then implements the fixed matrix below. Run only inside the pinned shell, with bounded time/output and `check=True`; receipt inspection occurs only after all required commands complete successfully. The root identity/owned-path preflight precedes the loop.
+
+```python
+REQUIRED_COMMANDS = (
+    ("just", "doctor"),
+    ("just", "verify"),
+    ("bazel", "test", "//tests/conformance/vs001:all",
+     "//services/foundation_echo:composition_tests", "--lockfile_mode=error"),
+    ("just", "verify-boundaries"),
+)
+completed = []
+for argv in REQUIRED_COMMANDS:
+    completed.append(runner(list(argv), cwd=root, check=True,
+                            capture_output=True, text=True, timeout=1800))
+```
+
+The `runner` interface for this task is `subprocess.run` compatible; `TimeoutExpired` and `CalledProcessError` propagate to a non-passing CLI result. This interface is separate from DX1's diagnostic runner. No selectable command argument or skip flag is exposed. Check build-event test execution and exact candidate/clean-tree receipts. A returned zero without required artifacts/test summaries fails; a cached executed test result is labelled honestly and cannot substitute for the fresh-context human exercise.
+
+- [ ] Step 3: Create an isolated clone from the reviewed revision using Git's normal clone/archive path; preserve all original checkouts. Use a fresh working directory, separate owned build output, disabled global Git/Bazel configuration and no injected secrets. Record exactly which immutable Nix caches were reused. Do not repurpose the user's home directory, erase shared caches, or claim network isolation without observing it.
+- [ ] Step 4: Run a human rehearsal with an authorized person who did not implement the slice. Supply only `start-here.md`, the bounded task contract and normal read access. They add one independently meaningful regression, regenerate through Codegen, diagnose a deliberate forbidden dependency, run the checks and produce a handoff. The parent verifies actual receipts; absence of that person remains an explicit human-rehearsal blocker.
+- [ ] Step 5: Run the same bounded scope in a fresh agent context. Supply the tracked entry point, exact owned paths, budget, criteria and allowed commands; no conversation memory, credentials or second dispatch route. The parent owns commands. Induce interruption after a saved source checkpoint, retain the attempt identity, and resume under the existing lifecycle rules. Verify that completed checks/effects are not replayed merely because reporting was retried.
+- [ ] Step 6: Exercise deliberate failures independently: generated drift, invalid public data, internal import, missing collector, failed required command, stale candidate receipt, worktree overlap and an owned service that has not yet exited. Each yields FAIL/BLOCKED or pending cancellation, preserves files, and names the next actor. Include a valid unchanged-run control so rejecting every scenario cannot pass.
+- [ ] Step 7: After local rehearsals pass, commit `test(dev): prove fresh contributor and agent workflows` after independent review and applicable checks. Update maturity only for observed local behavior, document remaining C/D work, and retain exact human/agent scope and evidence. DX2 is complete at this reviewed local checkpoint; it hands its exact candidate and receipts to O4. O4 subsequently performs connected demonstrations and acceptance, with fresh source evidence if its candidate changes. Do not label the foundation complete before O4.
+
+## Required Handoff Contents
+
+Every contributor leaves: objective and current work authority; exact base/candidate; owned/changed paths and generated provenance; tests actually run with receipt links; findings and unexecuted checks; active attempt/job/process identities and final disposition; unresolved external outcomes; preserved worktree/evidence locations; next bounded task. The handoff is tracked context, never approval or a concurrency lock.
+
+## Related
+
+- [Developer Start Here](/developer/start-here)
+- [Developer Agent Handoff](/developer/agent-handoff)
+- [Contributor Rehearsal](/developer/contributor-rehearsal)
+- [VS-001 Delivery Plan](/superpowers/plans/2026-09-23-vs001-delivery)
+- [AGENTS.md](https://github.com/Mindclade-org/mindclade-internal-monorepo/blob/main/AGENTS.md)

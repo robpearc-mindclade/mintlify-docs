@@ -1,0 +1,105 @@
+---
+title: "VS-001 Continuation Handoff"
+sidebarTitle: "VS-001 Handoff"
+description: "Continuation record for the VS-001 semantic development loop: what is completed, what remains, and how to resume after the 2026-09-26 closeout."
+---
+
+This record covers VS-001 continuation after the 2026-09-26 closeout. Start with the [agent handoff](/developer/agent-handoff) for repository, ownership, recovery and shutdown context. This record does not authorize execution or confer acceptance. [AGENTS.md](https://github.com/Mindclade-org/mindclade-internal-monorepo/blob/main/AGENTS.md) defines authority precedence.
+
+<Warning>
+  The [common handoff task register](/developer/agent-handoff#current-task-register) owns current source status: DX1/G1 and B1a/B2a have reviewed source milestones. The user-requested real vertical has integrated B3a, B2b and B3b Stages A/B; B3b Stages C/D merged through PR #18 at `72b762d` (non-durable partial VS-001); B4 dependency enforcement merged through PR #22 at `b7f69c0`, followed by K1, G3 admission code and H1 hardening ([closeout](/developer/agent-handoff#pre-migration-source-closeout-2026-09-26)); G2 source is integrated separately.
+</Warning>
+
+## Goal
+
+Complete the VS-001 semantic development loop using one compiler-owned v1 graph, generated products, RuntimeKit/TestKit, PostgreSQL/outbox execution and independent assessment. Main (`1fe3c1a`, the closeout merge) implements A1-A3, B1a reference rules, bounded B2a consumers, B2b public protocol products, B3a descriptor/architecture compilation, the non-durable B3b composition and B4 dependency enforcement; the [task register](/developer/agent-handoff#current-task-register) binds each to its evidence. B3a strict YAML, descriptor/architecture compilation and service projections were integrated at `06a903f` (PR #11) with exact-commit local and Linux checks. The [B3a checkpoint](/architecture/reviews/2026-09-23-vs001-service-compilation) records that evidence.
+
+## Historical implementation checkpoint
+
+Verified implementation checkpoint: `a0d6d4139d52c60c42c2e47444c4a10d6f6bc698`, [PR #3](https://github.com/robpearc-mindclade/mindclade-vnext/pull/3). Its tree equals `88ddf583a1a2c85697d35ec7c838e1cf0c444d70`; it contains the alignment fix `10e5bdafd413e4e0e226e91144847aa8b8b4c31e`, bootstrap increment `278f539c8dcf15aebabcf1ddcd631e96fd931fe4`, and integrated governance source. All audited branch/worktree work was saved and included. Later documentation revisions do not change the identity to which the evidence below applies.
+
+The initial B1-D4 permission was local-only. The later explicit user instructions authorized source publication, PR creation and main synchronization. Neither instruction changed supervised policy, accepted a compatibility baseline, approved an operational packet, or established independent qualification. No standing publication or merge exception follows from this history.
+
+## Completed
+
+| Slice | Implemented source | Remaining boundary |
+| --- | --- | --- |
+| A1 | Owned publisher, permanent locking, recoverable journal, corruption checks and read-only verification | Power-loss/network-filesystem behavior and independent acceptance are not established |
+| A2 | Directional sealed-graph comparison, strict response decoding, recursive/shared uses, opaque revisions | Unknown semantics remain non-passing; Rob accepted the B1 baseline on 2026-09-26 (D-5), with its non-passing items still listed, not waived |
+| A3 | Deterministic source-evidence export/readback, digest and path checks, CI attempt binding | Shared retention, independent retrieval and later assessment schemas remain open |
+| B1 | Public/internal TypeSpec contracts, official frontend, build-bound visibility, declaration sealing and borrowed public view | Value semantics, reference bridges and remaining typed views are incomplete. The contract-owner baseline was accepted on 2026-09-26 ([D-5](/developer/agent-handoff#owner-decisions-recorded-2026-09-26-after-the-closeout)) |
+
+B1 includes named direct-primitive constrained scalars, enums, tagged unions, HTTP alternatives, source/graph visibility and directional declaration comparison. Scalar/field bounds are intersected at effective use sites, including array members. Intrinsic primitive bounds and redundant valid literal annotations are handled. Distinct pattern relationships, unclassified changes and compact/expanded representation transitions remain non-passing. Descriptor input was rejected at this historical B1 checkpoint; current B3a has a separate explicit service route. Authored declarations are not generated runtime validators or working services.
+
+Implementation remains in `SemanticInput@v1` / `MindcladeGraph@v1`; do not introduce parallel v2 APIs or a second graph. YAML architecture remains authoritative. Codegen alone owns semantic compilation and generated outputs. No new external dependency, runtime implementation or governance-policy change belongs to this handoff update.
+
+## Validation
+
+Historical (`a0d6d41`): the then-exact merged source checkpoint passed the clean Apple Silicon pinned aggregate (243 Python tests, 93 Rust tests, five doctests, five Bazel test targets including 36 frontend cases, configured-action checks, unchanged locks and generated drift) and [Linux main CI](https://github.com/robpearc-mindclade/mindclade-vnext/actions/runs/35869828746). The review branch passed [run 35864396880](https://github.com/robpearc-mindclade/mindclade-vnext/actions/runs/35864396880) and PR validation passed [run 35869028952](https://github.com/robpearc-mindclade/mindclade-vnext/actions/runs/35869028952). These are distinct source checks, not protected queue or independent assessment.
+
+| Foundation output | SHA-256 at the implementation checkpoint |
+| --- | --- |
+| Graph | `1ae176bb0076b981c0e35cf1d805f01094c466890f2d1f40f9144bcb28fd731b` |
+| Source-bound manifest | `7ee8a32694c4c0a30ba94668f06094d25efe1fd775d2fcd99d01af2fad8b160c` |
+
+The local receipt/log and full recovery archive are indexed in the location in [agent handoff](/developer/agent-handoff#validation). Cross-host artifact byte comparison was not refreshed for this checkpoint. Earlier parity results remain attributed to their original revisions. Intel macOS has no development shell (H1-19).
+
+The [local bootstrap review](/architecture/reviews/2026-09-23-vs001-local-bootstrap) records the two reproduced scalar-intersection findings and their corrections. The [alignment review](/architecture/reviews/2026-09-23-codebase-alignment) and [B1 review](/architecture/reviews/2026-09-23-vs001-b1-source-review) retain earlier findings/fixes. No historical review is approval of future edits. The [previous full handoff](https://github.com/robpearc-mindclade/mindclade-vnext/blob/a0d6d4139d52c60c42c2e47444c4a10d6f6bc698/docs/developer/vs001-handoff.md) preserves the execution chronology without mixing it into the current work list.
+
+### Running the non-durable Echo binary (B3b)
+
+Build it with `nix develop --no-write-lock-file -c bazel build //services/foundation_echo:foundation_echo`, then run the file that `bazel cquery --output=files //services/foundation_echo:foundation_echo` names. It serves the generated loopback configuration through the test admission port, so nothing is durable (`"admission":"test"`).
+
+- **stdin is the supervisor control channel.** A `shutdown` line _or end of input_ requests a drained shutdown. Run it with stdin open, for example in a terminal. With `</dev/null`, `nohup … &` or any closed stdin, it prints the ready receipt, drains at once and exits 0.
+- **stdout** carries exactly two receipts, `FoundationEchoReady@v1` (with the bound address) and `FoundationEchoStopped@v1`. **stderr** carries telemetry only.
+- **Exit codes:** 0 drained, 3 configuration, 4 bind or identity, 5 overrun, 1 other (B3b criteria section 3.6).
+
+## Remaining VS-001 work after the master prerequisites
+
+1. Reconcile ownership, actual Git state, existing receipts and the applicable authority/approval inputs as described in the agent handoff. The source-only closeout is complete; resume implementation under an explicit bounded task.
+2. Preserve B1a reference rules and their negative corpus for timestamps, canonical artifact JSON, revisions and bounded generations. Follow the current [master source continuation order](/superpowers/plans/2026-09-23-v1-integration-readiness) to preserve B3a compilation/recovery evidence and implement B2b protocol products. Preserve the reviewed B2a checked products and their executable conformance corpus.
+3. Preserve B2a validated internal DTO-to-`Reference<T>` bridges, Unicode scalar limits, invalid-surrogate/UTF-8 rejection and array-item bounds. Extend the same rules into B2b protocol boundaries; do not hand-author generated consumers.
+4. Preserve bounded descriptor/service/architecture views over the same sealed graph; extend them only for a reviewed runtime or dependency-enforcement task. Rob accepted the foundation-to-expanded-v1 compatibility report (4 breaking, 32 unsupported) as the contract-owner baseline on 2026-09-26 ([D-5](/developer/agent-handoff#owner-decisions-recorded-2026-09-26-after-the-closeout)); its breaking and unsupported items stay listed, not waived. Keep unknown relationships non-passing and preserve the old fixture as a regression case; do not adjust expected results to conceal breaking changes.
+5. B4 is integrated at `b7f69c0` (PR #22): actual Cargo/Bazel/TypeScript dependency facts are checked against authoritative YAML, and `just verify` runs the host-scope check. B2b generated public protocol products are integrated, and non-durable ServiceDescriptor@v1 composition through RuntimeKit/TestKit (B3b Stages C/D) is integrated at `72b762d` (PR #18). Governance admission consumes B4 through G3 once O3 adopts the policy; do not add a competing local checker.
+6. Execute C1-C5 with real PostgreSQL: schema/harness, atomic state/outbox, idempotency and duplicate delivery, database-time leases/fencing, cancellation, recovery and a generated-client end-to-end path.
+7. Execute D1-D4: immutable artifact/provenance bindings, sealed replay, trusted independently owned assessment, policy decision and exact-candidate acceptance.
+
+[VS001_TODO](/architecture/vs001-todo) is the task inventory. The [delivery plan](/superpowers/plans/2026-09-23-vs001-delivery) and [B composition](/superpowers/plans/2026-09-23-vs001-b-composition), [C durability](/superpowers/plans/2026-09-23-vs001-c-durability), [D assurance](/superpowers/plans/2026-09-23-vs001-d-assurance) plans define interfaces and acceptance cases. Plan checkboxes are not proof of implementation; use source, tests and the current checkpoint to avoid repeating completed work.
+
+## Risks/blockers
+
+The retained pre-B1a `bootstrap-foundation-to-vs001-compatibility.json` reports four breaking changes, 21 compatible additions and 30 unsupported additions; the [B1a record](/architecture/reviews/2026-09-23-vs001-wire-values) retains the post-B1a result (four breaking, 21 compatible, 32 unsupported). These non-passing results are not a passing gate. Rob accepted the foundation-to-expanded-v1 report as the B1 baseline on 2026-09-26 (D-5); acceptance keeps its breaking and unsupported items listed, not waived.
+
+B1 remains partial; bounded B2a has a reviewed source checkpoint. B3a is integrated on main through PR #11 (`06a903f`) with exact-commit local and Linux checks. B2b (`8fb4fcd`) and B3b Stages A/B (`0d44a36`) are integrated; B3b Stages C/D are integrated at `72b762d` (PR #18; non-durable partial VS-001); B4 enforcement is integrated at `b7f69c0` (PR #22); C1-C5 (criteria approved at checkpoint A on 2026-09-26, D-3; implementation after the migration) and D1-D4 remain pending. Governance protection, trusted policy/packet inputs, independent ownership and shared evidence retention remain open. The [governance status](/architecture/engineering/governance-status) lists those gates. Source merging does not close Linear or authorize evidence releases. No runtime, scientific, release, deployment, TileLang or generated C ABI qualification is claimed.
+
+## Files/context
+
+Original evidence remains under the primary checkout's ignored `.superpowers/sdd/2026-09-23-vs001-delivery/`: bootstrap clean/working-tree receipts, local handoff receipts, original B1 local/Linux results and earlier A1-A3 bundles. The [TODO evidence index](/architecture/vs001-todo#verified-interim-evidence-index) retains original bundle digests. Preserve failed attempts and old receipts; never rewrite them to name a newer candidate. Local recovery copies and CI artifact retention are not independently controlled durable custody.
+
+The integration owner runs applicable checks, including the pinned aggregate:
+
+```bash
+nix develop --no-write-lock-file -c just verify
+```
+
+Use `just update-tree` only for mechanical inventory changes and `just generate-foundation` and `just generate-vs001` only for compiler-owned regeneration when their inputs change. Do not repair generated drift by editing outputs. Missing checks remain BLOCKED and observed failures remain FAIL; neither becomes qualification.
+
+## Related
+
+<CardGroup cols={2}>
+  <Card title="Current task register" icon="hand" href="/developer/agent-handoff#current-task-register">
+    Task status and next-task ordering.
+  </Card>
+
+  <Card title="VS001 TODO" icon="list-checks" href="/architecture/vs001-todo#implementation-todos">
+    Implementation task inventory.
+  </Card>
+
+  <Card title="Run Foundation Echo" icon="terminal" href="/runbooks/run-foundation-echo">
+    Build and run the non-durable binary locally.
+  </Card>
+
+  <Card title="System design" icon="layout-grid" href="/architecture/system-design">
+    Target architecture beyond what is built.
+  </Card>
+</CardGroup>

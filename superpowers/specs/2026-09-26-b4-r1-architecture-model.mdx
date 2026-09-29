@@ -1,0 +1,432 @@
+---
+title: "B4 R1: proposed architecture-model change"
+sidebarTitle: "B4 R1 Model"
+description: "Approved architecture model change reconciling B4 boundary evidence into docs/architecture/model/architecture.yaml, with ownership rules, dependency policy and external allowlist."
+---
+
+This page records the approved B4 R1 architecture-model proposal. It reconciles the observed dependency graph from two-host B4 Stage 1 evidence into a single `architecture.yaml` that will be treated as read-only by the Stage 2 implementer. The model and the source-profile delta land as one parent commit at the start of Stage 2.
+
+**Status:** APPROVED by Rob on 2026-09-26 in chat, after an independent review returned APPROVE WITH CHANGES and every change it required was applied (§3a). Rob approved the §6 model, chose R1-08 option (a) (the loader file), chose F-1 (split the filegroup), and confirmed the §13 A reading. The model is still not applied: `docs/architecture/model/architecture.yaml` is unchanged on every branch. The current B3a parser rejects the new fields (`scope`, `units`, `dependency_policy`), so the approved text lands as its own commit at the start of B4 Stage 2, together with the parser extension (criteria §2, B4-01).
+
+**Authority:** B4 criteria §2 ("the parent writes it from §8 after P6"), §5 (schema), §6 (decision rules), §8 (initial policy), §13 A, and `architecture-source-profile.md`.
+
+## 1. Evidence: P6 on both hosts
+
+The candidate was `scratch/p6-probe` `abec7af`, a scratch merge of B4 `1643ff5` and the B3b candidate `bd692b2`. It is not for merge. Collection used the fixed A-1 repo-env list (ruling J).
+
+| Host | Facts digest | Nodes | Edges | Unanalyzed | Source inventory |
+| --- | --- | --- | --- | --- | --- |
+| x86_64-linux (Docker) | `sha256:183337e4749e703c5afdab8f23238cb91650cd8e06b998e0a084af958db65d82` | 984 | 2770 | 4 | 1327 files, `sha256:217fcc01…` |
+| aarch64-darwin | `sha256:48653c5f88d01f4c5a75018a7dfb8d5b6ceb6cc7d2a308f468824c06b80e85a0` | 985 | 2771 | 4 | 1327 files, `sha256:217fcc01…` |
+
+After normalising the host names, the two graphs differ in exactly two ways:
+
+- **The host C/C++ toolchain label.** It is `local_config_cc//:cc-compiler-darwin_arm64` on the Mac and `cc-compiler-k8` on Linux. This is the known R2 host-toolchain leak. The allowlist key (`rules_cc`) is the same on both hosts.
+- **One Mac-only edge:** `//:root_sources -> scripts/__pycache__/validate_scaffold.cpython-312.pyc`. The root glob matches a git-ignored bytecode file. It has no policy effect, because `//:root_sources` is transparent and nothing consumes it (B4-23). H1-28 removes it by excluding `**/__pycache__/**` from `//:root_sources`. It also shows that Bazel globs can observe ignored files. The committed-tree inventory cannot.
+
+The evidence is in `outputs/foundation-closeout/b4-p6/{linux-post-b3b,darwin-post-b3b}/` (`facts.json`, `edges.txt`, run logs).
+
+## 2. Method and its limits
+
+The parent drafted this model with a scratch evaluator that approximates §6 stages 4–5 over both hosts' facts. It covers:
+
+- owner resolution: membership, then path, then unit;
+- transparent filegroup and alias hops, keeping the first hop's kind;
+- allow and deny, including roles;
+- production-to-test and public-to-internal;
+- the external allowlist, using the §7.3 key derivation;
+- computed and unresolved imports;
+- component cycles;
+- coverage.
+
+The evaluator is kept out of the repository ("no second architecture parser", §1). It lives beside the evidence as `r1-drafting-aid/`. Codegen alone decides. The binding check is B4-19's real-graph pass in Stage 2.
+
+Against the approved-at-freeze §8 text, the evaluator reports the following on both hosts:
+
+- 4 ownerless endpoints;
+- 2 coverage diagnostics;
+- 8 production-to-test edges;
+- 35 unapproved dependencies (12 distinct);
+- 68 unapproved externals (26 distinct);
+- 1 production computed import.
+
+Against the model below, it reports zero violations on both hosts, with three expected exceptions. The first is the one computed import in R1-08, which needs your decision. The second is six production-to-test edges that the build change F-1 removes. The third is one `facts-coverage` line for `//codegen:boundaries_tests`, which clears when Stage 2 removes its `manual` tag (R1-05).
+
+## 3. Reconciliation items (§8 → R1)
+
+Each item cites one observed example; the counts are the same on both hosts.
+
+- **R1-01 `//:REPO.bazel` joins `tools.build`.** Three conformance targets and `codegen:library` reach it through `//:generator_inputs`, and today it would be an ownerless endpoint. Example: `codegen/BUILD.bazel:13` compile_data.
+- **R1-02 Foundation Echo memberships use the real labels.** The §8 label `//services/foundation_echo:service` does not exist, and would be a `facts-coverage` failure. The real labels are `//services/foundation_echo:foundation_echo_lib` (the library, crate `mindclade_foundation_echo`) and `//services/foundation_echo:foundation_echo` (the binary). The Cargo membership `mindclade-foundation-echo` is unchanged.
+- **R1-03 New unit `services.foundation_echo#tests`** (`services/foundation_echo/tests`, scope test). Without it, `tests/process.test.mjs:29`'s computed `import()` is a production-scope `computed-import`. With it, the import is listed in `test_dynamic_imports`, as §6 intends for tests. It also carries the process test's Node builtins.
+- **R1-04 `tools.validation` becomes role `build`, scope `production`.** §8 had role `conformance`, scope `test`. `codegen:library` has a **build** edge to the collectors: its compile_data reaches `//:generator_inputs`, which contains `tools/validation/{dependency_facts.py,typescript_facts.mjs}`, per the B4-21 inventory rule. A test-scope target makes that edge a `production-to-test` violation. The collectors are build tooling that Codegen digests, so they are production scope. Their fixtures stay excluded.
+- **R1-05 No exclusion for `//codegen:boundaries_tests`.** The probe lists it as unanalyzed, because it is `manual` while its reserved tests are RED. Excluding it would hide the edges of a target that must run in CI (B4-15). Instead, Stage 2 removes its `manual` tag, as a parent BUILD change, before the binding real-graph check. Until then the drafting check shows one expected `facts-coverage` line for it.
+- **R1-06 Allow edges §8 did not list.** Every one is observed, and none overlaps a mandatory deny (checked mechanically against B4-19's invariant):
+  - `codegen.compiler → tools.validation` (build). This is the R1-04 inventory edge.
+  - `codegen.compiler → architecture.docs` (test). `codegen:service_http` reads the real `architecture.yaml`.
+  - `codegen.compiler → services.foundation_echo` (test). `codegen:service_http` has `//services/foundation_echo:sources` as data (`codegen/BUILD.bazel:177`), which covers `src/{composition,lib,main,ports}.rs`, for the declared-source scan. This is test-only, and the only such edge.
+  - `tests.conformance.vs001 → platform.runtimekit` (production and test). The B3b composition driver, config forgery and compile-fail probes link RuntimeKit. The suite is test scope.
+  - `tests.conformance.vs001 → tools.validation` (test). `composition_driver` data.
+  - Test kinds alongside approved production edges:
+    - `platform.runtimekit → core` (`config_tests`);
+    - `platform.testkit → core` and `platform.testkit → runtimekit`. TestKit is `testonly`, so every edge from it is test kind;
+    - `services.foundation_echo → core` and `services.foundation_echo → generated.projections` (the compile-fail and config-mutation tests).
+  - `services.foundation_echo → tests.conformance.vs001` (test). The `config_mutations` genrule runs `tests/conformance/vs001:service_config/mutate.py`. It is test-only, so it cannot form a cycle.
+- **R1-07 Externals are exactly the observed set** (40 entries), listed in §6. Changes from §8:
+  - **Crates:**
+    - `httparse` for `platform.runtimekit` (production). This is the B3b transport crate you approved.
+    - `serde` and `serde_json` for `services.foundation_echo`.
+    - Test kinds for codegen, runtimekit and conformance crates. Bazel `rust_test` deps are test kind.
+  - **Bazel:**
+    - `rules_rust` needs **production** as well. `rust_library` and `rust_binary` have public `allocator_libraries` and `malloc` attributes pointing into `@rules_rust`, and the §6 kind table classes non-underscore attributes as production.
+    - `rules_cc` (the `local_config_cc` host toolchain) is needed on both hosts.
+    - `nix_protoc` and `nix_protobuf_python` for conformance (test). These are the B2b `[R]` repos.
+    - `platforms`, `rules_nixpkgs_core`, `nix_cc` and `bazel_skylib` were never observed as direct externals, so they are omitted.
+  - **npm:** `@typespec/compiler` and `@typespec/http` are observed as production only. The `build` kind from §8 is dropped, because no type-only import was observed.
+  - **Node builtins:** each is listed with its exact observed `from` set. The public unit gets none.
+- **R1-08 (your decision) The TypeScript collector's computed `require`.** The §6 YAML below already carries option (a)'s exclusion as exact bytes. Option (b) replaces that entry with `tools/validation/typescript_facts.mjs`, and option (c) removes it. `tools/validation/typescript_facts.mjs:219` loads the pinned TypeScript compiler through `createRequire(import.meta.url)(values.get("--typescript"))`, a provisioned Nix-store path given on the command line. Under R1-04 that file is production scope, so this is a `computed-import` violation. No model entry can permit it, because §6 has no computed-import allowlist. The options:
+  - **(a) Recommended.** The Stage 2 implementer moves only the pinned-compiler loading into a new file, `tools/validation/typescript_loader.cjs`, and `typescript_facts.mjs` imports it by a literal path. The model excludes only the loader; the rest of the collector stays observed. Conditions:
+    - The loader is outside the implementer's §2 file list, so the parent delegates it explicitly.
+    - It joins `//:generator_inputs`, `scripts/validate_generator_inputs.py` and the facts `collectors` digests, so G3's collector identity covers it.
+    - A unit test pins the loader to a single `require` with no other import.
+    - It exists before the first facts check. An exclusion absent from the inventory is a model error.
+
+    Cost: one small collector change plus one narrow exclusion, both re-reviewed.
+  - **(b)** Exclude `tools/validation/typescript_facts.mjs` itself. No code change, but the collector's own imports go unobserved, and so does Codegen's build edge to that file. It is also the only non-fixture TS file under the `tools/validation` membership, so excluding it risks an unobserved-membership `facts-coverage` failure.
+  - **(c)** Amend the criteria to add a narrow computed-import allowlist. This is a criteria change and needs re-review.
+- **R1-09 Maturity of the B3b components moves from `planned` to `partial`.** This covers `platform.runtimekit`, `platform.testkit` and `services.foundation_echo`, and matches `maturity.yaml` after B3b. It is non-durable, partial VS-001. The label grants no proof (source profile). New components are `partial`.
+- **R1-10 The forbidden list gains `tch`,** beside `tch-rs` and `Triton` (§5).
+
+**Build change F-1 (parent-owned BUILD edit in Stage 2; your decision alongside R1).** `codegen/frontend/typespec:sources` globs `test/*.mjs`. The production `typespec_compile` targets `:echo`, `:vs001` and `:vs001_services` therefore take the frontend tests as inputs. That gives 6 `production-to-test` edges into the `codegen.compiler#frontend-tests` unit. The fix:
+
+- split `test/*.mjs` into a `test_sources` filegroup;
+- `typespec_test` takes both filegroups.
+
+`composition_driver`, `protocol_driver` and `service_driver` also consume `:sources` (`tests/conformance/vs001/BUILD.bazel:49/83/217`). They get `:test_sources` too if they need the test files. The re-probe after F-1 must show zero production-to-test edges. The fallback is to drop the `frontend-tests` unit, but then production code could import test helpers without detection. F-1 changes action inputs only. Generated bytes should be unchanged, and the Stage 2 regeneration is required anyway (B4-21).
+
+**§13 A (confirm).** The virtual root `Cargo.toml` is not a Cargo member. The parent reads §6 stage 4's "member manifest or excluded" as satisfied by `tools.build`'s file-label membership `//:Cargo.toml`, which declares ownership only (§5 membership placement). The reserved test `uncovered_sources_and_ecosystems_fail` already pins this reading.
+
+**Parser point for Stage 2 (no policy effect).** R1-07 repeats an `(ecosystem, name)` pair when the `from` sets have different kinds: `serde`, `serde_json`, `bazel_tools`, `nix_frontend_deps`, `nix_rust`, `rules_cc` and `rules_rust`. §5 does not forbid this, and the only normalised-duplicate rule is for `forbidden` names. The Stage 2 parser must accept disjoint repeats. If the reviewer rules otherwise, merge each pair to the union of kinds. That is a small loosening; for example, `core.semantic-kernel` would gain `serde` in test kind.
+
+## 3a. Independent review response (2026-09-26)
+
+**Verdict:** APPROVE WITH CHANGES. The reviewer used its own §6 evaluator, independent of the drafting aid:
+
+- It re-derived the kind of all 2770 and 2771 edges with zero mismatches.
+- On both hosts it reached the same result as this proposal.
+- Coverage was clean, the externals equal the observed set, and the mandatory-deny invariant holds.
+- It found no forbidden transitive names.
+
+Changes applied:
+
+- **Important 1:** option (a)'s loader exclusion is now in the §6 YAML as exact bytes, and its conditions are listed in R1-08.
+- **Important 2:** the fixture file `tools/validation/fixtures/boundaries/ts/app/kernels.ts:1` puts an `unresolved:triton` node in both hosts' facts. Exclusions remove edges, not nodes. Parent ruling L in B4 criteria §13 settles this: `forbidden-external` matches only the endpoint types in the §6 parenthetical (workspace, crate, npm, Bazel repo), never `unresolved:` or `computed:`. Those are covered by `unresolved-import` and `computed-import`.
+- **Minor 1:** allow kinds that were never observed are removed:
+  - `codegen.compiler → contracts.registries [production]`;
+  - `platform.runtimekit → tools.build [build]`;
+  - `platform.testkit → tools.build [build]`.
+
+  `platform.runtimekit → platform.testkit [test]` stays as explicit ADR-008 intent: TestKit is allowed only as a RuntimeKit test dependency.
+- **Minor 2:** no `//codegen:boundaries_tests` exclusion (R1-05).
+- **Minor 3:** the R1-06 text is corrected.
+- **Minor 6:** parent ruling N in §13 pins the §7.3 key derivation for bare `@@bazel_tools` and for `rules_rust++…` extension repos.
+- **Minor 7:** F-1 is extended to the conformance drivers.
+- **Repeated `(ecosystem, name)` pairs:** parent ruling M in §13 accepts them, provided their `from` sets are pairwise disjoint.
+- **Minors 4, 5 and 8:** no change. Both test-only couplings keep their testonly protection. B3b moved past `bd692b2` only in docs, scripts and generated manifests, and the re-probe on merged `main` stays binding.
+
+**Declined by the reviewer, and left for Rob or later:**
+
+- whether the ADRs endorse the two test couplings;
+- whether generated bytes stay unchanged under F-1 (the Stage 2 regeneration answers this);
+- external `from` lists are per component, not per unit. This is a criteria limitation: a Node builtin seen only in a test unit is allowed for the whole component.
+
+## 4. Decisions requested (R1)
+
+1. Approve the model in §6, with R1-01 to R1-07, R1-09 and R1-10.
+2. R1-08: option (a), (b) or (c). The parent recommends (a).
+3. F-1: the BUILD split (recommended), or dropping the `frontend-tests` unit.
+4. Confirm the §13 A reading.
+
+## 5. Obligations after approval
+
+- The model and the source-profile delta (§7) land as one parent commit at the start of Stage 2. The Stage 2 implementer treats both as read-only (§2). Any further change needs a re-review (§8, last paragraph).
+- B4-19's pass on the **merged** candidate is binding: B4 on the merged B3b `main`, both hosts. If the merged names differ from `abec7af`, the parent re-probes and re-reconciles before implementation.
+- B4-22: C5 and D3 rerun B4 with their new components and add no grandfathering entries.
+
+## 6. Proposed `docs/architecture/model/architecture.yaml`
+
+```yaml
+schema: mindclade.architecture.model.v1
+name: mindclade-vnext
+authority:
+  contracts: contracts/
+  compiler: codegen/
+  graph: MindcladeGraph
+  generated_boundary: generated/
+  blueprint: docs/architecture/MASTER_BLUEPRINT.md
+  repository_layout: docs/architecture/model/repository-layout.json
+  delivery_gates: docs/architecture/implementation-roadmap.md
+principles:
+  - stable-truth-dynamic-execution
+  - codegen-sole-semantic-compiler
+  - generated-output-is-projection
+  - independent-assurance
+  - governed-evolution
+nodes:
+  - id: contracts.typespec
+    kind: authored-contract-frontend
+    path: contracts/typespec
+    maturity: partial
+    owner_role: contracts
+    memberships: []
+    scope: production
+    units: []
+  - id: contracts.fixtures
+    kind: contract-fixture
+    path: contracts/fixtures
+    maturity: partial
+    owner_role: contracts
+    memberships: []
+    scope: production
+    units: []
+  - id: contracts.registries
+    kind: authored-contract-frontend
+    path: contracts/registries
+    maturity: partial
+    owner_role: contracts
+    memberships: []
+    scope: production
+    units: []
+  - id: core.semantic-kernel
+    kind: rust-library
+    path: core
+    maturity: partial
+    owner_role: kernel
+    memberships:
+      - {kind: cargo, id: mindclade-core, configuration: default}
+      - {kind: bazel, id: "//core:core", configuration: default}
+    scope: production
+    units:
+      - {id: tests, path: core/tests, visibility: internal, scope: test}
+  - id: codegen.compiler
+    kind: rust-compiler
+    path: codegen
+    maturity: partial
+    owner_role: compiler
+    memberships:
+      - {kind: cargo, id: mindclade-codegen, configuration: default}
+      - {kind: bazel, id: "//codegen:library", configuration: default}
+      - {kind: bazel, id: "//codegen:codegen", configuration: default}
+      - {kind: typescript, id: codegen/frontend/typespec, configuration: default}
+    scope: production
+    units:
+      - {id: tests, path: codegen/tests, visibility: internal, scope: test}
+      - {id: frontend-tests, path: codegen/frontend/typespec/test, visibility: internal, scope: test}
+  - id: generated.projections
+    kind: generated-boundary
+    path: generated
+    maturity: partial
+    owner_role: generated
+    memberships: []
+    scope: production
+    units:
+      - {id: vs001-public, path: generated/vs001/public, visibility: public, scope: production}
+  - id: architecture.docs
+    kind: architecture-authority
+    path: docs/architecture
+    maturity: experimental
+    owner_role: architecture
+    memberships: []
+    scope: production
+    units: []
+  - id: platform.runtimekit
+    kind: runtime-envelope
+    path: platform/runtimekit
+    maturity: partial
+    owner_role: runtimekit
+    memberships:
+      - {kind: cargo, id: mindclade-runtimekit, configuration: default}
+      - {kind: bazel, id: "//platform/runtimekit:runtimekit", configuration: default}
+    scope: production
+    units: []
+  - id: platform.testkit
+    kind: test-harness
+    path: platform/testkit
+    maturity: partial
+    owner_role: testkit
+    memberships:
+      - {kind: cargo, id: mindclade-testkit, configuration: default}
+      - {kind: bazel, id: "//platform/testkit:testkit", configuration: default}
+    scope: test
+    units: []
+  - id: services.foundation_echo
+    kind: service-composition
+    path: services/foundation_echo
+    maturity: partial
+    owner_role: service
+    memberships:
+      - {kind: cargo, id: mindclade-foundation-echo, configuration: default}
+      - {kind: bazel, id: "//services/foundation_echo:foundation_echo_lib", configuration: default}
+      - {kind: bazel, id: "//services/foundation_echo:foundation_echo", configuration: default}
+    scope: production
+    units:
+      - {id: descriptor, path: services/foundation_echo/service.descriptor.yaml, visibility: internal, scope: production}
+      - {id: tests, path: services/foundation_echo/tests, visibility: internal, scope: test}
+  - id: tests.conformance.vs001
+    kind: conformance-suite
+    path: tests/conformance/vs001
+    maturity: partial
+    owner_role: conformance
+    memberships:
+      - {kind: cargo, id: mindclade-vs001-conformance, configuration: default}
+      - {kind: bazel, id: "//tests/conformance/vs001:consumer", configuration: default}
+      - {kind: typescript, id: tests/conformance/vs001, configuration: default}
+    scope: test
+    units: []
+  - id: tools.build
+    kind: build-tooling
+    path: tools/build
+    maturity: partial
+    owner_role: build
+    memberships:
+      - {kind: bazel, id: "//:Cargo.toml", configuration: default}
+      - {kind: bazel, id: "//:Cargo.lock", configuration: default}
+      - {kind: bazel, id: "//:MODULE.bazel", configuration: default}
+      - {kind: bazel, id: "//:MODULE.bazel.lock", configuration: default}
+      - {kind: bazel, id: "//:flake.nix", configuration: default}
+      - {kind: bazel, id: "//:flake.lock", configuration: default}
+      - {kind: bazel, id: "//:package.json", configuration: default}
+      - {kind: bazel, id: "//:pnpm-lock.yaml", configuration: default}
+      - {kind: bazel, id: "//:pnpm-workspace.yaml", configuration: default}
+      - {kind: bazel, id: "//:.bazelrc", configuration: default}
+      - {kind: bazel, id: "//:.bazelversion", configuration: default}
+      - {kind: bazel, id: "//:BUILD.bazel", configuration: default}
+      - {kind: bazel, id: "//:rust-toolchain.toml", configuration: default}
+      - {kind: bazel, id: "//:REPO.bazel", configuration: default}
+    scope: production
+    units: []
+  - id: tools.validation
+    kind: build-tooling
+    path: tools/validation
+    maturity: partial
+    owner_role: build
+    memberships:
+      - {kind: typescript, id: tools/validation, configuration: default}
+    scope: production
+    units: []
+relationships:
+  - {from: contracts.typespec, to: codegen.compiler, type: frontend-input}
+  - {from: codegen.compiler, to: core.semantic-kernel, type: uses}
+  - {from: codegen.compiler, to: generated.projections, type: generates}
+  - {from: architecture.docs, to: codegen.compiler, type: constrains}
+forbidden:
+  - {from: generated.projections, to: contracts.typespec, type: semantic-authority}
+  - {dependency: tch-rs, reason: "Not part of vNEXT baseline."}
+  - {dependency: Triton, reason: "TileLang is the preferred future kernel DSL path."}
+  - {dependency: tch, reason: "Not part of vNEXT baseline."}
+dependency_policy:
+  configurations: [cargo.aarch64-darwin, cargo.x86_64-linux, bazel.aarch64-darwin, bazel.x86_64-linux, typescript.aarch64-darwin, typescript.x86_64-linux]
+  allow:
+    - {from: codegen.compiler, to: architecture.docs, kinds: [test]}
+    - {from: codegen.compiler, to: contracts.fixtures, kinds: [production, test]}
+    - {from: codegen.compiler, to: contracts.registries, kinds: [test]}
+    - {from: codegen.compiler, to: contracts.typespec, kinds: [production, test]}
+    - {from: codegen.compiler, to: core.semantic-kernel, kinds: [production, build, test]}
+    - {from: codegen.compiler, to: generated.projections, kinds: [build]}
+    - {from: codegen.compiler, to: services.foundation_echo, kinds: [test]}
+    - {from: codegen.compiler, to: "services.foundation_echo#descriptor", kinds: [production, test]}
+    - {from: codegen.compiler, to: tests.conformance.vs001, kinds: [test]}
+    - {from: codegen.compiler, to: tools.build, kinds: [production, build, test]}
+    - {from: codegen.compiler, to: tools.validation, kinds: [build]}
+    - {from: platform.runtimekit, to: core.semantic-kernel, kinds: [production, test]}
+    - {from: platform.runtimekit, to: platform.testkit, kinds: [test]}
+    - {from: platform.testkit, to: core.semantic-kernel, kinds: [production, test]}
+    - {from: platform.testkit, to: platform.runtimekit, kinds: [production, test]}
+    - {from: services.foundation_echo, to: core.semantic-kernel, kinds: [production, test]}
+    - {from: services.foundation_echo, to: generated.projections, kinds: [production, test]}
+    - {from: services.foundation_echo, to: platform.runtimekit, kinds: [production, test]}
+    - {from: services.foundation_echo, to: platform.testkit, kinds: [test]}
+    - {from: services.foundation_echo, to: tests.conformance.vs001, kinds: [test]}
+    - {from: services.foundation_echo, to: tools.build, kinds: [build]}
+    - {from: tests.conformance.vs001, to: architecture.docs, kinds: [test]}
+    - {from: tests.conformance.vs001, to: codegen.compiler, kinds: [test]}
+    - {from: tests.conformance.vs001, to: contracts.fixtures, kinds: [test]}
+    - {from: tests.conformance.vs001, to: contracts.registries, kinds: [test]}
+    - {from: tests.conformance.vs001, to: contracts.typespec, kinds: [test]}
+    - {from: tests.conformance.vs001, to: core.semantic-kernel, kinds: [production, test]}
+    - {from: tests.conformance.vs001, to: generated.projections, kinds: [production, test]}
+    - {from: tests.conformance.vs001, to: platform.runtimekit, kinds: [production, test]}
+    - {from: tests.conformance.vs001, to: "services.foundation_echo#descriptor", kinds: [test]}
+    - {from: tests.conformance.vs001, to: tools.build, kinds: [build, test]}
+    - {from: tests.conformance.vs001, to: tools.validation, kinds: [test]}
+  deny:
+    - {from: platform.runtimekit, to: "role:service", kinds: [production, build, test], reason: "ADR-008: RuntimeKit is a platform primitive; services stay thin"}
+    - {from: platform.runtimekit, to: "role:testkit", kinds: [production, build], reason: "ADR-008: TestKit is never a production dependency of RuntimeKit"}
+    - {from: platform.runtimekit, to: codegen.compiler, kinds: [production, build, test], reason: "ADR-002: runtime code never links the compiler"}
+    - {from: platform.runtimekit, to: generated.projections, kinds: [production, build, test], reason: "ADR-008 and ADR-013: no generated Echo DTOs in RuntimeKit"}
+    - {from: core.semantic-kernel, to: codegen.compiler, kinds: [production, build, test], reason: "ADR-002: the kernel never depends on Codegen"}
+    - {from: core.semantic-kernel, to: "role:service", kinds: [production, build, test], reason: "ADR-002: the kernel never depends on a service"}
+    - {from: "generated.projections#vs001-public", to: "role:service", kinds: [production, build, test], reason: "ADR-013: the public client stays transport-only"}
+    - {from: "generated.projections#vs001-public", to: "role:runtimekit", kinds: [production, build, test], reason: "ADR-013: the public client stays transport-only"}
+    - {from: "generated.projections#vs001-public", to: codegen.compiler, kinds: [production, build, test], reason: "ADR-013: the public client stays transport-only"}
+    - {from: "role:service", to: codegen.compiler, kinds: [production, build], reason: "ADR-002 and ADR-013: services consume generated output, never Codegen"}
+  external:
+    - {ecosystem: cargo, name: httparse, from: [platform.runtimekit], kinds: [production]}
+    - {ecosystem: cargo, name: libc, from: [codegen.compiler], kinds: [production, test]}
+    - {ecosystem: cargo, name: saphyr-parser, from: [codegen.compiler], kinds: [production, test]}
+    - {ecosystem: cargo, name: serde, from: [core.semantic-kernel, services.foundation_echo], kinds: [production]}
+    - {ecosystem: cargo, name: serde, from: [codegen.compiler, tests.conformance.vs001], kinds: [production, test]}
+    - {ecosystem: cargo, name: serde_json, from: [codegen.compiler, services.foundation_echo, tests.conformance.vs001], kinds: [production, test]}
+    - {ecosystem: cargo, name: serde_json, from: [core.semantic-kernel, platform.runtimekit], kinds: [test]}
+    - {ecosystem: cargo, name: sha2, from: [core.semantic-kernel], kinds: [production]}
+    - {ecosystem: npm, name: "@typespec/compiler", from: [codegen.compiler], kinds: [production]}
+    - {ecosystem: npm, name: "@typespec/http", from: [codegen.compiler], kinds: [production]}
+    - {ecosystem: node, name: assert/strict, from: [codegen.compiler, services.foundation_echo, tests.conformance.vs001], kinds: [production]}
+    - {ecosystem: node, name: child_process, from: [codegen.compiler, services.foundation_echo], kinds: [production]}
+    - {ecosystem: node, name: crypto, from: [codegen.compiler, services.foundation_echo], kinds: [production]}
+    - {ecosystem: node, name: fs, from: [codegen.compiler, tools.validation], kinds: [production]}
+    - {ecosystem: node, name: fs/promises, from: [codegen.compiler, services.foundation_echo, tests.conformance.vs001], kinds: [production]}
+    - {ecosystem: node, name: module, from: [codegen.compiler, tools.validation], kinds: [production]}
+    - {ecosystem: node, name: net, from: [services.foundation_echo], kinds: [production]}
+    - {ecosystem: node, name: os, from: [codegen.compiler], kinds: [production]}
+    - {ecosystem: node, name: path, from: [codegen.compiler, services.foundation_echo, tools.validation], kinds: [production]}
+    - {ecosystem: node, name: process, from: [tools.validation], kinds: [production]}
+    - {ecosystem: node, name: test, from: [codegen.compiler, services.foundation_echo, tests.conformance.vs001], kinds: [production]}
+    - {ecosystem: node, name: url, from: [codegen.compiler, services.foundation_echo, tests.conformance.vs001], kinds: [production]}
+    - {ecosystem: node, name: util, from: [codegen.compiler], kinds: [production]}
+    - {ecosystem: bazel, name: bazel_tools, from: [codegen.compiler, services.foundation_echo, tests.conformance.vs001], kinds: [build, test]}
+    - {ecosystem: bazel, name: bazel_tools, from: [core.semantic-kernel, platform.runtimekit, platform.testkit], kinds: [test]}
+    - {ecosystem: bazel, name: nix_frontend_deps, from: [codegen.compiler], kinds: [build, test]}
+    - {ecosystem: bazel, name: nix_frontend_deps, from: [tests.conformance.vs001], kinds: [test]}
+    - {ecosystem: bazel, name: nix_node, from: [codegen.compiler, services.foundation_echo, tests.conformance.vs001], kinds: [build, test]}
+    - {ecosystem: bazel, name: nix_protobuf_python, from: [tests.conformance.vs001], kinds: [test]}
+    - {ecosystem: bazel, name: nix_protoc, from: [tests.conformance.vs001], kinds: [test]}
+    - {ecosystem: bazel, name: nix_python, from: [codegen.compiler, services.foundation_echo, tests.conformance.vs001], kinds: [build, test]}
+    - {ecosystem: bazel, name: nix_rust, from: [codegen.compiler, core.semantic-kernel, platform.runtimekit, services.foundation_echo, tests.conformance.vs001], kinds: [build, test]}
+    - {ecosystem: bazel, name: nix_rust, from: [platform.testkit], kinds: [test]}
+    - {ecosystem: bazel, name: nix_typescript, from: [services.foundation_echo], kinds: [build]}
+    - {ecosystem: bazel, name: nix_typescript, from: [tests.conformance.vs001], kinds: [build, test]}
+    - {ecosystem: bazel, name: nix_typescript, from: [codegen.compiler], kinds: [test]}
+    - {ecosystem: bazel, name: rules_cc, from: [codegen.compiler, core.semantic-kernel, platform.runtimekit, services.foundation_echo, tests.conformance.vs001], kinds: [build, test]}
+    - {ecosystem: bazel, name: rules_cc, from: [platform.testkit], kinds: [test]}
+    - {ecosystem: bazel, name: rules_rust, from: [codegen.compiler, core.semantic-kernel, platform.runtimekit, services.foundation_echo, tests.conformance.vs001], kinds: [production, build, test]}
+    - {ecosystem: bazel, name: rules_rust, from: [platform.testkit], kinds: [test]}
+  exclusions:
+    - {path: tools/validation/fixtures/boundaries, reason: "B4 real-collector negative fixtures"}
+    - {path: codegen/tests/fixtures/boundaries, reason: "B4 Codegen unit-test fixtures"}
+    - {label: "//tests/conformance/vs001/rule_analysis:duplicate_descriptor_declaration", reason: "manual analysis-only negative target (exercised by verify_foundation, H1-14)"}
+    - {path: tools/validation/typescript_loader.cjs, reason: "loads the pinned TypeScript compiler from the provisioned path given by the collector argv"}
+```
+
+## 7. `architecture-source-profile.md` delta (lands with §6)
+
+Replace the node-field, role and kind paragraphs with text stating the following:
+
+- **Node fields.** Node fields are exactly `id/kind/path/maturity/owner_role/memberships/scope/units`.
+  - `scope` is `production|test`.
+  - `units` is a list of `{id, path, visibility: public|internal, scope}`. A unit path equals or descends from its component path, and units in one component do not overlap. Files outside every unit inherit the component scope with `internal` visibility.
+- **Closed roles.** The closed roles add `conformance` and `build`.
+- **Kinds.** The kinds add `conformance-suite`, `build-tooling` and `contract-fixture`.
+- **`dependency_policy`.** It is a required top-level field with exactly `configurations/allow/deny/external/exclusions`, as B4 criteria §5 defines it. Its decision semantics are §6. Semantic `relationships` still grant no dependency permission.
+- **Maturity.** Remove "parent retains planned for unimplemented runtime/service roots at B3a" and point to R1-09.
+- **Bazel ID syntax.** Keep it unchanged. Root file labels such as `//:REPO.bazel` and `//:.bazelrc` are already admitted.

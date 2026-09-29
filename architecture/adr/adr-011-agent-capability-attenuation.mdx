@@ -1,0 +1,33 @@
+---
+title: "ADR-011: Agent Capability Attenuation"
+sidebarTitle: "ADR-011"
+description: "Agents are governed capability executors with explicit scope, budgets, tools, and provenance requirements. No ambient authority is permitted."
+---
+
+This architecture decision record establishes that agents are governed capability executors. They receive explicit task scope, owned paths, budgets, tools, credentials, network policy, and provenance requirements. No agent has ambient authority.
+
+| Status | Date | Related |
+| --- | --- | --- |
+| Accepted | 2026-09-22 | — |
+
+## Decision
+
+Agents are governed capability executors. They receive explicit task scope, owned paths, budgets, tools, credentials, network policy, and provenance requirements.
+
+## Consequences
+
+- No ambient authority.
+- No automatic privilege inheritance by child agents.
+- Coding agents may implement, but claims require independent evidence and policy decisions.
+
+## Related
+
+<CardGroup cols={2}>
+  <Card title="ADR-009: Independent Assurance" icon="scale-balanced" href="/architecture/adr/adr-009-independent-assurance">
+    Why assurance must be independent from implementation.
+  </Card>
+
+  <Card title="Supervised development" icon="user-shield" href="/developer/supervised-development">
+    How supervised development governs agent execution.
+  </Card>
+</CardGroup>

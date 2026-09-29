@@ -1,0 +1,47 @@
+---
+title: "ADR-014: Engineering Factory and Governed Evolution"
+sidebarTitle: "ADR-014"
+description: "Establishes the engineering factory model where work units carry full context and the factory cannot redesign architecture autonomously."
+---
+
+This architecture decision record establishes the engineering factory model for Mindclade. It is for architects, platform engineers, and anyone designing work units or agent scopes.
+
+## Status
+
+| Attribute | Value |
+| --- | --- |
+| Status | Accepted |
+| Date | 2026-09-22 |
+| Related | Not stated |
+
+## Context
+
+As the system evolves, an increasing share of implementation and maintenance can be performed by agents or factory processes. However, the factory must not gain the authority to redesign architecture without human review.
+
+## Decision
+
+Mindclade will develop toward an engineering factory, but the factory cannot redesign architecture autonomously.
+
+Work units carry objectives, architecture nodes, owned paths, allowed dependencies, capabilities, acceptance criteria, tests, assurance profile, mutation ceiling, budget, and expected artifacts.
+
+## Consequences
+
+- Agents can increasingly implement and maintain source.
+- Architecture-law changes require explicit review.
+- Repository telemetry, incidents, evaluation results, and scientific evidence feed proposals, policies, tasks, evidence, and decisions.
+
+## Alternatives
+
+Not stated.
+
+## Related
+
+<CardGroup cols={2}>
+  <Card title="ADR-000 Constitution" icon="scroll" href="/architecture/adr/adr-000-mindclade-vnext-architecture-constitution">
+    The constitution that prevents autonomous architecture changes.
+  </Card>
+
+  <Card title="ADR-011 Agent Attenuation" icon="user-lock" href="/architecture/adr/adr-011-agent-capability-attenuation">
+    How agent capabilities are scoped within the factory.
+  </Card>
+</CardGroup>

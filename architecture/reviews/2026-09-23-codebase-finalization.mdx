@@ -1,0 +1,49 @@
+---
+title: "Existing-code review and finalization"
+sidebarTitle: "Existing-code Review"
+description: "Source review of the implemented repository at 4c68405, covering cross-language correctness, evidence correctness and documentation consistency fixes."
+---
+
+Scope: the implemented repository at `4c6840581cdffc242d2218cddf839d97c59e39de`, including its changes from main `92d470d0e15125468c2996e6e8f32aa58aea9afd`, followed by the focused corrections below. The initial inventory contains 971 tracked files. Planned scaffold is included in inventory, not counted as implemented software. This is a source review, not a release or completed-foundation claim.
+
+## Findings and disposition
+
+| Axis | Finding | Correction and regression |
+| --- | --- | --- |
+| Standards / cross-language correctness | P2: generated TypeScript admitted deeper canonical artifact JSON than Rust/reference validation. | Count arrays/objects, including empty ones, with a 127-container bound. Exercise scalar and empty terminals in arrays, objects and mixed nesting at 1/127/128/129 through the compiler, generated Rust and a Codegen-emitted public artifact-format TypeScript client. Rejected requests cannot reach fetch. |
+| Source evidence correctness | P2: foundation verification recorded HEAD/cleanliness only before execution, allowing later changes to retain a passing clean-candidate claim. | Observe HEAD/status/HEAD again before success, reject a different revision or an initially clean tree becoming dirty, retain initial SHA and never upgrade dirty inputs. Cover staged, unstaged, deleted and untracked changes, checkout changes and Git-read failure. Explicit untracked-file enumeration is tested against a real Git repository configured to hide untracked files. |
+| Documentation consistency | Current maturity and Mermaid views still called bounded B2a consumers planned/in progress. | Record the implemented bounded path while keeping broader projections and runtime planned. Label the raster's original current-state footer as historical. |
+
+The independent initial SPEC review found no actionable B1a/B2a requirement or scope violation. The separate Standards review found the nesting defect. A follow-up independent evidence review confirmed the receipt defect. Initial behavioral execution reproduced both before implementation. Fresh review and the resulting exact-source command receipts are retained by the integration owner; prior checkpoint passes cannot qualify these edits.
+
+The receipt correction observes endpoints, not continuous isolation. Git probes strip ambient repository/index overrides, verify the actual checkout root and reject index flags that can hide tracked changes. Both observations include all Git-visible untracked files and submodule changes; bounded probe timeouts produce failed receipts. Initially dirty local checks can succeed, but their source bundles remain non-passing. An isolated checkout and independent execution/custody remain separate obligations.
+
+## Coverage and specialist applicability
+
+| Area | Review coverage / limitation |
+| --- | --- |
+| Rust / memory safety | Shared primitives, sealed graph/pipeline, wire/canonical/compatibility rules, target lowering, emitters, recovery/publication and consumer tests. Authored unsafe code remains forbidden. No new unsafe/FFI path requires a Miri-specific claim. |
+| TypeScript | Official adapter, declaration extraction, visibility, target admission, generated transport/validation and positive/negative consumer fixtures. This is not the upstream Microsoft repository; its release/changelog policies do not apply here. |
+| Python / build / provenance | Check orchestration, immutable locks, declared build actions, source/evidence export, GitHub binding/audit and admission/artifact boundaries. Independent follow-up was bounded; no claim of exhaustive proof of every Python path. |
+| Quality / complexity | Compiler authority, thin consumers, closed validation and retained failure evidence remain intact. No justified complexity-only deletion was found. Keep independent tests and recovery controls; defer speculative abstraction splits. |
+| Accessibility | Documentation has descriptive diagram alt text, a full text equivalent and explicit status labels. No product UI exists. Render/link checks are documentation checks, not a WCAG certification or assistive-technology test. |
+| Go / CUDA / Kubernetes | No implemented Go/CUDA source or Kubernetes workload manifests in this checkpoint. These specialist reviews are not applicable to the existing implementation; future deployment and numerical qualification remain open. |
+| OpenAI Agents SDK / GitLab / Sites | No OpenAI Agents Python implementation, GitLab MR or managed Sites application is in this review scope. Their repository/platform-specific gates are not transplanted into Mindclade. |
+| Product metrics / performance | No production product analytics or representative workload benchmark was supplied. Test counts and source CI are not product impact, throughput or latency measurements. No performance improvement is claimed. |
+
+Initial informational Clippy completed successfully with 133 generated-consumer warnings and two compiler style warnings (plus duplicate test-target reports). It was not run with warnings denied and is not reported as warning-free. Generated style cleanup must occur in emitters with consumer validation; it is not a reason to hand-edit output or change a frozen constructor ABI. Dependency upgrades, speculative caches and broad refactors were not needed for the confirmed fixes.
+
+## Readiness and next work
+
+<Warning>
+  The foundation is not finished and is not ready for production release.
+</Warning>
+
+The [current handoff](/developer/agent-handoff) remains the current source-status register under AGENTS and live work ownership:
+
+- B3a descriptor/architecture compilation, B2b Proto/OpenAPI/MCP/docs, B3b RuntimeKit and B4 real dependency enforcement still need implementation.
+- C1-C5 need actual PostgreSQL transactions/outbox, idempotency, leases/fencing, recovery/cancellation and the generated-client durable vertical.
+- D1-D4 need sealed artifacts, fresh-store replay and independent assessment.
+- G2/G3/DX2 and O1-O4 still need fresh queue/protection/access, trusted execution/custody, operator evidence and human/agent acceptance. Rob performs Enterprise migration manually; private-repository protection/SAML are not declared resolved by this review.
+
+PR #9 was merged as `185d11eec9d5f1ea091104afc361703cebe159c9`; its tree matches the reviewed `4c68405` baseline. Submit these subsequent review fixes in a separate private PR and preserve unmerged work until integration is verified. A branch push is not main synchronization. Before any release, bind checks, archive retrieval, review and operational evidence to the exact candidate and environment.

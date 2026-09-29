@@ -1,0 +1,173 @@
+---
+title: "AGA1 Agent Authoring and Compiler Criteria (2026-09-28)"
+sidebarTitle: "AGA1 Compiler Criteria"
+description: "Draft criteria for the agent authoring compiler tranche A, covering capability references, deterministic IR, and conformance without runtime activation."
+---
+
+This page defines the acceptance criteria for AGA1 (Task MIN-23), which establishes filesystem-first agent authoring compiled through the existing Rust Codegen into one `MindcladeGraph` and deterministic `AgentIrV1`, without activating the product agent runtime. This file grants no execution, capability, release, or scientific assurance.
+
+## Summary
+
+| Gate ID | Date | Status |
+| --- | --- | --- |
+| AGA1 | 2026-09-28 | Draft; scope/spec approved by Rob in session. Independent criteria review and a separately approved code-class WorkPacket are required before implementation. |
+
+## Scope and non-goals
+
+**In scope:** exact capability-reference derivation for compiled capabilities; explicit filesystem-agent loading; strict `AgentDescriptor@v1` and `ToolBinding@v1` parsing; exact policy/capability resolution; child noninheritance; attachment to the existing `MindcladeGraph`; borrowed `AgentGraphView`; deterministic `AgentIrV1`; a three-file retained compiler fixture; build/conformance/docs/maturity integration.
+
+**Out of scope:** model/provider execution, tool execution, agent sessions, sandbox runtime, memory runtime, schedules, channels, OpenAI/Anthropic/Vercel/eve adapters, `services/agent_service` activation, new scheduler/storage, scientific qualification, deployment or production claims.
+
+No new third-party crate, npm package, Bazel module, or Nix input is permitted. Existing `serde`, `serde_json`, `saphyr-parser`, `mindclade-core`, strict YAML, canonical serialization, safe filesystem, and recoverable publication primitives are reused.
+
+## Path and ownership
+
+**Implementation paths:** `codegen/src/agent/**`, `codegen/src/graph/capability_reference.rs`, bounded edits to `codegen/src/{graph.rs,lib.rs,pipeline.rs,main.rs,generator.rs,publication.rs,safe_fs.rs}`, `codegen/BUILD.bazel`, root `BUILD.bazel`, `scripts/generate_agent_fixture.py`, `justfile`, `contracts/fixtures/agents/**`, `tests/conformance/agents/**`, and task-owned `tests/fixtures`.
+
+**Documentation/integration paths:** `docs/architecture/{agent-descriptor-v1.md,agent-ir-v1.md,generated-surface-ownership.md,maturity.yaml,REPOSITORY_TREE.md}`, `docs/architecture/foundations/scientific-and-agent-planes.md`, `docs/developer/codebase-map.md`, `contracts/README.md`, `generated/README.md`, `docs/architecture/model/blueprint-scaffold.json` (exact reviewed transitions only), and this design/criteria/plan set.
+
+**Explicitly excluded from implementation:** `agents/**` runtime source, `services/agent_service/**`, platform durable execution semantics, core kernel API changes beyond using existing `Reference` / `Digest` / `Identity` types, provider packages, cloud/infrastructure roots.
+
+**Criteria author:** ChatGPT parent session. **Independent criteria reviewer:** fresh read-only Codex session on the exact draft. **Native implementer/integration owner:** ChatGPT parent session using the isolated worktree. **Acceptance owner:** Rob. Whole-candidate review requires a fresh reviewer distinct from implementation.
+
+## Interfaces
+
+AGA1 uses these planned interfaces:
+
+```rust
+impl<'a> CapabilityView<'a> {
+    pub fn reference(
+        &self,
+        identity: &Identity,
+    ) -> Result<Reference<targets::Capability>, Vec<Diagnostic>>;
+}
+
+pub fn load_agent_source(
+    source_root: &Path,
+    agent_root: &str,
+) -> Result<AgentSourceV1, Vec<Diagnostic>>;
+
+pub struct AgentCompileContext<'a> {
+    pub policies: &'a [Reference<targets::Policy>],
+}
+
+pub fn compile_agent(
+    source: &AgentSourceV1,
+    graph: &MindcladeGraph,
+    context: &AgentCompileContext<'_>,
+) -> Result<CompiledAgent, Vec<Diagnostic>>;
+
+pub fn lower_agent(
+    graph: &MindcladeGraph,
+    identity: &Identity,
+) -> Result<AgentIrV1, Vec<Diagnostic>>;
+```
+
+Compiler entry:
+
+```rust
+pub fn compile_agents(
+    &self,
+    input: &SemanticInputV1,
+    agents: &[AgentSourceV1],
+    context: &AgentCompileContext<'_>,
+) -> Result<MindcladeGraph, Vec<Diagnostic>>;
+```
+
+The pure compiler performs no ambient agent filesystem discovery. Source loading is explicit and separate. Runtime/provider adapters are absent.
+
+## Acceptance criteria
+
+**AGA1-01 — Exact capability reference.** `CapabilityView::reference` accepts only a capability identity and returns `Reference<Capability>` whose digest is SHA-256 of canonical `CapabilityReferenceMaterial@v1`. Material includes the root capability semantic node, exactly one owning contract identity, the transitive dependency closure relevant to that capability, and relevant dependency edges. Source locations, agent definitions, and unrelated graph nodes are excluded. Insertion order cannot change the digest. Mutating a transitive input/output semantic while preserving logical identity must change it. Mutating an unrelated resource must not.
+
+**AGA1-02 — Explicit filesystem root.** `load_agent_source` receives an explicit repository/source root plus normalized repository-relative path ending in `/agent`. It never searches arbitrary repository locations. Absolute paths, `.`, `..`, repeated separators, controls, and source-root escape fail before trusted compilation.
+
+**AGA1-03 — Symlink and regular-file safety.** Every agent source read uses a beneath-root, component-checked regular-file path. Symlink components and symlink leaves fail. FIFOs/devices/non-regular files fail without blocking. No check-then-unsafe-reopen sequence is the security boundary.
+
+**AGA1-04 — Path-derived names.** Root agent, tool, and child names derive from their declared paths. Redundant authored name fields are invalid. Semantic names must satisfy the existing ASCII Component grammar. ASCII case-fold collisions and duplicate logical names fail. Non-ASCII semantic path names fail in AGA1 rather than relying on an unpinned Unicode-normalization library.
+
+**AGA1-05 — Strict agent descriptor.** `agent.yaml` is strict YAML with exactly `apiVersion`, `kind`, `metadata`, and `capabilityPolicy`. `apiVersion` is `AgentDescriptor@v1`; `kind` is `Agent`; `metadata` has exactly `namespace` and `version`. Unknown/duplicate fields, unsupported YAML features, malformed identities, secret/provider/runtime/deployment/storage/network fields, and unexpected value types fail closed.
+
+**AGA1-06 — Instructions are content, not authority.** `instructions.md` is required, exact valid UTF-8, NUL-free, and source-digested. Its content may contain arbitrary model-facing text but cannot change compiled tools, policies, capability references, child authority, or graph edges. Host absolute paths/timestamps do not enter canonical `AgentSourceV1`.
+
+**AGA1-07 — Strict tool binding.** `tools/<name>.yaml` uses exact `ToolBinding@v1` fields `apiVersion`, `kind`, `capability`, `description`; name derives from filename. `capability` is a typed `CapabilityReference` shape. Tool input/output semantics are not authored inline and no credential/provider implementation field is accepted.
+
+**AGA1-08 — Exact capability resolution.** `compile_agent` obtains the compiler-derived capability reference from `CapabilityView::reference` and requires equality with the authored tool reference. Missing identity, wrong target kind, stale digest, non-capability target, or incompatible public/internal visibility fails. Tool existence is not execution authorization.
+
+**AGA1-09 — Policy references are trusted inputs, not a new policy language.** `capabilityPolicy` parses as `Reference<Policy>`. Compilation succeeds only when an identical typed reference is present in `AgentCompileContext.policies`. AGA1 does not parse policy rules or create runtime grants. Wrong target kind or absent/stale reference fails.
+
+**AGA1-10 — Reserved slots fail visibly.** Nonempty `skills/`, `memory/`, `sandbox/`, `hooks/`, or `evals/` in a tranche-A package fails `agent-source-unsupported`. Unknown top-level slots/files fail `agent-source-slot`. Empty reserved directories may exist but confer no behavior.
+
+**AGA1-11 — Child independence.** `subagents/<child>/agent` is compiled as an independent `AgentSourceV1`/`CompiledAgent` with its own descriptor, instructions, policy, and tools. Parent tool declarations are not copied into the child. A parent with echo and child with no tools yields an empty child tool catalog. Parent-to-child membership is an explicit compiled delegation edge only.
+
+**AGA1-12 — Deterministic AgentSourceV1.** `AgentSource@v1` serialization contains only normalized logical root, agent identity, exact file inventory/digests, instructions digest/content, descriptor values, sorted tool declarations, and sorted children with located diagnostic provenance. Equivalent packages under different checkout roots and different enumeration order yield identical canonical bytes.
+
+**AGA1-13 — One graph and borrowed view.** `compile_agents` starts from the existing compiler graph, attaches only checked `CompiledAgent` values, validates unique identities/references, sorts agents, and reseals the same `MindcladeGraph`. `AgentGraphView` only borrows that graph. No second `AgentGraph` serialization/authority exists.
+
+**AGA1-14 — Empty-agent regression.** `compile_agents` with an empty agent set leaves existing foundation/VS-001 canonical graph bytes and graph digest exactly unchanged. Existing generated catalogs remain byte-identical unless their declared generator implementation inventory legitimately changes and is regenerated.
+
+**AGA1-15 — AgentIrV1 lowering.** `lower_agent` reads only checked graph state, never YAML/filesystem. `AgentIr@v1` contains agent identity, graph digest, instructions content/digest, exact policy reference, ordered tools, ordered child identities, and source digests. Tool contracts derive from the represented capability declaration types/constraints. Unrepresentable capability shape fails `agent-ir-capability` rather than dropping meaning.
+
+**AGA1-16 — No runtime/secret fields in IR.** `AgentIrV1` contains no provider keys/tokens, ambient environment, `Run`/`Admission` result, session/sandbox ID, memory contents, scientific Evidence, deployment credential, or execution authorization.
+
+**AGA1-17 — Retained projection.** The representative compiler fixture is exactly `generated/tests/agents/authoring-v1/{agent.ir.json,tools.json,manifest.json}`. Manifest schema `AgentProjectionManifest@v1` binds `AgentSource` digest, graph digest, agent identity, generator implementation/input identity, and product digests. The existing publication mechanism is reused; no agent-specific writer/lock protocol is introduced.
+
+**AGA1-18 — Read-only drift check.** `--check` performs no repair or writes. Exact catalog passes. Mutated `agent.ir.json`/`tools.json`, missing file, stale manifest digest, extra owned file, source digest change, or stale capability reference is non-passing.
+
+**AGA1-19 — CLI is inspection/projection only.** `capability-ref` delegates to `CapabilityView::reference`; `compile-agent` delegates to explicit source load + `compile_agents` + `lower_agent` + existing publication. Neither CLI provisions credentials, starts a model/session/tool/sandbox, nor grants authority.
+
+**AGA1-20 — Independent conformance.** `tests/conformance/agents` consumes retained generated outputs plus separately authored expectations and checks `AgentIr@v1` schema, path-derived echo tool, `target_kind` capability, reviewer child, reviewer noninheritance, expected Echo semantic signature, manifest hashes, and absence of runtime/secret fields. The conformance expectation is not emitted by the generator it tests.
+
+**AGA1-21 — Generator inventory and boundaries.** All new build-bound compiler implementation files join `GENERATOR_INPUTS` in sorted unique order. B4 dependency checks remain green; no new dependency direction bypass is introduced.
+
+**AGA1-22 — Documentation and maturity truth.** Documentation records agent authoring/compiler as partial/experimental according to the current maturity vocabulary and leaves product `agents/`, `services/agent_service`, sessions, tool execution, sandbox, memory, and scientific qualification planned/not established. Compiler fixtures are clearly not runnable agents.
+
+**AGA1-23 — Existing behavior remains green.** Focused agent tests pass; existing Codegen unit/foundation/VS-001/projection tests pass; `just verify-generated` remains read-only and green; `just fmt-check` passes; full `just verify` passes on exact candidate or any unavailable required environment evidence is explicitly BLOCKED rather than inferred.
+
+**AGA1-24 — Protected integration.** Exact candidate receives fresh whole-candidate review, supported-host evidence required by current policy, App-authored PR, Rob `CODEOWNER` approval, required PR checks, merge-group evidence where applicable, and resulting-main verification. PR-head, merge-group, and main identities remain distinct.
+
+## Independent RED/GREEN expectations
+
+Before each implementation unit, the implementer writes the named behavioral test and observes it fail for the missing behavior rather than import/fixture error. Minimal implementation follows; focused test must pass before the next unit. Tests that pass before implementation are corrected rather than counted.
+
+The required initial RED groups are:
+
+- `capability_reference_*` for AGA1-01;
+- `agent_source_*` for AGA1-02 through AGA1-07 and AGA1-10/12;
+- `agent_compile_*` for AGA1-08/09/11;
+- `agent_graph_*` for AGA1-13/14;
+- `agent_ir_*` for AGA1-15/16;
+- `agent_projection_*` for AGA1-17 through AGA1-19;
+- independent conformance for AGA1-20.
+
+## Checks the parent runs
+
+Focused Bazel tests for each group; existing Codegen tests affected by each task; `nix develop --no-write-lock-file -c just verify-generated`; `nix develop --no-write-lock-file -c just fmt-check`; `nix develop --no-write-lock-file -c just verify`. Candidate-specific Linux/remote evidence follows the current protected repository policy; no historical receipt qualifies a changed candidate.
+
+The integration owner owns commands, Git, generator execution, receipts, and protected integration. A worker/reviewer does not infer passing remote evidence from source.
+
+## Stop conditions
+
+Stop affected implementation on: changed accepted spec/criteria/packet/base/policy; requirement to add a dependency or lock change; conflict requiring core semantic redesign; product `agents/` or `agent_service` activation; provider credential or external effect requirement; inability to make path reads fail closed; capability digest semantics that would depend on the whole unrelated graph; missing independent criteria review; missing exact WorkPacket approval; exhausted budget; or repository governance/protection failure.
+
+Preserve the current source and evidence; do not weaken criteria, broaden paths, or substitute a provider framework to continue.
+
+## Evidence limits
+
+A passing AGA1 candidate establishes only source/compiler behavior for agent authoring tranche A. It establishes no live model, tool execution, durable session, sandbox, memory, child runtime isolation, scientific correctness, release, deployment, or production readiness.
+
+## Related
+
+<CardGroup cols={2}>
+  <Card title="Agent Authoring Design" icon="puzzle" href="/superpowers/specs/2026-09-28-agent-authoring-compiler-design">
+    The companion design document for AGA1 agent authoring and compiler behavior.
+  </Card>
+
+  <Card title="ADR-003 MindcladeGraph" icon="diagram-project" href="/architecture/adr/adr-003-mindcladegraph-and-typed-graph-views">
+    Typed graph views and the canonical graph binding used by AGA1.
+  </Card>
+
+  <Card title="ADR-011 Capability Attenuation" icon="shield-halved" href="/architecture/adr/adr-011-agent-capability-attenuation">
+    Agent capability attenuation decisions relevant to compiled capability references.
+  </Card>
+</CardGroup>

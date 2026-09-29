@@ -1,0 +1,97 @@
+---
+title: "ADR-019: PyTorch Training Substrate"
+sidebarTitle: "ADR-019"
+description: "Proposes PyTorch 2.x as the training framework with FSDP2 sharding, torch.compile, and uv.lock pinning for the learning domain."
+---
+
+This architecture decision record proposes the PyTorch training substrate for Mindclade's learning domain. It is for ML engineers, compute platform developers, and reviewers assessing the framework, sharding, compilation, and dependency policy before gate S2.
+
+<Warning>
+  This ADR is **Proposed** and not yet accepted. Until reviewed and accepted, the accepted ADRs, [AGENTS.md](https://github.com/Mindclade-org/mindclade-internal-monorepo/blob/main/AGENTS.md), and the repository metadata keep their authority.
+</Warning>
+
+## Status
+
+| Attribute | Value |
+| --- | --- |
+| Status | Proposed |
+| Date | 2026-09-27 |
+| Related | Not stated |
+
+## Context
+
+This is a proposed draft from group D of the 2026-09-26 design audit ("ADR drafts before S1"). It decides nothing until reviewed and accepted. Until then the accepted ADRs, [AGENTS.md](https://github.com/Mindclade-org/mindclade-internal-monorepo/blob/main/AGENTS.md), and the repository metadata keep their authority.
+
+[ADR-007](adr-007-compute-models-learning-and-runtime-boundaries.md) gives training to learning, mathematical model definitions to models, and production inference to runtime. No ADR yet names the training framework, its sharding, its compilation, or the Python dependency policy. Gate S2 of the [roadmap](../implementation-roadmap.md) trains Clade-Embed and a molecular baseline, and [ADR-021](adr-021-clade-adopt-or-build-gate.md) compares them with adopted open models. Clade is the model-family name decided in D-19 (Rob, 2026-09-26); the scaffold path stays `models/nova/` until a reviewed activation ([ADR-015](adr-015-original-blueprint-scaffold-alignment.md), [ADR-023](adr-023-model-organization.md)).
+
+Two earlier Notion items point the other way. The [Protenix Rust runtime candidate](https://app.notion.com/p/3e2ad1d5c56181a586fdda32b4d109ad) says "Rust owns the model graph, state, scheduling, checkpointing and runtime", and item 9 of the Wave 6 packet on the [Clade model family page](https://app.notion.com/p/3e3ad1d5c56181ee9399d82bcab1f0a5) is "Rust-owned model graph/runtime integration". Notion holds context, not technical authority, but model code needs one owner before S2 starts.
+
+In the repository, `pyproject.toml` and `uv.lock` are ADR-015 scaffold stubs that say they are "Not a resolved toolchain or dependency lock". The [toolchain authority](../toolchain.md) pins Python 3.12.14 through Nix and records that repository Python uses only the standard library, apart from one protobuf test.
+
+## Decision
+
+### 1. Framework
+
+Learning trains in PyTorch 2.x. Model definitions under `models/` are PyTorch modules. Training loops, objectives, and optimisation stay in `ml/`, following the layer rules in the [master blueprint](../MASTER_BLUEPRINT.md).
+
+### 2. Sharding
+
+FSDP2 (`fully_shard`) is the default for multi-device training. PyTorch describes it as DTensor-based per-parameter dim-0 sharding and advises FSDP1 users to migrate ([fully_shard](https://docs.pytorch.org/docs/2.14/distributed.fsdp.fully_shard.html)). Any other strategy needs a recorded reason in the run's recipe. Learning chooses and configures the strategy (`ml/training/distributed`); compute keeps topology description and numerical parity, as ADR-007 assigns.
+
+### 3. Compilation
+
+`torch.compile` is the default path for training and evaluation. Its default backend, TorchInductor, maps models "into generated Triton code on GPUs and C++/OpenMP on CPUs" ([PyTorch 2.x](https://pytorch.org/get-started/pytorch-2-x/)). Eager mode stays the numerical reference: compiled results are compared with eager results on fixtures within declared tolerances, and compile settings are recorded in run provenance. ADR-020 governs the Triton consequence.
+
+### 4. Python dependencies
+
+Training and evaluation dependencies are pinned to exact versions with content hashes. Host packages, floating versions, and unpinned indexes are not allowed. Proposed default: Nix keeps the interpreter, system libraries, and tools, and a genuine `uv.lock` pins the Python packages resolved in that shell. uv documents `uv.lock` as a cross-platform lockfile that belongs in version control and is not edited by hand ([uv project layout](https://docs.astral.sh/uv/concepts/projects/layout/)). Pure-Nix Python packaging is the alternative. The accepting review picks one; either must pass the same pin and reproducibility checks.
+
+### 5. Stub transition
+
+The first real `pyproject.toml` and `uv.lock` replace the ADR-015 stubs only through a reviewed scaffold-manifest transition, with the lock change approved by Rob. How Bazel consumes the lock is decided in that slice.
+
+### 6. Data loading stays open
+
+The baseline to beat is PyTorch's `torch.utils.data.DataLoader`, which supports map-style and iterable-style datasets ([data docs](https://docs.pytorch.org/docs/2.14/data.html)). A chosen loader must give deterministic, resumable order bound to ADR-022 split manifests, capture its state in checkpoints, read artifacts by digest, and need no live network in CI.
+
+### 7. Runtime boundary
+
+Inference is served only behind the runtime and capability contracts (ADR-007, ADR-008, ADR-012). A capability request resolves a pinned artifact and an eligible Implementation; no caller imports training code.
+
+### 8. The Rust-owned model graph item
+
+Rust owns the platform, durable execution, capability and runtime contracts, artifact resolution, and scheduling. It does not author a second copy of the model graph. Wave 6 item 9 is re-scoped to "runtime integration behind the capability contract". Whether production inference runs an exported graph in a Rust-hosted process or a PyTorch worker behind the same contract is deferred to a runtime ADR at gate C1, decided on measured evidence. `tch-rs` stays excluded either way (ADR-007, ADR-020).
+
+## Consequences
+
+- Model code has one owner: PyTorch modules under `models/`, trained by `ml/`. If this is accepted, the Notion Rust-runtime direction is superseded in scope; updating Notion is an owner action, not part of this draft.
+- PyTorch brings Triton with it on Linux: the published metadata of `torch` 2.14.0 requires `triton~=3.8.0` there ([PyPI](https://pypi.org/project/torch/2.14.0/)). That conflicts with ADR-007's "No Triton ... baseline dependency", so this ADR cannot be accepted without ADR-020 or an equivalent amendment.
+- A training run records framework, lock, and compile identities alongside the data, split, checkpoint, operator, and environment identities the blueprint requires.
+- `models/` imports neither `ml/` nor runtime internals, and `runtime/` gains no training-loop dependency; the existing layer rules are unchanged.
+- Python becomes a pinned product dependency rather than standard-library tooling. The toolchain page, maturity record, and doctor expectations change at activation.
+- Nothing here installs a package, changes a lock, or activates `ml/` or `models/`. The ADR-015 stubs stay planned until their reviewed transition.
+
+## Alternatives
+
+- **Pure-Nix Python packaging** as an alternative to `uv.lock` for pinning Python dependencies. The accepting review picks one.
+- **Rust-owned model graph** from the earlier Notion direction, superseded by this proposal if accepted.
+
+## Related
+
+<CardGroup cols={2}>
+  <Card title="ADR-020 Kernel Adoption" icon="microchip" href="/architecture/adr/adr-020-kernel-adoption-and-operator-binding">
+    The kernel rule this substrate needs to resolve the Triton conflict.
+  </Card>
+
+  <Card title="ADR-022 Evaluation Splits" icon="scissors" href="/architecture/adr/adr-022-evaluation-and-data-split-standards">
+    The split manifests the data loader binds to.
+  </Card>
+
+  <Card title="ADR-023 Model Organization" icon="sitemap" href="/architecture/adr/adr-023-model-organization">
+    Where PyTorch model code lives in the repository.
+  </Card>
+
+  <Card title="Programmable Biology" icon="dna" href="/architecture/programmable-biology">
+    The scientific sequence that uses this training substrate.
+  </Card>
+</CardGroup>

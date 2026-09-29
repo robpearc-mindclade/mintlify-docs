@@ -1,0 +1,51 @@
+---
+title: "Architecture Illustration Provenance and Assets"
+sidebarTitle: "Overview"
+description: "Illustrative reference assets for the architecture package, including the system overview raster and Mermaid source, with SHA-256 bindings and reproducibility notes."
+---
+
+Audience: readers and maintainers of the explanatory architecture package. Status: illustrative reference assets, reconciled 2026-09-23. These are not Codegen-emitted architecture views, release attestations, or live topology proof.
+
+## System overview image
+
+![Mindclade target layers: authoring and one compiler/graph lead to generated surfaces; planned experience, agent/science/model, control, durable runtime, workloads, Kubernetes and cloud layers share kernel, service composition, assurance and governed delivery](https://raw.githubusercontent.com/Mindclade-org/mindclade-internal-monorepo/main/docs/architecture/assets/system-overview.png)
+
+The [system overview PNG](https://raw.githubusercontent.com/Mindclade-org/mindclade-internal-monorepo/main/docs/architecture/assets/system-overview.png) depicts the user-confirmed layered 2026-09-22 target, reconciled with accepted ADRs. Its SHA-256 is `949296f0e3cf9a640e2ecdb4572dc8f5cb78165017d91097f433b2d2e2fd4bf5`. The supplied source blueprint is preserved byte-for-byte at [original-greenfield-blueprint.md](https://github.com/Mindclade-org/mindclade-internal-monorepo/blob/main/docs/architecture/sources/original-greenfield-blueprint.md), SHA-256 `c23d824ea6d2890bde8d1032ce4e0341cbd98ea4cc217c94eb0cec36c7665c38`.
+
+### Image production and edits
+
+The raster was produced by the image-generation tool, refined in the preceding alignment task, then edited here to resolve Protobuf authorship ambiguity. The initial layout guidance (38%/42%/20% column widths) appeared as unwanted labels; the retained edit removes those labels and decorative slogans. They were never implementation or completion percentages.
+
+The previous four-responsibility poster remains recoverable in Git history; these responsibilities now appear as cross-cutting laws rather than replacing platform layers. The final focused edit shows TypeSpec, Domain IRs, and Source Models as authored inputs; Protobuf appears among generated bindings/projections. A future optional Protobuf-first contract requires distinct authored ownership, documented in the [ownership ledger](../generated-surface-ownership).
+
+Image-model output is not claimed reproducible byte-for-byte.
+
+### Editable Mermaid source
+
+The [system-overview.mmd](https://github.com/Mindclade-org/mindclade-internal-monorepo/blob/main/docs/architecture/assets/system-overview.mmd) file is an authored editable Mermaid explanation of the same architecture. It is not the input used by the image model and does not regenerate the raster byte-for-byte. The [platform diagram](../platform-diagram) embeds the editable flow, explains arrow semantics, and provides a text equivalent.
+
+## Status and accessibility
+
+[Coverage](../foundations/blueprint-coverage) maps boxes to owners and maturity. Both text and labels communicate status without requiring color perception. The raster preserves the original target-reference checkpoint. The Mermaid and text views now also show the implemented bounded B2a TypeScript/Rust consumer subpath; the raster footer predates that work and is not current maturity evidence.
+
+For future edits, change the explanatory sources together and visually review their agreement. Do not hand-edit files under `docs/architecture/generated/` to make this illustration seem compiler-produced. The planned architecture model, Codegen views, and provenance controls must first be implemented and verified.
+
+## Related
+
+<CardGroup cols={2}>
+  <Card title="Platform Diagram" icon="diagram-project" href="/architecture/platform-diagram">
+    Editable Mermaid flow, arrow semantics, and text equivalent for the architecture layers.
+  </Card>
+
+  <Card title="Foundations Overview" icon="foundation" href="/architecture/foundations/overview">
+    System context, semantic compilation, platform execution, and delivery foundations.
+  </Card>
+
+  <Card title="Blueprint Coverage" icon="shield-check" href="/architecture/foundations/blueprint-coverage">
+    Maps every layer to paths, owners, and maturity levels.
+  </Card>
+
+  <Card title="Generated Surface Ownership" icon="file-signature" href="/architecture/generated-surface-ownership">
+    Ledger defining every generated binding and projection boundary.
+  </Card>
+</CardGroup>

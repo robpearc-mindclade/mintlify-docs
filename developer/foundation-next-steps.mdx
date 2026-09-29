@@ -1,0 +1,87 @@
+---
+title: "Foundation next steps after the migration"
+sidebarTitle: "Next Steps"
+description: "Preserve the continuation decisions and open work after the 2026-09-26 pre-migration closeout."
+---
+
+The audience is the parent or integrator, and agents resuming work after the migration. This page preserves decisions, not implementation or operational approval. The [current handoff](/developer/agent-handoff#pre-migration-source-closeout-2026-09-26) owns status and the pending list; the [master readiness plan](/superpowers/plans/2026-09-23-v1-integration-readiness) owns the dependency order.
+
+## After the transfer
+
+Everything below starts from fresh evidence under the new repository name. Pre-transfer receipts and snapshots stay historical ([runbook step 16](/operations/github-governance#source-verified-settings-for-the-mindclade-org-transfer)). Rob set the order after the transfer on 2026-09-26 ([D-15](/developer/agent-handoff#owner-decisions-recorded-2026-09-26-after-the-closeout)): H1 Stage 2 W4 and W6 first (W4 forces a regeneration, so it lands before the DX2 recapture), then the DX2 rehearsal, then C1-C5.
+
+| Work | Depends on | Outcome |
+| --- | --- | --- |
+| O1 to O2 | The [destination prerequisites](/operations/github-governance#destination-prerequisites-rob-before-o2) | Rob's same-ID transfer, then the post-transfer checklist and fresh PR, queue and main runs |
+| H1 Stage 2 W4 and W6 | The frozen [Stage 2 criteria](/superpowers/specs/2026-09-26-h1-stage2-hardening-criteria) | W4 (H1S2-01, -02, -19, Codegen publication) is reviewed source in the W4 PR; H1S2-14, -15, -16 (scaffold validators) remain, with a quiet-Mac repeat check and a Linux dispatch for R-2 |
+| DX2 | Final main, after W4 and W6 | Retaken captures with the rehearsal clone's own empty disk cache (D-1), capture C4 and the fresh-clone agent rehearsal; then the human half, performed by Rob (D-2) after transfer and before O4 |
+| O3 | P1b's hermetic collection | Rob adopts the [G3 policy proposal](/superpowers/specs/2026-09-26-g3-accepted-policy-proposal) together with the `scripts/test_governance_binding.py` governance-path fix in one reviewed change (D-7), and the accepted evaluator, packet and custody inputs; code admission stays BLOCKED until then. The dedicated App identity is already in the accepted policy (D-17) |
+| O4 | O3 | Protected documentation and code lanes, verified main, archive and Rob's acceptance |
+| C1-C5 | The [criteria](/superpowers/specs/2026-09-26-c-durability-criteria), approved at checkpoint A on 2026-09-26 (D-3), and DX2 | The author's section 2 reconciliation with merged source (S3) first; then the real PostgreSQL harness, atomic state/outbox, deduplication and fencing, recovery/cancellation, the generated-client durable path. C5 also needs the C0 durable-profile gate's own criteria |
+| D1-D4 | C1-C5 | Artifact/provenance binding, fresh-store replay, trusted assessment/policy, independent acceptance |
+| Decided owner items ([decisions](/developer/agent-handoff#owner-decisions-recorded-2026-09-26-after-the-closeout)) | Each item's own timing, as recorded | Accepted on 2026-09-26: the B1 baseline (D-5) and the B2b field numbers (D-4). Decided, work pending: the G2 redirect host, confirmed by the parent from `/meta` after O2 (D-6); the evidence archive destination, GitHub immutable releases plus an `evidence/*` tag ruleset in `Mindclade-org` (D-8); A-13, A-14 and the CI Bazel disk cache (D-9 to D-11); retiring the legacy 7/9/13-file modes (D-13); a load-independent K1-11 bound (D-14) |
+
+The earlier sections below keep the reviewed design decisions that shaped B2b and B3b. They are history, not open work.
+
+## Resume from repository authority
+
+Read [AGENTS.md](https://github.com/Mindclade-org/mindclade-internal-monorepo/blob/main/AGENTS.md), [docs/developer/start-here](/developer/start-here), [docs/developer/agent-handoff](/developer/agent-handoff), [docs/architecture/SYSTEM_DESIGN](/architecture/system-design) and the tracked foundation workflow. The current integration owner must reconcile actual checkout/common Git directory, branch/base/candidate, all dirty worktrees, existing jobs and receipts before further execution. Preserve unique work and historical evidence. Parent-owned execution remains parent-owned: workers edit only assigned source paths and return reports; they do not independently launch builds, Git, network operations or cleanup.
+
+One Rust Codegen owns semantics, one immutable MindcladeGraph supplies borrowed views, and generated products remain disposable projections of authored inputs. For TypeSpec-owned interfaces, Protobuf is generated. An optional future Protobuf-first frontend does not create a second authority for the same contract. Scaffold presence is not runtime activation or qualification.
+
+## Completed bounded B3a source scope
+
+B3a source now includes strict bounded YAML, checked architecture ownership and service descriptors, explicit frontend descriptor-byte inventory, immutable graph bindings and service views, and the nine-file service output profile. Its two additional products are `service/descriptor.json` and `service/config.rs`. The constructor targets the reviewed RuntimeKit configuration ABI; it does not implement RuntimeKit or run a service. Darwin toolchain corrections supply pinned libiconv and make Bazel watch flake source/lock contents.
+
+B3a passed local aggregate and source review after recovery and diagnostic fixes, then exact-commit Linux CI, and is integrated at main `06a903f` (PR #11). Recheck current main before beginning the next task.
+
+## Earlier sequence and design decisions (history)
+
+### B2b: public protocol products
+
+B2b is implemented per the [frozen criteria](/superpowers/specs/2026-09-24-b2b-criteria); the notes below are the design decisions it followed. It originally remained a proposal requiring independently reviewed, frozen tracked criteria before implementation. The retained external draft is not required to recover these decisions; the following corrections supersede its conflicting text:
+
+- Current and previous registries need distinct logical input paths and exact byte-hash bindings. Equal initial bytes are allowed. Remove the draft physical inode/alias distinction: inode separation does not establish an independently accepted baseline. Preserve bounded regular-file reads, confinement and declared input checks; do not confuse relaxing this extra identity restriction with permission for undeclared or escaping inputs.
+- Allow fresh output and valid complete seven-file or nine-file predecessors to upgrade directly to the thirteen-file protocol profile. Do not require an unnecessary seven to nine to thirteen publication sequence.
+- Use a closed internal profile enum for the legacy, service and protocol modes; avoid accumulating interacting booleans and optional inputs.
+- Enforce profile downgrade rejection under the existing publisher lock and during journal recovery preflight, before replacement or removal. An older mode must not silently delete newer protocol products. Retain the existing transaction/lock authority and exact catalog validation; no second publisher.
+
+Retain TypeSpec authority and derive public payload closure from resolved request and response bodies. The initial five messages are EchoRequest, EchoResponse, InvalidInput, IdempotencyConflict and Unavailable. HTTP response envelopes remain metadata, not payload messages or registry entries. Do not filter them by a name denylist. Initial protocol mode is v1-only; reject incompatible opaque revisions rather than relabeling them as `mindclade.public.v1`.
+
+The explicit current/previous field-number registries supply compatibility numbers, not duplicate type definitions. Existing fields keep their numbers; removed fields reserve both old name and number; old reservations persist; new fields cannot reuse reserved numbers. Error `code=1` and `message=2` are active assignments, not reservations. Whole-message removal remains unsupported. This comparison proves numbering compatibility only, not full semantic compatibility or owner acceptance of the baseline.
+
+Add four products from the same checked target representation: `public/openapi.json`, `public/echo.proto`, `public/mcp.json` and `public/README.md`. Thirteen files means twelve non-manifest output hashes. Proto is a messages-only projection, with optional-bool presence preserved; it does not encode every JSON requiredness/constraint and is not a runtime ingress validator. MCP is explicit custom tool metadata, not a running MCP server. Use actual pinned protoc and its decoded descriptor set for conformance; a mock, emitter JSON or checked-in binary fixture is not equivalent evidence. Freeze the remaining report/API/MCP/OpenAPI shapes and negative criteria before parent-run RED and implementation.
+
+### B3b: actual RuntimeKit, TestKit and Echo composition
+
+Status 2026-09-26: Stages A/B are integrated at `0d44a36` per the [frozen B3b criteria](/superpowers/specs/2026-09-24-b3b-criteria); Stages C/D (Codegen-emitted adapter, TestKit, non-durable composed Echo) merged through PR #18 at `72b762d` as non-durable partial VS-001. The notes below are the historical pre-criteria audit; the frozen criteria govern (std::net + httparse transport; tiny_http rejected).
+
+The B3b readiness audit found the following interface gaps. These are proposed amendments, not implementation or approved transport dependencies. Resolve them through reviewed, frozen criteria before coding:
+
+- RuntimeKit consumes a generic protocol-neutral handler. Echo-specific capability composition belongs in `services/foundation_echo`; RuntimeKit must not import generated Echo DTOs, service modules, Codegen, YAML or TestKit.
+- A generated HTTP adapter is currently missing. Codegen must emit request/route/media/DTO and typed-response adaptation from resolved operation/profile data. Do not hand-maintain an Echo route/schema authority in the service.
+- An arbitrary synchronous callback cannot be forcibly cancelled in-process. Closing the listener, cancelling socket I/O or detaching a thread does not prove that callback termination or finite shutdown occurred. Explicitly admit bounded cooperative TestAdmission with cancellation-aware waits, or review a different execution-isolation design. Hard termination requirements cannot be satisfied by pretending abandoned threads stopped.
+
+Implement the pure checked RuntimeKit configuration ABI first after independent criteria and observed RED; compile the actual generated `service/config.rs` against the real crate. Then freeze listener/socket ownership, pre-header concurrency admission, absolute request/write/shutdown deadlines, bounded HTTP framing, trusted identities, readiness/control protocol and telemetry. Select and pin transport dependencies only after exact-source review and real capability probes. tiny_http suitability remains unestablished; cached alternatives are not approved by their presence.
+
+Real-socket tests must exercise the generated client, bounds, malformed framing, slow requests, capacity, disconnects and shutdown, with guaranteed owned-process teardown. TestAdmission is non-durable. Client disconnection does not become cancellation of a future durable Run.
+
+### B4, C and D
+
+B4 is integrated (PR #22, main `b7f69c0`): actual configured Cargo, Bazel and TypeScript dependency facts are checked against the authoritative architecture model, with coverage and forbidden-edge negatives. C1-C5, D1-D4, DX2 and the operator gates are the open work in [After the transfer](#after-the-transfer).
+
+Keep these tasks in the existing tracked plans and task register. Freeze and review each bounded behavioral change before implementation, run meaningful positive/negative checks, and obtain fresh task and whole-candidate review. Neither more empty scaffold directories nor source-only tests close these gates.
+
+## Integration and manual Enterprise transfer
+
+The destination is **Mindclade-org**; this is the main private company monorepo. Rob performs the transfer manually, after checking the [destination prerequisites](/operations/github-governance#destination-prerequisites-rob-before-o2). Preserve repository identity/history, open PRs and evidence; refresh the cutover backup after new commits. The parent must prove every relevant branch/worktree's unique work is included or explicitly retained, then verify local main, tracking main and remote main identities before reporting synchronization or removing obsolete worktrees/branches.
+
+After transfer, reobserve access, remotes, App installations/integrations, protections and queue behavior. A "founder exception" (Rob merging his own PRs without a second eligible CODEOWNER) and possible agent review are an **unactivated proposal**, not policy. Until Rob adopts a reviewed policy change in O3, the [GitHub runbook](/operations/github-governance) rule stands: a Rob-authored PR needs another eligible human CODEOWNER or remains blocked. Until protection exists, source-only merges proceed only under a dated one-time owner exception recorded in [CONTRIBUTING](https://github.com/Mindclade-org/mindclade-internal-monorepo/blob/main/CONTRIBUTING.md). This handoff grants no routine bot bypass. A transferred URL does not establish effective protection, policy adoption, independent acceptance or shared evidence custody.
+
+Final handoff should provide exact reviewed commit, PR/CI identities, resulting main parity, preserved recovery locations, verified cleanup and a candid pending/blocked list. Leave production, scientific, release and deployment qualification unclaimed until their own evidence and acceptance exist.
+
+## Read next
+
+- [Current task register](/developer/agent-handoff#current-task-register).
+- [Master readiness plan](/superpowers/plans/2026-09-23-v1-integration-readiness).
+- [GitHub governance operator runbook](/operations/github-governance).

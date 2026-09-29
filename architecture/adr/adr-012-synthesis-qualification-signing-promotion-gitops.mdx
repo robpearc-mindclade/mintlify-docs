@@ -1,0 +1,37 @@
+---
+title: "ADR-012: Synthesis, Qualification, Signing, Promotion, GitOps"
+sidebarTitle: "ADR-012 GitOps"
+description: "Deployment mutation is governed by a staged path from authoring through synthesis, qualification, signing, promotion, GitOps, and reconciliation."
+---
+
+ADR-012 governs deployment mutation through a staged path. Every deployment must pass through authoring, synthesis, deployment planning, qualification, signing, promotion, GitOps, and reconciliation before it becomes live authority.
+
+| Status | Date | Related |
+| :-- | :-- | :-- |
+| Accepted | 2026-09-22 | VS-001 |
+
+## Context
+
+Without a governed pipeline, infrastructure-as-code and synthesized plans can become live mutation authority without adequate review, evidence, or traceability.
+
+## Decision
+
+Deployment mutation is governed through a staged path:
+
+```text
+authoring -> synthesis -> DeploymentPlan -> qualification -> signing -> promotion -> GitOps -> reconciliation
+```
+
+## Consequences
+
+- CDK and Terraform synthesize plans but do not serve as live mutation authority.
+- Deployment claims require signed artifacts, policy decisions, and reconciliation evidence.
+- VS-001 records the path without deploying anything.
+
+## Related
+
+<CardGroup cols={2}>
+  <Card title="Architecture" icon="sitemap" href="https://github.com/Mindclade-org/mindclade-internal-monorepo/blob/main/docs/architecture">
+    Architecture documentation directory.
+  </Card>
+</CardGroup>

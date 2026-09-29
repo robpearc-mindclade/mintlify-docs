@@ -1,0 +1,104 @@
+---
+title: "ADR-017: RuntimeKit Transport Engine"
+sidebarTitle: "ADR-017"
+description: "Decides to move RuntimeKit transport from synchronous std::net HTTP/1.1 to hyper 1.x on tokio while preserving frozen contracts and conformance suites."
+---
+
+This architecture decision records the replacement of RuntimeKit's synchronous transport engine with hyper on tokio. It is for platform engineers, RuntimeKit maintainers, and reviewers assessing the transport behavior, contract compatibility, and sequencing constraints.
+
+## Status
+
+| Attribute | Value |
+| --- | --- |
+| Status | Accepted (Rob, 2026-09-26) |
+| Date | 2026-09-26 |
+| Related | [B3b criteria](../../superpowers/specs/2026-09-24-b3b-criteria), [2026-09-26 design audit](../reviews/2026-09-26-design-audit), [API reference](../../api/vs001-echo) |
+
+## Context
+
+RuntimeKit today serves HTTP/1.1 over `std::net` with a thread per connection. It owns framing itself: a closed-grammar pre-scan, `httparse` only to tokenize the head, Content-Length bodies only, absolute header, body, handler, and write deadlines on `Instant`, an admission permit taken before `accept`, one request per connection with `connection: close`, a bounded lingering close, and a finite drain in which every `mindclade-rt-*` thread is joined or reported as an overrun ([README](../../../platform/runtimekit/README.md#transport-behaviour-and-limits), `src/http.rs`, `src/lifecycle.rs`).
+
+[B3b section 2](../../superpowers/specs/2026-09-24-b3b-criteria.md#2-transport-decision) chose that design deliberately over hyper on tokio, because a synchronous callback cannot be preempted in any option and the async option added a large lock delta for the I/O half alone. [B3b section 1](../../superpowers/specs/2026-09-24-b3b-criteria.md#1-scope-and-non-goals) excluded TLS, HTTP/2, keep-alive, pipelining, chunked bodies, and `Expect: 100-continue`.
+
+The [2026-09-26 design audit](../reviews/2026-09-26-design-audit.md) found that the rationale has expired:
+
+- `postgres =0.19.14` (approved as OD-2, see [ADR-016](adr-016-postgresql-outbox-durable-execution.md)) already embeds tokio from C1, so "no async runtime in the lock" ends there regardless of the transport.
+- The synchronous transport blocks MCP Streamable HTTP and gRPC for the emitted Proto.
+- Keep-alive and response streaming are needed later, and neither fits one request per connection.
+
+## Decision
+
+RuntimeKit's transport engine moves from the synchronous `std::net` HTTP/1.1 implementation to hyper 1.x on tokio, behind the existing `Handler` interface, before C5.
+
+### 1. The interface is preserved
+
+`trait Handler`, `Request`, `Response`, `RequestScope` (including that a client disconnect never cancels it), `serve`, `RunningService`, and the `RuntimeError` variants keep their meaning. Products, generated adapters, and services are not rewritten.
+
+### 2. The conformance suite is the B3b framing and limit tests
+
+They stay as written and must pass against the new engine, except where this ADR names a change. That includes the head scanner cases, the Content-Length grammar, the byte limits, the four absolute deadlines, the admission bound before the header read, finite shutdown, the truthful overrun, and the redaction allowlist.
+
+### 3. TLS terminates at the ingress
+
+No in-process TLS. In-process HTTP/3 is not planned; the design audit recorded that hyper has not shipped it.
+
+### 4. The public rejection profile stays byte-compatible
+
+The `VS001TransportProfile@v1` rejections published in OpenAPI, MCP metadata, the generated README, and the TypeScript client ([K1-30](../../superpowers/specs/2026-09-26-k1-codegen-contracts-hardening-criteria.md#amendment-1-2026-09-26-robs-contract-decisions-and-parent-rulings), [API reference section 3.1](../../api/vs001-echo.md#31-transport-rejections-declared)) are a frozen contract. Each of 400, 404, 405 with `allow: POST`, 411, 413, 415, 417, 431, 500, 501, and 505 keeps its status, its empty body, its absent `content-type`, and its telemetry reason. Several are hyper defaults that the new engine must override:
+
+- **411** for a missing Content-Length and for a final `chunked` coding, and **501** for any other coding, although hyper decodes chunked bodies natively;
+- **417** for any `Expect` header, although hyper answers `100-continue` itself;
+- **505** for HTTP/1.0, although hyper serves it;
+- **413** before any body byte is read, and **431** at 8192 head bytes or 32 fields;
+- the pre-scan rejections (bare CR or LF, a leading empty line, obs-fold, control, DEL, and 0x80 through 0xFF bytes, non-origin-form targets) as **400**, so the framing is no more permissive than today.
+
+### 5. What changes, and what each change requires
+
+Anything that touches a frozen contract needs a reviewed amendment to that contract, named here:
+
+- **Keep-alive instead of connection-close.** Every response now carries `connection: close` and one request is served per connection. That is recorded as current behaviour beyond the contract in [API reference section 6](../../api/vs001-echo.md#6-current-service-behaviour-beyond-the-contract), not as a declared response header, so it is a behaviour change rather than a contract break. It still requires: an amendment to the frozen [B3b criteria](../../superpowers/specs/2026-09-24-b3b-criteria.md#33-transport-mindclade_runtimekithttp) section 3.3 and its non-goals; a reviewed transition of the frozen conformance expectation files under `tests/conformance/vs001/`; and re-publication of the API reference and the generated products through Codegen.
+- **New transport settings** (idle and keep-alive timeouts, and any HTTP/2 bound) would add `ServiceConfig` fields. [service-config-v1](../service-config-v1.md#1-runtimekit-api) is a frozen ABI with a fixed 11-argument constructor, so it needs its own reviewed amendment; the C0 durable profile gate is the natural place for it.
+- **Dependencies.** B3b-26 fixes RuntimeKit's production dependencies at exactly `//core:core` and `httparse`, enforced by `:dependency_tests` and by the `httparse` external entry in the B4 architecture model. hyper, hyper-util, http, http-body, tokio, and their transitive crates require Rob's dependency approval, a reviewed `b3b_26` transition, a B4 model change, and a full lock review.
+- **Shutdown observations.** B3b-12 and B3b-13 assert named threads and that every worker is joined. Task-based equivalents must prove the same finite drain and the same truthful overrun; the criteria transition states the new observation method. If finite shutdown cannot be proven on either host, the work stops rather than weakening the criterion.
+- **ADR-008 and telemetry wording.** [ADR-008](adr-008-runtimekit-and-testkit.md) says RuntimeKit standardizes lifecycle, configuration, health, identity, middleware, telemetry, error handling, and shutdown; it is silent on the transport engine and on trace context. Emitting a trace identifier also contradicts the RuntimeKit README's rule that no header or request-identifier text may appear in telemetry. Both need a reviewed ADR-008 amendment, decided with the C0 gate, before any trace field is emitted.
+
+### 6. Sequencing
+
+The swap lands after C4 and before C5, under its own criteria file with RED and GREEN evidence over the B3b suite, so that C5's generated-client path runs against exactly one engine. Until then the synchronous engine stays authoritative.
+
+### 7. Out of scope
+
+In-process TLS, HTTP/3, WebSockets, an HTTP health route, pipelining semantics beyond keep-alive, and any change to the Echo contract or the generated adapter's own checks.
+
+## Consequences
+
+- RuntimeKit gains a runtime dependency tree it does not have today, and the lock grows accordingly. That cost is now shared with the PostgreSQL client rather than paid alone.
+- MCP Streamable HTTP and gRPC for the emitted Proto become reachable later without a second server implementation. Neither is authorized by this ADR.
+- `postgres` keeps its own per-connection current-thread runtime. Consolidating onto one runtime, for example by moving to `tokio-postgres`, is a separate decision with its own evidence.
+- Determinism obligations carry over unchanged: absolute deadlines on monotonic time, the injected clock for telemetry only, no sleeps in test paths, and bounded admission before any request byte is read.
+- `unsafe_code = "forbid"` continues to apply to repository crates; the new dependencies contain their own internal unsafe code, as `httparse` already does.
+- Until the swap lands and its evidence is accepted, nothing may claim keep-alive, streaming, HTTP/2, or MCP transport support, and the published rejection profile remains the observable contract.
+
+## Alternatives
+
+Keeping the synchronous engine was the status quo, rejected because tokio is already in the lock via PostgreSQL, and because the synchronous engine blocks MCP and gRPC.
+
+## Related
+
+<CardGroup cols={2}>
+  <Card title="ADR-008 RuntimeKit" icon="server" href="/architecture/adr/adr-008-runtimekit-and-testkit">
+    The RuntimeKit primitive that this ADR amends.
+  </Card>
+
+  <Card title="ADR-016 PostgreSQL Outbox" icon="database" href="/architecture/adr/adr-016-postgresql-outbox-durable-execution">
+    The substrate choice that brings tokio into the lock.
+  </Card>
+
+  <Card title="B3b Criteria" icon="clipboard-check" href="/architecture/superpowers/specs/2026-09-24-b3b-criteria">
+    The conformance criteria that the new engine must satisfy.
+  </Card>
+
+  <Card title="VS001 Echo API" icon="satellite-dish" href="/api/vs001-echo">
+    The frozen transport rejection profile.
+  </Card>
+</CardGroup>

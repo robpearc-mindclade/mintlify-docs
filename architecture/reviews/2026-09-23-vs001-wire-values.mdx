@@ -1,0 +1,64 @@
+---
+title: "VS-001 B1a Wire Values and Source Sequencing (2026-09-23)"
+sidebarTitle: "Wire Values"
+description: "Bounded B1a source checkpoint with authored UTC-millisecond and canonical-artifact formats, reference rules, compatibility transitions and the remaining vertical."
+---
+
+This page records the 2026-09-23 VS-001 B1a wire values and source sequencing checkpoint. Bounded source checkpoint; no baseline acceptance or completed vertical is claimed. The user subsequently requested one full real vertical. That source/runtime request resumes existing VS-001 durable Echo in this order: B1a -> B2a -> B3a -> B2b -> B3b -> B4 -> C1-C5 -> D1-D2. G2/G3/DX2/O1-O4 remain pending; this change neither skips protected admission for connected operations nor grants production, deployment, scientific or independent acceptance. Rob retains the manual Enterprise migration. Criteria, implementation and review use distinct contexts; the integration owner owns all execution and integration.
+
+## Source checkpoint
+
+`16c211b` adds authored UTC-millisecond and canonical-artifact string formats, exact lowercase Git revisions, strict enum metadata, official frontend extraction, sealed graph/use-site validation and directional compatibility. Codegen reference rules reject duplicate keys, invalid Unicode, floats/exponents/negative zero, unsafe artifact integers, noncanonical inner bytes, invalid calendar dates and generation exhaustion. General canonical serialization retains its prior integer domain. No rule is inferred merely from a type's display name.
+
+Unknown format names in strict SemanticInput fail at their input JSON location; known formats on wrong types fail at authored source. Unsupported official TypeSpec format decorators remain authored-source diagnostics. This clarification was recorded before behavioral RED, not used to weaken a failed assertion.
+
+Parent observed three compiler and two frontend behavioral failures before implementation. Then the actual Bazel compiler/official frontend suites passed. Pinned `nix develop --no-write-lock-file -c just verify` passed on Apple Silicon at the bounded B1a tree:
+
+- 347 Python repository tests
+- 102 Rust tests
+- five doctests
+- five Bazel test targets
+- unchanged locks
+- generated foundation manifest from Codegen, drift passed
+
+A fresh task source review found no actionable defects. These results bind that source checkpoint, not future integration edits or remote execution. Exact candidate/main remote CI and whole-candidate review must be recorded separately before source closeout.
+
+## Retained compatibility impact
+
+The original foundation fixture is unchanged. These new reports were created without overwriting old reports, using `compat --direction old-client-new-server`. Each returned exit 2, **non-passing**:
+
+| Transition | Graph identities | Result | Report SHA-256 |
+| --- | --- | --- | --- |
+| Foundation -> pre-B1a | `1ae176bb0076b981c0e35cf1d805f01094c466890f2d1f40f9144bcb28fd731b` -> `d856a9ee679ee150094e4065d1e5ecf761014db15a7a95d132fef3df080d3120` | 4 breaking, 30 unsupported, 21 compatible | `9069bfbd3065ccb8c5182c645c020487240660d69f2ae952b83daceb6a85a746` |
+| Foundation -> post-B1a | `1ae176bb0076b981c0e35cf1d805f01094c466890f2d1f40f9144bcb28fd731b` -> `6c4b2cb3cbfc5c101cd186226d899f8437e1eef30efe387593f2b98d0f5b972b` | 4 breaking, 32 unsupported, 21 compatible | `df11baf2c5f5208daefddb10cbc25ea1156b7fdba834e733a1efb4a2612641ba` |
+| Pre-B1a -> post-B1a | `d856a9ee679ee150094e4065d1e5ecf761014db15a7a95d132fef3df080d3120` -> `6c4b2cb3cbfc5c101cd186226d899f8437e1eef30efe387593f2b98d0f5b972b` | 15 unsupported | `0bd62442d19dfa2614792428fee23dd90d5fdad48d734a247e6513c4d5ce89d9` |
+
+[Input digests](https://github.com/Mindclade-org/mindclade-internal-monorepo/blob/main/docs/architecture/reviews/evidence/b1a/input-digests.json) bind retained frontend snapshots. The first report uses the pre-B1a compatibility policy; both post-B1a reports include the changed policy digest in their bytes. Unreachable internal records have unclassified use direction, so their constraint changes remain unsupported. This is fail-closed reporting, not a waiver or claim that the tightening is safe. Contract-owner acceptance of the expanded baseline remains **BLOCKED/pending**.
+
+To reproduce, build the official `echo` and `vs001` frontend targets at baseline `784a88b2320fa1d2e9297394eb51bc7c088bd88d` and at B1a `16c211b` in separate owned checkouts. Preserve the resulting semantic input bytes, then use each revision's built Codegen CLI and compare the report/graph/policy identities above. These retained observations are evidence, not additional authored contracts.
+
+## Remaining vertical
+
+B1a implements rule representation/reference validation only. B2a must generate checked consumers; B2b must generate public Proto/OpenAPI/MCP/docs from TypeSpec. B3 must compile descriptors and provide RuntimeKit; B4 must inspect actual dependencies. C needs real PostgreSQL state/outbox/leases/fencing and D needs sealed artifacts/fresh-store replay. Public generated products must not import internal DTOs or compiler runtime logic. No source check creates independent qualification or authorizes candidate policy to approve itself.
+
+Before those tasks, the introducing task must resolve reviewed durable-profile, trusted-context, worker/TestKit separation, bounded shutdown, completion evidence and replay portability gaps. Follow the current task register and compiler/C/D plans; no temporary happy-path demo substitutes for the full vertical.
+
+## Related
+
+<CardGroup cols={2}>
+  <Card title="B2a products" icon="boxes-stacked" href="/architecture/reviews/2026-09-23-vs001-products">
+    Seven-file B2a implementation and consumer verification.
+  </Card>
+
+  <Card title="B composition plan" icon="diagram-project" href="/superpowers/plans/2026-09-23-vs001-b-composition">
+    B1-B4 tasks, interfaces and execution order.
+  </Card>
+
+  <Card title="VS-001 local bootstrap" icon="play" href="/architecture/reviews/2026-09-23-vs001-local-bootstrap">
+    B1a local bootstrap review with scalar-intersection findings.
+  </Card>
+
+  <Card title="Agent handoff" icon="handshake" href="/developer/agent-handoff">
+    Current task register and work ownership.
+  </Card>
+</CardGroup>

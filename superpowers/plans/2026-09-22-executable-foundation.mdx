@@ -1,0 +1,93 @@
+---
+title: "Executable vNEXT Foundation Implementation Plan"
+sidebarTitle: "Foundation Plan"
+description: "Historical executed foundation plan for building a validated, immutable MindcladeGraph and reproducible manifest using pinned tools, verified locally and in Linux CI."
+---
+
+This page documents the historical executed foundation plan from 2026-09-22. It is retained for provenance. For new work, use the [current task register](/developer/agent-handoff#current-task-register) and the [provider-neutral workflow](https://github.com/Mindclade-org/mindclade-internal-monorepo/blob/main/.agents/workflows/foundation-development.md).
+
+<Warning>
+  This is a historical executed foundation plan. Its original task instructions are retained for provenance, not as a current dependency on an installed plugin. Do not replay this plan to resume the repository.
+</Warning>
+
+> For agentic workers: use `superpowers:executing-plans` for native execution. Implement sequentially, with a fresh whole-branch review afterward.
+
+**Goal:** Build an official TypeSpec HTTP fixture into a validated, immutable MindcladeGraph and reproducible manifest using pinned tools, verified locally and in Linux CI.
+
+**Architecture:** Nix supplies tools; Bazel owns compilation and testing. The official TypeSpec frontend resolves language and HTTP semantics; Rust Codegen validates normalized inputs, seals the graph, and emits projections.
+
+**Tech Stack:** Bazel 9.1.1, Rust 1.96.1, TypeSpec compiler/HTTP 1.16.0, Nix, Node 22, pnpm, serde, serde_json, and sha2.
+
+**Spec:** [Master blueprint](/architecture/master-blueprint), ADR-002/003/004/009/013/015, and the F0 delivery gate. This is the user's approved 2026-09-22 implementation plan, saved at execution start.
+
+## Global Constraints
+
+- Preserve every required scaffold directory and the accepted constitution. Activate only implemented files through reviewed manifest transitions.
+- Keep architecture YAML authoritative; do not activate competing JSON placeholders or introduce another semantic compiler.
+- Exclude RuntimeKit/TestKit execution, PostgreSQL/outbox, generated clients, deployment, science, TileLang implementation, and generated C ABI implementation.
+- Require Apple Silicon local and Linux CI results; retain Intel Mac configuration without claiming it tested. No Triton or tch-rs.
+- Each task follows failing test, observed failure, implementation, passing tests, and scoped commit. One integration owner controls shared manifests and locks.
+
+## Review Focus
+
+- Invalid identities and forged serialized references fail construction and deserialization (Task 2).
+- Dangling edges, duplicate identities, and construction-order changes cannot produce ambiguous snapshots (Task 3).
+- Unsupported TypeSpec/HTTP metadata produces located diagnostics, never silent omission (Task 4).
+- Checkout paths, clocks, and dependency caches cannot change canonical outputs (Task 5).
+- Missing tools, failed CI, altered expectations, or missing independent review cannot become qualification (Tasks 1 and 6).
+
+## Implementation Tasks
+
+### Task 1: Pinned Builds
+
+- [ ] Modify root Nix/Bazel/Cargo/package configuration; create `tools/build/foundation.bzl` and toolchain tests. Replace flake.lock, package manifest, and pnpm lock placeholders through reviewed scaffold transitions; track MODULE.bazel.lock.
+- [ ] Pin nixpkgs and rust-overlay by revision/hash; select Rust 1.96.1 from the overlay. Supply Bazel 9.1.1, Node 22, pnpm, Python 3.12, linker, and JDK from Nix. Resolve remaining patch versions once into committed locks; fail rather than substitute host tools.
+- [ ] Use rules_rust 0.74.0 with Nix Rust and rules_nixpkgs_core 0.13.0. Import dependencies from Cargo.lock, preserve :sources labels, and add real `//core:core`, `//core:tests`, `//codegen:codegen`, and `//codegen:tests` targets.
+- [ ] Test versions, lock immutability, and configured compile/test actions. Run `nix develop --no-write-lock-file -c bazel test //core:tests //codegen:tests`. Commit: `build: pin executable foundation toolchains`.
+
+### Task 2: Kernel Invariants
+
+- [ ] Modify identity/reference primitives and consumers; create `core/tests/kernel.rs`. `Identity::new` returns `Result<Identity, IdentityError>`. Each component is case-sensitive ASCII `[A-Za-z0-9][A-Za-z0-9._-]{0,127}`; versions remain opaque revision labels, not implicitly SemVer.
+- [ ] Define `Digest::parse(&str) -> Result<Digest, DigestError>` for sha256: plus 64 lowercase hexadecimal digits, and `Digest::sha256(&[u8]) -> Digest`. Keep fields private; deserialization invokes validation.
+- [ ] Define sealed target markers and `Reference<T: ReferenceTarget>::new(Identity, Digest)`. Derive target kind from T; reject mismatched deserialization. Replace `Reference<()>` with specific targets or explicitly tagged AnyReference for heterogeneous subjects.
+- [ ] Test empty/delimiter/Unicode/overlength identities, malformed hashes, SHA-256 known vectors, reference round trips, and compile-fail mismatches. Include `assert!(Identity::new("a/b", "c", "1").is_err());`. Run Cargo tests, doctests, and Bazel tests. Commit: `feat(core): enforce identity and reference invariants`.
+
+### Task 3: Sealed Graph
+
+- [ ] Replace Codegen graph mutation APIs; retain only typed graph references in core. `GraphBuilder::seal(self) -> Result<MindcladeGraph, Vec<Diagnostic>>`; sealed graphs have no mutation API.
+- [ ] Nodes carry identities and contract/resource/capability payloads. Edges carry endpoint identities and kinds. Reject duplicate IDs, dangling endpoints, duplicate edges, and invalid endpoint kinds; allow recursive resource references.
+- [ ] Borrow semantic and capability views from the same snapshot. Semantic view contains contracts/resources; capability view includes capabilities and transitively referenced resources. Remove name-only empty view construction.
+- [ ] Sort nodes, fields, edges by identity/name tuples. Use recursively key-sorted compact JSON plus one newline, excluding floats, timestamps, locations, and the graph's own digest. Test insertion permutations and semantic changes. Commit: `feat(codegen): seal deterministic typed graphs`.
+
+### Task 4: Official TypeSpec HTTP Adapter
+
+- [ ] Create `codegen/frontend/typespec/`, Node built-in tests, and `contracts/fixtures/foundation/echo.tsp`. Wire the existing emitter configuration to the real package. Pin compiler/HTTP together and use official resolved APIs, including `getAllHttpServices`.
+- [ ] Freeze POST `/echo/{requestId}`: required string path parameter, JSON request model with `message:string`, `urgent?:boolean`, `tags:string[]`; JSON response with `message:string` and status 200.
+- [ ] `SemanticInput@v1` contains package identity, frontend/version, source path/hash inventory, models, operations, HTTP bindings, and locations. Support named models, optional properties, string/boolean/int32, arrays, and model references; reject unsupported constructs and unrepresented metadata.
+- [ ] `Compiler::compile(&SemanticInputV1)` returns `Result<MindcladeGraph, Vec<Diagnostic>>`. Lower contract/resource/capability nodes in Rust, checking references/bindings. Compare official method, route, body, response, optionality, and arrays with separately authored expectations.
+- [ ] Test unresolved symbols, unions, unsupported decorators, duplicate routes, and invalid versions. Add Bazel frontend compile/test actions with declared dependencies, no installation during actions. Commit: `feat(codegen): ingest official TypeSpec HTTP semantics`.
+
+### Task 5: Reproducible Projection
+
+- [ ] Add projection/CLI tests and `compile --input PATH --source-root PATH --out-dir PATH`, with read-only `--check`. Invalid input/drift exits nonzero with located diagnostics.
+- [ ] Verify source hashes and reject escaping paths. Emit only owned `generated/foundation/` graph/manifest files; explicitly update retention policy. Do not overwrite unrelated placeholders or recursively delete unowned files.
+- [ ] Bind source/input/graph/output hashes, generator version/source fingerprint, policy, and locks in the manifest. Keep time/host/executing commit in an untracked receipt, preventing committed-output self-reference.
+- [ ] Test two clean generations, no-op regeneration, relocated checkouts, tampered sources, stale outputs, and changed semantics using exact bytes. Commit: `feat(codegen): emit reproducible foundation projection`.
+
+### Task 6: Checks And CI
+
+- [ ] Separate `just verify-fast`, scaffold/tree checks, `just verify-foundation`, and `just verify-generated`; keep `just verify` as aggregate. Test that missing evidence and failed commands remain non-passing.
+- [ ] Add Linux GitHub Actions with read-only permissions, SHA-pinned actions, no deployment secrets, immutable resolution, and uploaded test/action/output receipts. Run the same foundation checks locally on Apple Silicon.
+- [ ] Update maturity, toolchain docs, bootstrap status, and mechanical tree. Leave full VS-001/formal qualification incomplete.
+- [ ] Obtain whole-branch review, rerun against reviewed revision, retain CI URL, candidate SHA, versions, and artifact digests. Follow repository merge policy; absent independent acceptance/protection is a blocker. Commit: `ci: verify foundation without overstating qualification`.
+
+## Acceptance
+
+A fresh checkout builds real Rust and TypeSpec targets, rejects invalid references, preserves located diagnostics, and reproduces canonical graph and manifest bytes locally and in Linux CI. Tests demonstrate declared Echo HTTP semantics, not merely successful execution. Native implementation and subsequent review are selected; runtime execution and independent qualification are separate.
+
+## Related
+
+- [VS-001 A: Foundation Hardening](/superpowers/plans/2026-09-23-vs001-a-foundation)
+- [VS-001 Delivery Plan](/superpowers/plans/2026-09-23-vs001-delivery)
+- [Developer Start Here](/developer/start-here)
+- [Agent Handoff](/developer/agent-handoff)

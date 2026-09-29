@@ -1,0 +1,48 @@
+---
+title: "Contributor rehearsal (DX2)"
+sidebarTitle: "Contributor Rehearsal"
+description: "DX2 candidate source captures and remaining rehearsal gates. Status: BLOCKED, fresh-context rehearsals not run."
+---
+
+The local verifier, recipe and complete authentic source fixtures are implemented. The retained command captures below establish candidate source behavior only. Rob is the human-half performer after transfer and before O4; that half remains BLOCKED.
+
+## Candidate source captures
+
+- Candidate: `fde40e384a030bea9257603e5a6267be5b3f5b23`; base main at capture preparation: `6354546a198e3acccaad4ec27b27ed836ed8c044`.
+- Parent-owned attempt: `mindclade-dx2-isolated-8orjh1rf`, Apple Silicon (`aarch64-darwin`), 2026-09-27 16:58-17:10 UTC.
+- Manifest SHA-256: `fe953602a2b0d51559a954b2d6ec8e8a05c030322a94b714a66abf4396af24aa`.
+- Cache-isolation observation SHA-256: `51e4439fc5ee8bebca29fdbc1c2766fd618f83f7bb49715faf6e368675493590`.
+- The integrator retains the raw logs, clone, cache snapshot and receipts in the parent-owned evidence directory outside Git, identified by the attempt ID and manifest digest above.
+- The source-delivery commit adds the verifier, literal fixtures, recipe, documentation and mechanical inventory after this capture revision. Later protected-main merges and candidate checks require their own receipts.
+
+The fixture harness used the frozen `subprocess.run` arguments and exact command lines. It collected C1, fresh C3, cached C3, C2 and C4 in that order to obtain both cache cases. This is fixture collection, not the verifier's ordered four-command run or a fresh-agent rehearsal. The verifier itself always orders C1, C2, C3, C4. Unit tests replay these exact bytes without launching the matrix.
+
+| Capture | Status | Exit | stdout SHA-256 | stderr SHA-256 |
+| --- | --- | --- | --- | --- |
+| C1 | PASS | 0 | `789108b8e2868eb7455d9a91e8696dabf60b89faf7247d3194533c995cbe958d` | `865a807e6e3b307d493ba61104ecf9424b307e2251c92656898ccd6300df7fcb` |
+| C3_fresh | PASS | 0 | `78aa5a52524ba5a9d105e8d8dd16a1544c4a9fa59441a764cdfbc2a008a065b5` | `a0215e28608a2131f9e437340274fb1ce7b7a33e85fc66510345a7e73d189e1b` |
+| C3_cached | PASS | 0 | `90d67c6a87643903ddfc1d6de1ba805e7e43fea75f58e045acc59f434e618c74` | `c4cbb472260b61a033318134e7589bfcf055b05d3f126987b4c161312ecea9b5` |
+| C2 | PASS | 0 | `80eacf90ae0da25d77505819d4a534172b0320be4c9f9bfe4191b09cdfa2c492` | `43312685b5977e27a9867fc924fb6a6e369251fb2de58d7d754a3678421e205a` |
+| C4 | PASS | 0 | `7ae1611a32ff7d63b2f5e0e5c4501c440013c7215f9b20e80e4835df0fb37c72` | `ba5d9a77b5ec9be6d34bf2cc0f94788e53ed946f7dd521aee832e163755086f8` |
+
+C1 is `just doctor`; C2 is `just verify`; C3 is `bazel test //tests/conformance/vs001:all //services/foundation_echo:composition_tests --lockfile_mode=error`; C4 is `just verify-boundaries`. C3 fresh executed **15/15** tests with zero cached markers and zero disk-cache hits. The identical repeat executed **0/15** and reported cached tests. Cached results never substitute for a fresh socket exercise.
+
+The standalone clone used `git clone --no-hardlinks`, detached HEAD, no remote, an explicit allowlisted process environment and an empty scratch home. The pinned launcher wrote its cache inside that home. All 2,061 pre-existing shared Bazel-cache file digests and the directory identity were unchanged, with zero new shared-cache entries. A separate real Bazel probe also passed with B4-style startup flags and a target separator, writing 690 files to the later explicit cache override. This observation does not claim complete Nix/Cargo/pnpm cache accounting or network isolation.
+
+The earlier attempt `mindclade-dx2-finalization-er2c_4zl` at `22ed1f5` is retained as a failed cache-isolation attempt: C3 executed 5/15 with 208 disk-cache hits. Its zero command exits are cached source evidence, not fresh evidence. The separate reviewed launcher repair precedes the successful attempt above.
+
+## Remaining rehearsal gates
+
+| Gate | Status | Next actor |
+| --- | --- | --- |
+| Separately started agent using only the tracked entry route, with injected-context accounting | BLOCKED - not run | Integrator and fresh agent |
+| Generated Echo regression over a real socket plus forbidden-dependency diagnosis in that fresh context | BLOCKED - not run | Fresh agent; parent owns execution |
+| Saved checkpoint, deliberate interruption and reconciliation without replay | BLOCKED - not run | Integrator and fresh agent |
+| Each DX2-21 negative scenario and unchanged control in its own retained clone | BLOCKED - not run | Integrator |
+| Complete shared-cache and original-checkout accounting for that rehearsal | BLOCKED - not run | Integrator |
+| Independent grading of every development-handoff evaluation row | BLOCKED - not run | Distinct reviewer |
+| Human half after transfer | BLOCKED - not run | Rob; record his prior exposure to design/handoffs |
+
+The negative scenarios cover generated drift, invalid public data, internal imports, a missing collector, a failed required command, stale candidate receipts, worktree overlap and an owned service still running. Preserve each injection, non-passing result and the unchanged control for review.
+
+Run `just verify-developer <owned-fresh-clone> <new-evidence-leaf>` in the pinned shell only after the integrator confirms ownership, detached candidate, removed remote and scratch-cache isolation. Both arguments are required; the evidence leaf is exclusively created outside the clone and never reused. Source verification and PR CI do not close either rehearsal half. Overall DX2, O4 and development-foundation acceptance remain BLOCKED. No scientific, release, deployment, independent runtime or connected acceptance is claimed.

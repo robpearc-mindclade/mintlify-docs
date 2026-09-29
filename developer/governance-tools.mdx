@@ -1,0 +1,595 @@
+---
+title: "Governance Observation and Evidence Tools"
+sidebarTitle: "Governance Tools"
+description: "Reference for the governance observation, binding and local evidence tools including GitHub audit, local evidence integrity, and G1/G2/G3 implementations."
+---
+
+This page describes the interfaces of the governance observation, binding, and local evidence tools. It is for operators and integrators who run these tools, and for reviewers of their interfaces. These tools produce source-reviewable observations and local archive integrity reports. They do not approve bootstrap policy, admit a work packet, authorize an agent, accept a release, or establish supervised engineering readiness. Candidate implementations and passing fixture tests remain source evidence until independent review and an approved evaluator and inputs are established.
+
+<Warning>
+  Implemented source interfaces remain source evidence until independent review establishes a trusted evaluator and approved inputs.
+</Warning>
+
+The [common handoff](/developer/agent-handoff) binds the reviewed G1 and G2 source milestones and pending G3/O3 work. [Tracked resume decisions](/architecture/reviews/2026-09-23-foundation-resume-decisions) retain consequential interface constraints without requiring session files.
+
+## Trusted evaluator and inputs
+
+Run tools from a separately reviewed, accepted `TOOL_ROOT`, with a trusted Python runtime and GitHub CLI. Supply the candidate checkout separately as `--repo`. Running candidate-edited code against an accepted policy SHA does not authenticate that code. Preserve the independently recorded evaluator/runtime identity with the parent receipts. Self-reported evaluator hashes are descriptive, not proof of trust; `github_audit.py` reports hashes of its source and imported `admission.py`.
+
+```bash
+TOOL_ROOT=/absolute/path/to/independently-accepted-tool-checkout
+TRUSTED_PYTHON=/absolute/path/to/accepted/python3
+CANDIDATE_REPO=/absolute/path/to/candidate-checkout
+PACKET=/absolute/path/to/operator-approved-packet.json
+POLICY_SHA=operator-approved-40-hex-commit
+BASE_SHA=operator-approved-40-hex-base
+CANDIDATE_SHA=exact-40-hex-candidate
+PACKET_SHA256=operator-held-64-hex-digest-of-exact-packet-bytes
+REPOSITORY=robpearc-mindclade/mindclade-vnext
+PR_NUMBER=operator-selected-pr-number
+```
+
+Replace the descriptive values with reviewed anchors. The supported source is `robpearc-mindclade/mindclade-vnext`, the destination is `Mindclade-org/mindclade-internal-monorepo` (exact letter case), and the unchanged repository ID is `1382446493`. Every repository-name comparison is exact. A `--repository` that differs from an accepted name only in letter case is `policy` FAIL with a "letter case" detail and makes no request; any other name stays "outside accepted policy". If the transferred GitHub `full_name` differs from the accepted policy only in letter case, the audit is FAIL and needs a reviewed policy revision. The audit never normalizes case and never bridges names by ID: a CLI/API disagreement across the transfer is `repository` FAIL ("Repository name changed"), and a snapshot, receipt or accepted identity recorded under the source name fails under the target name, so capture and acceptance must be repeated after the transfer.
+
+`REPOSITORY` above is the source name only until the transfer. After it, pass `--repository Mindclade-org/mindclade-internal-monorepo`: GitHub reports the new `full_name` for the same ID, so the old name FAILs `repository` with "Repository name changed" (`github_audit.repository_link`). The [operator runbook](/operations/github-governance.md#source-verified-settings-for-the-mindclade-org-transfer) (step 16) lists the evidence to recapture.
+
+Only private visibility and default branch `main` are supported. An approved policy revision must exist as a commit and precede the selected base; base must precede candidate. Missing or unsupported trusted policy is BLOCKED.
+
+The audit reads `.agents/policies/supervised.v1.json` at the explicit policy SHA. It never reads candidate policy as authority. `admission.Git` disables replacement objects, literal-path ambiguity, global/system Git configuration, hooks, fsmonitor, Git environment overrides, lazy fetch and interactive authentication. Policy/specification reads use its bounded regular-blob reader. Runtime Git failures do not establish absence or acceptance. The audit's `CheckedGit` adapter calls shared `Git.root()` once before any revision or ancestry reads, rejecting non-root checkouts and legacy `info/grafts`.
+
+The parent owns all process execution, tests, Git integration and remote work. Commands below are operator instructions; writing this document executes none.
+
+## GitHub audit
+
+```bash
+"$TRUSTED_PYTHON" -I -B "$TOOL_ROOT/tools/engineering/github_audit.py" \
+  --repo "$CANDIDATE_REPO" --repository "$REPOSITORY" \
+  --policy-revision "$POLICY_SHA" --base "$BASE_SHA" \
+  --candidate "$CANDIDATE_SHA" --packet "$PACKET" \
+  --packet-sha256 "$PACKET_SHA256" --pr "$PR_NUMBER" --stage pr
+```
+
+`--packet` is required. Shared `admission.read_packet(path)` opens nonblocking, requires a regular descriptor and bounds bytes before parsing, rejecting FIFOs, special files, final symlinks and oversized packets without a blocking read. The shared `admission.packet_bindings(raw, expected_digest, base, policy)` checks exact bytes, schema, base and policy anchors and returns canonical metadata. The audit additionally compares the specification digest to committed contents at both base and candidate. Full packet admission, ownership/policy constraints, dirty-state checks and permission remain separate; no packet command is executed by the audit.
+
+### PR and main stage behavior
+
+For main observation use the same command with `--stage main`, exact verified main as `--candidate`, and the matching packet/base/policy anchors. Main must actually equal candidate and its Actions event must be `push`, with the selected run's explicit `head_branch` equal to `main`. A same-SHA successful `codex/` push cannot substitute, even when newer than a failed main run. Missing, malformed or unsupported branch identity is BLOCKED; supported different branches FAIL.
+
+Branch observations support ASCII letters, digits, underscores, hyphens, dots and slash-separated components, excluding malformed ref components. The PR must be closed and merged with `merge_commit_sha` equal to that candidate. Its observed `pr_head_sha` is recorded separately and Rob's approval must match that reviewed head, which may differ from the resulting main SHA after squash or queue merge. The exact `pr_base_sha` remains the operator's base anchor.
+
+PR stage requires an open PR with head equal to candidate and Actions event `pull_request`. Neither stage invents a merge-group SHA or proves the complete protected loop.
+
+### Transport and pagination
+
+REST transport uses `gh api --hostname github.com --method GET` with validated relative endpoints. Review-thread observation alone uses `gh api graphql --method POST --input -` on that same explicit host, with one embedded read-only query and validated repository, PR and cursor variables. It accepts no caller-supplied query or mutation. Both transports retain a 25-second subprocess timeout. `GH_HOST` and debug overrides are removed. No token, raw stderr, response body, SSO URL or authorization header is copied into reports. HTTP errors, rate limits, timeouts, malformed JSON, missing fields and incomplete pagination become BLOCKED.
+
+Collections use 100-item pages, with a 100-page ceiling; hitting the ceiling blocks rather than accepting a truncated result. Each JSON document is bounded by the shared 1 MiB parser limit.
+
+### Branch protection and rulesets
+
+The audit checks actual classic branch protection and details of active, applicable repository/inherited organization rulesets. It requires review and Rob-only CODEOWNERS coverage, dismissed stale approvals, conversation-resolution configuration, App-bound required checks, admin enforcement, no force/deletion or bypass actors, and a single-entry active merge queue. The recursive base tree must be complete; CODEOWNERS precedence is `.github/CODEOWNERS`, `CODEOWNERS`, then `docs/CODEOWNERS`. Contents are read at the actual PR base.
+
+Supported rules have exact ref conditions, default/all-branch selectors, and known deletion, non-fast-forward, linear-history, PR, status-check and merge-queue parameters. Other conditions, rule types, or parameter semantics are BLOCKED.
+
+Ruleset applicability is classified fail-closed, in this order:
+
+1. Ruleset identity is re-read; `target` must be `branch`, `tag` or `push` (anything else, missing or non-string is BLOCKED), and `tag`/`push` rulesets are skipped whatever their conditions, rules or bypass actors.
+2. A `branch` ruleset's `source_type` must be `Repository` or `Organization` (`Enterprise` and unknown values are BLOCKED); non-active enforcement is skipped as before.
+3. Active branch conditions must be exactly `{ref_name}`, or `{ref_name, repository_name}` for `Organization` only; `repository_id`, `repository_property`, `organization_*` and unknown keys are BLOCKED.
+4. `repository_name` has exactly `include`/`exclude` string arrays (non-empty `include`) plus an optional boolean `protected`. Patterns are evaluated against the name part of `--repository` as whole-name matches: `~ALL`, or the characters `[A-Za-z0-9_.-]` plus `*` (any run, including none).
+5. Other metacharacters, empty or non-string patterns and other `~` forms are BLOCKED, and any pattern whose case-sensitive and ASCII case-insensitive results differ is BLOCKED.
+6. A ruleset applies when an `include` pattern matches and no `exclude` pattern matches; a non-applicable ruleset is skipped, and an applicable one is evaluated exactly as before (ref applicability, bypass actors, rule semantics).
+
+Unsupported CODEOWNERS syntax blocks; co-owners or ownership exemptions cannot establish an exclusive Rob requirement. `protected: true` alone never passes. An explicit API observation of unprotected main is FAIL even when unavailable protection details also require BLOCKED checks.
+
+### Approval and checks
+
+The latest relevant Rob approval must name the exact reviewed PR head. The latest run per required App/context must complete with conclusion `success`; ambiguous ordering, future timestamps, stale SHAs, incorrect Apps, skipped/cancelled results or absent/pending evidence do not pass. Actions workflow, event, SHA, check-suite, attempt and job/check-run linkage are read back; `details_url` only locates a run.
+
+The optional policy extension `dedicated_app: {id, slug}` is shared with Task 2. Only an operator-configured identity in accepted policy is consumed. The audit reads `/apps/<slug>`, compares the immutable App ID and checks the PR author is that App's bot. No synthetic App is installed in checked-in policy. Missing or unsupported identity remains BLOCKED.
+
+### Review conversation observation
+
+Review-conversation observations require the complete GraphQL thread inventory, including stable totals, unique thread IDs, exact boolean resolution values and advancing bounded cursors. PR identity uses GitHub's `fullDatabaseId` with strict positive signed-64-bit decimal parsing rather than the deprecated PR `databaseId` field.
+
+Every page must agree with the observed private repository and PR identity, base/head revisions, branch names, state, draft flag and update time; a final REST reread must preserve those anchors. A complete empty or resolved inventory passes this check only. An unresolved thread fails; partial responses, GraphQL errors, missing fields, pagination defects and changing identities block. Sequential observations do not prove an atomic or durable authorization decision. The fixed query follows GitHub's [PR review-thread schema](https://docs.github.com/en/graphql/reference/pulls).
+
+### Policy validation
+
+The audit's `policy` check validates the accepted policy through the loaded admission `_validate_policy`, so it accepts exactly the legacy `pending` shape and the `evaluator-bound` shape described in the [WorkPacket guide](/developer/work-packet-v1). Any other shape or status word is `policy` BLOCKED. The repository-name checks, including the letter-case detail, run unchanged after validation.
+
+### Current limitations
+
+Live merge queue proof, B4, independent review, Rob approval and the connected acceptance/archive loop remain BLOCKED. Consequently this version cannot return overall readiness PASS merely from successful PR/queue/main/thread checks, and a bound policy does not change `supervised-readiness`, which stays BLOCKED.
+
+## Report and test interfaces
+
+Reports retain exactly these top-level fields: `schema`, `scope`, `bindings`, `checks`, `status`, `limitations`. Schema is `mindclade.governance-report.v1`; each check contains `id`, `status`, `detail`; FAIL dominates BLOCKED, then PASS. Stdout is one JSON object, with exit codes `0`, `2`, `3` respectively. Raw diagnostics are not written to stderr.
+
+Audit scope is `github-governance-observation`. Its validated bindings include `base_sha`, `candidate_sha`, `policy_sha`, `packet_sha256`, `packet_id`, `linear_issue`, `spec_path`, `spec_sha256` and the accepted `policy_sha256`. Observed PR bindings add `pr_base_sha`, `pr_head_sha` and, for main stage, `pr_merge_commit_sha` after the merge link is checked. `observation_kind`, `observed_at` and `evaluator` live inside `bindings`, never as new top-level v1 fields. Invalid/missing inputs cannot manufacture validated metadata. Evaluator hashing does not certify execution provenance.
+
+### Offline API
+
+`github_audit.main(argv, *, request=None, graphql=None, git=None, now=None)`
+
+Injected `request(method, endpoint)` returns decoded REST JSON; injected `graphql(variables)` returns the full GraphQL response envelope for the fixed query; injected `git(argv)` returns bytes without transport flags. Any injection, including an injected clock, labels the report `fixture`. A REST fixture without a GraphQL fixture leaves review conversations BLOCKED and must never start live GraphQL I/O.
+
+Defaults use live read-only observations and Task 2's sanitized Git transport. Fixtures never establish actual remote host, protection, identity, CI, permissions, or acceptance. `get_json(endpoint)` and `get_git(repo, argv)` are separately testable transport functions.
+
+Shared dependencies owned by Task 2 are `load_json`, `sha256_bytes`, `report`, `read_packet`, `packet_bindings` and `Git.root`/`Git.run`/`Git.document`. The root/graft preflight is a mandatory precondition for the Git reader. No semantic compiler or dispatcher is introduced. Both CLIs explicitly load `admission.py` by its trusted sibling file path, and admission loads `github_binding.py` the same way. A module already in `sys.modules` is reused only when its resolved file matches, so admission and the audit share one `Unknown`/`Violation` class pair. `-I` disables environment and candidate/current-directory import roots; it does not authenticate the interpreter, tool distribution, or CLI binaries. Do not replace these commands with candidate imports or `PYTHONPATH`.
+
+### Parent-only focused commands
+
+```bash
+python3 -B -m unittest discover -s scripts -p test_governance_github.py
+python3 -B -m unittest discover -s scripts -p test_governance_evidence.py
+```
+
+## Local evidence integrity
+
+Select a dedicated, private, pre-sanitized input directory. Include the full admission report with Linear/spec/check bindings, the GitHub observation report, and parent receipts/provenance appropriate to the reviewed claim. Packing does not inspect secret semantics or automatically collect repository files. A passing archive check also permits an honestly BLOCKED report inside it.
+
+```bash
+"$TRUSTED_PYTHON" -I -B "$TOOL_ROOT/tools/engineering/evidence.py" pack \
+  --input-dir "$SELECTED_INPUT" --output "$BUNDLE" \
+  --candidate "$CANDIDATE_SHA" --policy-revision "$POLICY_SHA" \
+  --packet-sha256 "$PACKET_SHA256"
+
+"$TRUSTED_PYTHON" -I -B "$TOOL_ROOT/tools/engineering/evidence.py" verify \
+  --bundle "$BUNDLE" --expected-sha256 "$OPERATOR_HELD_BUNDLE_SHA256" \
+  --candidate "$CANDIDATE_SHA" --policy-revision "$POLICY_SHA" \
+  --packet-sha256 "$PACKET_SHA256"
+```
+
+Retain `bindings.bundle_sha256` from packing independently before upload. Verify always requires that external digest and checks per-file hashes, sizes, inventory and bindings without extraction. Do not trust a digest downloaded alongside an untrusted replacement archive as the operator anchor.
+
+Bundle-report scope is `local-bundle-integrity`; bindings are `candidate_sha`, `policy_sha`, `packet_sha256`, and the observed `bundle_sha256`. This is explicitly not the full admission/governance decision. The selected admission report carries Linear/specification/check bindings unchanged inside the bundle.
+
+### Bundle format
+
+The reserved `manifest.json` uses `mindclade.evidence-manifest.v1` with canonical revision/packet bindings and sorted `{path, size, sha256}` inventory. ZIP_STORED, 1980-01-01 timestamps, regular-file metadata and no comments/extra fields make output deterministic. Limits are 100 MiB total uncompressed data including the manifest and 1000 entries including the manifest. Compression, ZIP64, multipart archives, duplicates, traversal, unlisted/appended bytes, symlinks including parents, non-regular files and unsafe overwrites are rejected. Input contents are checked for change while read. A new output inside the selected directory is not included in itself. Output uses atomic no-overwrite creation; verification writes nothing. Packing failure leaves no partial published output.
+
+## Operator archival runbook
+
+This runbook describes external operations only. Do not execute it from a worker or while connected acceptance is BLOCKED.
+
+<Warning>
+  Prerequisites are verified private repository access, applicable protected `evidence/` tags, enabled GitHub immutable releases, accepted main/queue evidence, fresh review, and Rob's publication approval. Immutable publication locks release assets, but whole-release deletion remains possible. This is operational retention, not independent compliance custody.
+</Warning>
+
+<Steps>
+  <Step title="Pack and verify locally">
+    Verify the approved candidate, packet, policy and reports; pack and verify locally. Retain the bundle digest in the operator's independent acceptance record. Set `BUNDLE` to the resulting `bundle.zip` and `MANIFEST` to a new private `manifest.json` sidecar path outside the selected input.
+  </Step>
+  <Step title="Copy manifest bytes for upload">
+    Copy only the manifest bytes from the verified bundle for upload, without extracting any archive paths:
+
+    ```bash
+    "$TRUSTED_PYTHON" -I -B - "$BUNDLE" "$MANIFEST" <<'PY'
+    import sys
+    import zipfile
+    with zipfile.ZipFile(sys.argv[1]) as archive:
+        manifest = archive.read("manifest.json")
+    with open(sys.argv[2], "xb") as target:
+        target.write(manifest)
+    PY
+    ```
+  </Step>
+  <Step title="Create draft release and upload">
+    Create a draft in the verified private repository and upload the two assets:
+
+    ```bash
+    gh release create "evidence/$CANDIDATE_SHA" --repo "github.com/$REPOSITORY" \
+      --target "$CANDIDATE_SHA" --draft --latest=false \
+      --title "Evidence $CANDIDATE_SHA" --notes-file "$APPROVED_NOTES"
+    gh release upload "evidence/$CANDIDATE_SHA" "$BUNDLE" "$MANIFEST" \
+      --repo "github.com/$REPOSITORY"
+    ```
+  </Step>
+  <Step title="Review draft and obtain approval">
+    Independently review draft tag target, audience, assets/digest, policy/packet bindings, immutable-release setting and approval record. Do not replace a conflicting tag or existing assets. Obtain final Rob publication approval.
+  </Step>
+  <Step title="Publish with latest disabled">
+    Only then publish with latest disabled:
+
+    ```bash
+    gh release edit "evidence/$CANDIDATE_SHA" --repo "github.com/$REPOSITORY" \
+      --draft=false --latest=false
+    ```
+
+    `--latest=false` must result in API `make_latest=false`; verify the release is immutable, private in audience, and not the latest product release.
+  </Step>
+  <Step title="Download and re-verify">
+    Download `bundle.zip` and `manifest.json` into a new private empty directory. Re-run the verification command with the downloaded bundle and the original operator-held digest. Downloaded hashes are not replacement trust anchors.
+
+    ```bash
+    gh release download "evidence/$CANDIDATE_SHA" --repo "github.com/$REPOSITORY" \
+      --pattern bundle.zip --pattern manifest.json --dir "$DOWNLOADED"
+    "$TRUSTED_PYTHON" -I -B "$TOOL_ROOT/tools/engineering/evidence.py" verify \
+      --bundle "$DOWNLOADED/bundle.zip" \
+      --expected-sha256 "$OPERATOR_HELD_BUNDLE_SHA256" \
+      --candidate "$CANDIDATE_SHA" --policy-revision "$POLICY_SHA" \
+      --packet-sha256 "$PACKET_SHA256"
+    ```
+
+    Record the result and release identity before the parent considers Linear closure. A missing immutable setting, mismatch, deletion, or absent acceptance remains BLOCKED or FAIL as appropriate.
+  </Step>
+</Steps>
+
+These source changes perform no transfer, protection changes, probe PRs, release publication, Linear updates or remote acceptance work.
+
+## G1 source implementation: tested checkout and execution binding
+
+G1 adds separate `execution-transport` and `execution-binding` checks. The first joins supported repository, PR, run/current-attempt, workflow, check/job, Git commit/ref and named artifact observations. A supported contradiction is FAIL even when execution trust is unavailable. The second needs independently accepted workflow/receipt-producer identities, proof of what actually executed, and independently retained artifact bytes. All four production prerequisite loaders remain explicit BLOCKED defaults pending O3 adoption. No new flags, accepted pins, approval registry, custody service or trust escape hatch were introduced. Source/fixture success is not protected connected acceptance.
+
+### PR binding
+
+For PRs, existing `--candidate` remains the source head. Actions run/check/job `head_sha` means that source head in the supported shape. `tested_sha` is the separate checkout commit, corroborated through the current PR merge ref, the Git commit's ordered `[base, source_head]` parents and the transported receipt. Empty or missing run PR membership blocks. The observer checks snapshots again after artifact retrieval; drift blocks, and a newer failed completed run fails. An older successful artifact cannot replace a current failed/incomplete attempt.
+
+### Main binding
+
+For main, `--candidate` remains the resulting main commit. The supported fixture path requires an ordinary two-parent merge matching the actual main ref and merged PR result, plus independently retained prior PR binding provenance. Its independently observed tested tree must equal the resulting main tree; commit SHAs may differ. Squash, rebase and queue-main relationships remain unsupported. Queue binding is the separate G2 stage below. A main receipt or bare tree hash cannot supply prior PR custody.
+
+### `github_binding.py`
+
+`tools/engineering/github_binding.py` is a pure standard-library verifier and bounded decoder. `verify_run_binding(expected, observed)` performs no I/O and does not mutate inputs. Its result retains expected anchors, renames `source_head_sha` to `pr_head_sha`, and adds `pr_base_sha`. Arbitrary dictionary calls are fixture calculations, not authenticated observations. The audit resolves its binding sibling from trusted TOOL_ROOT and re-exports the same `Unknown`/`Violation` classes. TOOL_ROOT/runtime custody remains a separate operator prerequisite.
+
+### Test dependencies
+
+The audit's additive keyword-only test dependencies are:
+
+```python
+accepted_identity() -> (immutable_record_revision, pinned_record_sha256, record_bytes)
+artifact_request(method, endpoint, *, max_bytes) -> archive_bytes
+artifact_custody(repository_id, run_id, run_attempt, artifact_id) -> (opaque_id, retained_sha256, retained_bytes)
+retained_pr(repository_id, pr_number, base_sha, source_head_sha) -> (opaque_id, retained_sha256, prior_record_bytes)
+executed_identity(repository_id, run_id, run_attempt) -> execution_identity_dict
+```
+
+Supplying any dependency marks the whole report `fixture`. Omitted new dependencies, REST and GraphQL never fall back to production readers in fixture mode. Explicit `--repo` local Git preflight remains available when no `git` callback is supplied, preserving the original offline/local Git regression interface; it never performs a Git remote operation. The original decoded JSON `request(method, endpoint)` interface never receives binary downloads.
+
+### Accepted identity records
+
+Accepted identity records bind repository ID/name, full immutable workflow and producer revisions, `.github/workflows/foundation.yaml` and `scripts/capture_workflow_binding.py` paths, exact SHA-256 digests and the `standalone-capture-v1` profile. The record's containing revision/digest is a separate acceptance anchor. Actual source bytes at an immutable contents route are compared only after a separately supplied execution proof identifies the executed revisions. Workflow metadata, filenames, `head_sha`, logs and receipt `workflow_ref` alone cannot establish the executed invocation chain. The profile requires a standalone standard-library producer and separately accepted interpreter, isolation, invocation and upload chain; G1 deploys none of that trust.
+
+### Artifact download
+
+Binary retrieval starts at the fixed relative artifact ZIP endpoint after repository/run/attempt/artifact joins. It accepts a direct HTTPS 200 response from `api.github.com`, with a `Content-Length` pre-check and a single `read(1 MiB + 1)`. urllib's header-copying automatic redirect is never used: 3xx responses are surfaced to the adapter. Redirects are off by default: `ARTIFACT_REDIRECT_HOSTS` is empty, so every redirect (including one to a plausible GitHub storage host) is BLOCKED with "Artifact download redirect host is not allowlisted; no credentials were forwarded" after exactly one request. GitHub documents a `302` with a short-lived `Location` but does not name the host, so live artifact download is BLOCKED until the host is confirmed (the audit's limitation text still reads "pending Rob's confirmation").
+
+<Info>
+  Rob decided on 2026-09-26 ([D-6](/developer/agent-handoff.md#owner-decisions-recorded-2026-09-26-after-the-closeout)) that after the transfer the parent confirms the Actions blob host from `/meta`, retains that `/meta` response as the fixture that replaces the generated `META_ACTIONS_BLOB_DOMAINS` one, and then enables the G2-27/G2-28 allowlist for exactly that host in a reviewed PR.
+</Info>
+
+### Redirect handling (G2-27)
+
+The separately enabled G2-27 branch, exercised only by tests that patch the allowlist, follows exactly one `302` whose single absolute `https` `Location` has no userinfo, port 443 or none, and an ASCII `urlsplit` hostname matching `^productionresultssa(?:[0-9]|1[0-9])\.blob\.core\.windows\.net$` (the `/meta` `domains.actions` accounts 0–19). The follow-up is a newly built GET without `Authorization`, `Cookie` or `X-GitHub-Api-Version`; `gh auth token` runs once, both requests use a 25 s timeout, and the second response must be 200 with `geturl()` equal to the `Location` and the same byte bounds. Other statuses, relative/missing/duplicated `Location`, `http`, other ports, IP literals, trailing dots, wider storage hosts and chained redirects are BLOCKED. Enabling it follows D-6: the parent's confirmation of the host from `/meta` after transfer, then a reviewed PR. The host adds no trust: integrity still rests on independent custody and the optional API digest. Details never include the signed query. No live-download completion is claimed.
+
+### Artifact constraints
+
+The exact artifact name is `workflow-binding-{run_id}-{run_attempt}`. The API artifact object has run/repository/head linkage, not an invented `run_attempt` field. Its optional API SHA-256 is checked when present. The downloaded hash and bytes must also match independently retained custody before parsing. Opaque custody IDs are recorded under report bindings and never opened as paths/URLs.
+
+Archives are bounded at 1 MiB, with one regular `workflow-binding.json` file and at most 64 KiB actual expanded data. STORED and DEFLATED are supported with central/local-header, actual expansion and CRC checks; traversal, duplicates, extra entries, symlinks/special files, encryption, ZIP64, streamed envelopes, extra metadata and appended data cannot pass. JSON rejects duplicate/unknown keys and malformed IDs/digests. A self-computed digest is byte identity, not independent custody.
+
+### Receipt capture
+
+`scripts/capture_workflow_binding.py` writes an exclusive additive receipt: schema, repository ID/name, event, run ID/attempt, workflow path/ref, PR source head/base, actual checkout Git HEAD as `tested_sha`, and optional merge-group head/base/ref. It reads only allowlisted fields and never archives the event or environment. Push/dispatch receipts explicitly use null PR anchors; missing PR event anchors never fall back to `GITHUB_SHA`. Current CI runs the candidate-local producer and uploads its one-file artifact as untrusted transport data. It also runs pinned `just doctor` before verification for Linux source diagnostics; doctor output does not establish trusted execution.
+
+### Foundation verification and evidence export
+
+Foundation verification optionally inventories a present receipt and verifies its checkout/run identity. Evidence export requires it in both the explicit file inventory and command artifact digests when present, and verifies checkout, base and CI consistency. Existing `FoundationVerificationReceipt@v1`, `EvidenceMetadata@v1`, `EvidenceBundle@v1` and `GovernanceReport@v1` top-level schemas remain unchanged. Old receipts are not retroactively modified and remain readable for their original source-only claims; they cannot establish execution binding.
+
+## G2 source implementation: exact one-change merge group
+
+G2 adds `--stage queue` to the audit. In this stage `--candidate` is the reviewed PR head; approval and review-thread checks keep their meaning. The stage has two modes, and live queue proof stays BLOCKED until O3 adopts snapshot custody. The merge queue itself is live since the transfer (merge-group run 36281404468 for PR #32).
+
+### Capture mode
+
+`--stage queue --queue-snapshot-out PATH` (parent-owned) reads the repository and PR over REST, paginates one fixed read-only GraphQL query, and reads the repository and PR over REST again. It accepts only an open non-draft PR (merged, closed or draft is `pull-request` FAIL). REST and GraphQL identities must agree on every page, including REST `base.sha` equal to `baseRefOid`; GraphQL errors, a null `mergeQueue` or PR `mergeQueueEntry`, a missing cursor, a repeated cursor, a changed total, identity drift across pages or the 100-page limit are BLOCKED.
+
+The PR's `mergeQueueEntry.id` must equal the selected entry. The complete snapshot bytes, including the one-change rule below, are validated before `PATH` is created with `O_WRONLY|O_CREAT|O_EXCL|O_NOFOLLOW` and mode 0600. An existing file or symlink is left unchanged and BLOCKED; a write failure removes only this capture's file. The report records `bindings.queue_capture = {queue_snapshot_digest, queue_entry_id, queue_observed_at}` and emits exactly `policy`, `packet`, `repository`, `pull-request`, `queue-capture`, `execution-binding` (BLOCKED) and `supervised-readiness` (BLOCKED). Capture is valid only while the complete queue count is 1.
+
+The only query is this constant (no caller query text, no mutation):
+
+```graphql
+query MergeQueueSnapshot($owner: String!, $name: String!, $number: Int!, $after: String) {
+  repository(owner: $owner, name: $name) {
+    databaseId nameWithOwner isPrivate
+    pullRequest(number: $number) {
+      fullDatabaseId number state isDraft baseRefName headRefOid baseRefOid updatedAt
+      mergeQueueEntry { id }
+    }
+    mergeQueue(branch: "main") {
+      id
+      configuration { mergeMethod }
+      entries(first: 100, after: $after) {
+        totalCount
+        pageInfo { hasNextPage endCursor }
+        nodes {
+          id position state enqueuedAt
+          enqueuer { login }
+          baseCommit { oid }
+          headCommit { oid }
+          pullRequest { fullDatabaseId number headRefOid baseRefOid }
+        }
+      }
+    }
+  }
+}
+```
+
+`github_audit.observe_queue(variables)` runs it through `gh api --hostname github.com graphql --method POST --input -` with `GH_HOST` and `GH_DEBUG` removed, a 25 s timeout and a 1 MiB strict JSON bound. `variables` is exactly `{owner, name, number, after}`, validated before any process starts.
+
+### Snapshot format
+
+`mindclade.queue-snapshot.v1` has exactly:
+
+- `schema`
+- `repository_id`
+- `repository`
+- `pr_number`
+- `pr_database_id`
+- `base_sha` (the operator `--base`)
+- `source_head_sha` (the operator `--candidate`)
+- `policy_sha`
+- `packet_sha256`
+- `observed_at` (RFC 3339 UTC seconds from the injected clock)
+- `queue: {id, merge_method, total_count}`
+- `entries[]`
+
+Each entry has exactly `id`, `position`, `state`, `enqueued_at`, `enqueuer`, `base_sha`, `head_sha`, `number`, `pr_database_id`, `pr_head_sha` and `pr_base_sha`; GitHub nulls stay null. The bytes are `json.dumps(record, sort_keys=True, separators=(",", ":"))` in UTF-8 plus `\n`, at most 64 KiB, and `queue_snapshot_digest` is their SHA-256.
+
+### Verification mode
+
+`--stage queue` without the output flag reads the snapshot only through the keyword-only reader `retained_queue(repository_id, pr_number, policy_sha, packet_sha256) -> (opaque_id, sha256, bytes)`. Its production default raises "O3 has not adopted independent queue snapshot custody", so live verification is BLOCKED pending O3. No flag or path accepts a snapshot for verification, and argument abbreviations are disabled; unknown flags are `inputs` FAIL.
+
+The bytes must match independent custody, parse without duplicate keys, match the exact schema and re-serialize canonically; a CLI mismatch (`repository`, `pr_number`, `base_sha`, `source_head_sha`, `policy_sha`, `packet_sha256`) or a future `observed_at` fails. Only required-context/App checks on the queue head whose locator run has event `merge_group` and `head_branch` `gh-readonly-queue/main/pr-<N>-<entry base>` are counted; checks from other events on the same SHA are never a fallback, and the newest must be unique.
+
+The report records `bindings.queue_binding = verify_queue_binding(...) + {queue_snapshot_custody_id}`. In the queue stage `required-checks`, `execution-transport` and `execution-binding` are BLOCKED with "evaluated by queue-binding in queue stage". The queue-stage `pull-request` check passes an open PR, or a merged PR whose `merge_commit_sha` equals the retained queue head; closed-unmerged or merged elsewhere fails, and a merged PR without a retained snapshot is BLOCKED. Main CI never reconstructs queue evidence.
+
+### `verify_queue_binding`
+
+`github_binding.verify_queue_binding(expected, observations)` is pure. `expected` is the G1 key set plus `enqueuer` (the accepted policy's `acceptance_owner`; no flag supplies it), with `base_sha` the queue base, `source_head_sha` the PR head and `tested_sha` the merge-group head. `observations` is the G1 set plus the decoded `queue` and `queue_snapshot_sha256`; missing keys are BLOCKED and extra keys are ignored.
+
+It returns exactly `queue_entry_id`, `queue_base_sha`, `queue_head_sha`, `queue_pr_head_sha`, `queue_run_id`, `queue_run_attempt`, `queue_snapshot_digest` and `queue_observed_at`. The one-change rule requires a complete inventory (`len(entries) == total_count`, else BLOCKED) with exactly one entry at position 1 for the selected PR, a ready state (`AWAITING_CHECKS`, `MERGEABLE` or `LOCKED`; `QUEUED` or a null head is BLOCKED, `UNMERGEABLE` fails), enqueuer exactly equal to `acceptance_owner`, and queue/PR base and PR head equal to the operator anchors.
+
+The run must be the complete current `merge_group` attempt on the queue head; only checks in its suite whose locator names it are selected. The receipt must be a `merge_group` receipt whose head/base match and whose `head_ref` is `refs/heads/gh-readonly-queue/main/pr-<N>-<40hex>` equal to `refs/heads/` + the run branch. Only two-parent `MERGE` is supported: parents must be exactly `[base, PR head]`, and `SQUASH`, `REBASE`, null or unknown methods are BLOCKED. `verify_run_binding` and `verify_primary_observations` never pass the queue stage.
+
+### Test dependencies
+
+The additive keyword-only test dependencies are `queue_graphql(variables)` (the capture transport) and `retained_queue(...)`. Supplying any dependency marks the report `fixture`; an omitted one resolves to a BLOCKED fixture error, never a live call. The workflow already runs capture for `merge_group` and uploads `workflow-binding-{run_id}-{run_attempt}`; G2 changes no workflow, policy, admission, ruleset or App. Source/fixture success is not live queue proof: no live queue observation, probe PR or completed live download is claimed.
+
+## G3 source implementation: independently regenerated boundary evidence
+
+G3 lets code-class admission consume B4 without trusting anything the candidate produced. Code admission requires a matrix B4 pass whose trusted-host facts the accepted evaluator regenerated, and whose other-host facts are regenerated or CI-attested, as the result's `hosts` provenance records. A candidate's own receipt, facts or report under `target/` is never read. Codegen decides; Python only hashes the architecture model and never parses it or evaluates ownership, allow, deny or visibility.
+
+<Warning>
+  This is source and fixture behavior only. It claims no operational code admission, no trusted run and no matrix acceptance. Every production default is BLOCKED: evaluator inputs pending O3, the sandboxed runner pending P1b and O3, and CI facts custody pending O3. The shipped policy stays `pending`; the bound shape is a [proposal](/superpowers/specs/2026-09-26-g3-accepted-policy-proposal) that Rob adopts in O3, not active policy.
+</Warning>
+
+### Trusted tools
+
+`admission.load_trusted_boundary_tools(root, binding, *, runner=None, attested_facts=None)` is the only constructor of `TrustedBoundaryTools`. `binding` is the accepted policy's `boundary_evaluator`. `root` must be an absolute, symlink-free directory. The loader reads `root/boundary-evaluator.json` with `O_NOFOLLOW` (a regular file of at most 1 MiB, strict JSON) and requires its SHA-256 to equal `binding.config_sha256`.
+
+The config has exactly these keys; any other key, including `argv` or `command`, is invalid:
+
+| Key | Content |
+| --- | --- |
+| `schema` | `mindclade.boundary-evaluator.v1` |
+| `host` | `aarch64-darwin` or `x86_64-linux` |
+| `configurations` | B4's six sorted IDs, equal to the binding's |
+| `codegen` | `{path, sha256}` |
+| `collectors` | exactly `dependency_facts.py`, `dependency_facts.bzl`, `typescript_facts.mjs`, each `{path, sha256}` |
+| `runtimes` | exactly `python`, `node`, `typescript`, `cargo`, `rustc`, `bazel`, `git`, each `{path, sha256}` |
+| `ts_options_sha256` | digest of the TypeScript option set |
+| `provisioned` | `{cargo_home, repository_cache}` directories, filled by the operator's separate network-on step (B4 R4) |
+| `work_root` | directory that holds disposable step directories |
+| `sandbox` | `{profile, sha256}` (the profile is a pinned file) or `null` |
+| `limits` | `{step_timeout_seconds, max_stdout_bytes, max_processes}`, positive integers |
+
+Every path is relative to `root` under admission's path rules. Each pinned file must be a regular, symlink-free file whose SHA-256 equals its pin; otherwise the loader raises `Invalid` (a symlinked config is `Invalid` too). The returned object is frozen and has no field that a packet, candidate file, environment variable or CLI flag can populate. `verify_boundaries` rejects any `TrustedBoundaryTools` the loader did not create, including direct construction, `dataclasses.replace` and copies. An omitted `runner` raises `Blocked("P1b/O3: no accepted sandboxed boundary runner")`; an omitted `attested_facts` raises `Blocked("O3 has not adopted independent CI facts custody")`.
+
+### `verify_boundaries`
+
+`admission.verify_boundaries(candidate_root, expected, trusted_tools) -> dict` raises `Invalid` (FAIL) for an observed contradiction and `Blocked` for unavailable or incomplete evidence. It never returns a partial result.
+
+`verify_boundaries` has no base anchor, so it does not compare the workspace files that configure or replace Bazel (`.bazelrc`, `.bazelversion`, `tools/bazel`) with base. Admission enforces that equality before it requests boundary inputs: a code candidate that adds, removes, modifies or re-modes any of them is `boundary-checker` BLOCKED with no runner call (O3 ruling). A caller that invokes `verify_boundaries` directly gets no such check and must enforce it itself.
+
+`expected` has exactly:
+
+- `candidate` (40 lowercase hex)
+- `source_inventory_digest` and `graph_digest` (`sha256:<64 hex>`)
+- `lock_digests` (exactly `Cargo.lock`, `MODULE.bazel.lock`, `pnpm-lock.yaml`, `flake.lock`)
+- `model` (`{path: "docs/architecture/model/architecture.yaml", digest}`)
+- `required_configurations` (equal to the tools' configurations)
+- `scope` (`"matrix"`)
+- `other_host`
+
+`other_host` is `null` or exactly `{provenance, host, repository_id, repository, run_id, run_attempt, artifact_id, artifact_sha256, workflow_digest, verifier_digest}`. It is validated before any I/O. An `argv` key is invalid, and packet acceptance `argv` is never executed.
+
+#### Steps
+
+The steps run in this order:
+
+1. Validate `expected`. The evaluator and candidate roots must not contain each other.
+2. The candidate must be a clean checkout whose HEAD is `expected.candidate`; a dirty or historical tree is BLOCKED.
+3. A `null` sandbox or the production runner is BLOCKED before any call.
+4. Every pinned file is re-hashed before the first step and again after the last; a change is BLOCKED.
+5. `other_host: null` is BLOCKED ("host-scope evidence cannot satisfy matrix"), as is an other host equal to the trusted host. `provenance: "regenerated"` is BLOCKED until O3 adopts a second trusted runner. The candidate's committed collectors must equal the trusted pins byte for byte, or the CI facts are BLOCKED as coming from candidate-modified collectors. Then `attested_facts(*, other_host, candidate)` returns the observation that `github_binding.verify_attested_facts` checks; `Unknown` maps to BLOCKED and `Violation` to FAIL.
+6. Four runner steps run in a fresh exclusive directory under `work_root`, with `cwd` = the candidate root, list argv built only from pinned paths and fixed B4 flags, the configured limits and one writable path (that directory):
+   - `bazel --batch --nohome_rc --nosystem_rc --output_user_root=<step>/bazel-root build --lockfile_mode=error --repository_disable_download --repository_cache=<provisioned> --build_event_json_file=<step>/bep.json -- //codegen/frontend/typespec:vs001`. The semantic input is located only through the BEP (apparent or canonical label). `--batch` leaves no Bazel server after the step.
+   - trusted `dependency_facts.py collect --host <host> --out <step>/host --hermetic --bazel-output-user-root <step>/bazel-root` with `--bazel-repo-env` for each of `CC`, `DEVELOPER_DIR`, `JAVA_HOME`, `PATH`, `USER` (B4 ruling J). The facts must cover exactly the trusted host's three IDs; a missing ID is BLOCKED and named.
+   - `dependency_facts.py merge <host facts> <attested facts> --out <step>/merged.json`.
+   - trusted `codegen check-boundaries --input <semantic input> --architecture docs/architecture/model/architecture.yaml --facts <merged> --out <step>/report.json`.
+
+   The environment is an explicit allowlist built from pinned paths (`HOME`, `TMPDIR`, `PATH` of the pinned runtime directories, `CARGO_HOME`, `LANG`, `LC_ALL`, `TZ`), never `os.environ`. Each runner result must carry an isolation record equal to `{profile, sha256, network: "none", credentials: "none", writable: [<step directory>]}`; anything else is BLOCKED and later steps do not run. The adapter never provisions: no fetch, no download. Collector and merge stdout must match the facts they wrote. After the last step the candidate tree must be unchanged.
+
+   Between `collect` and `merge`, admission writes the CI-attested facts to `<step>/attested/facts.json` itself. It opens the step directory and `attested` with `O_NOFOLLOW` and creates the file exclusively through those descriptors, so a link or file an earlier step left there is BLOCKED and cannot redirect the write. Admission never removes a step directory, which holds the evidence behind the reported digests. The operator purges `work_root` after retaining what it needs.
+7. `parse_boundary_report` interprets the result (below).
+
+The return value has exactly `report_sha256`, `scope`, `candidate`, `source_inventory_digest`, `lock_digests`, `model_digest`, `graph_digest`, `covered_configurations`, `collectors`, `facts_digest`, `evaluator_config_sha256` and `hosts`: `{<trusted host>: {provenance: "regenerated", facts_digest}, <other host>: {provenance: "ci-attested", facts_digest, run_id, run_attempt, artifact_id, artifact_sha256}}`. It is a report identity, not a capability.
+
+### `parse_boundary_report`
+
+`admission.parse_boundary_report(returncode, stdout, report, anchors, *, facts_digest=None)` is the frozen step 7–9 entry. `anchors` has exactly `candidate`, `source_inventory_digest`, `lock_digests`, `model_digest`, `graph_digest`, `required_configurations`, `scope` and `collector_digests` (the three collector paths plus `typescript-options`).
+
+Exit 1, a timeout, a missing report, stdout that is not exactly `passing|violations scope=… report=… graph=… model=… facts=…` for those bytes, a non-canonical report, a key set other than B4's `BoundaryReport@v1`, a wrong `schema`, exit 0 with violations or exit 2 without them, or a report not bound to the merged facts are BLOCKED. Then binding mismatches are FAIL ("stale candidate", "stale source_inventory_digest", "stale lock_digests", "stale model_digest", "stale graph_digest"), as are report or facts collectors that differ from the pins. Then violations are FAIL, naming only the sorted unique codes. Only then are `covered_configurations` other than the six IDs or a scope other than `matrix` BLOCKED. A correctly bound report with violations is FAIL at any scope.
+
+### CI-attested other-host facts
+
+`github_binding.verify_attested_facts(expected, observed) -> dict` is pure: no I/O, no input mutation. `expected` is the accepted `other_host` object plus `candidate`. `observed` has exactly `repository`, `run`, `run_after`, `artifact` (the receipt artifact), `receipt`, `facts_artifact`, `facts_archive`, `facts_custody` `(opaque_id, sha256, bytes)`, `accepted_identity` and `executed_identity`.
+
+The run must be a completed, successful `workflow_dispatch` run and attempt with no newer attempt; `pull_request`, `merge_group` and `push` runs are FAIL because they test another checkout. The run `head_sha`, the receipt `tested_sha` and the facts `candidate` must equal the candidate, and the receipt must be a `workflow_dispatch` receipt with null PR anchors.
+
+The facts artifact must be `boundary-facts-<run_id>-<run_attempt>` (B4 ruling H) with matching ID, run, repository and head. The optional API digest and the independent custody digest must both equal `artifact_sha256`. The archive must hold exactly `facts.json` and `report.json` under G1's ZIP rules. Only `facts.json` is inflated, bounded at 32 MiB; the uploaded `report.json` is never read.
+
+The facts must be canonical `DependencyFacts@v1` for exactly the attested host's three IDs. It returns exactly `run_id`, `run_attempt`, `artifact_id`, `artifact_sha256`, `facts_sha256` and `facts_bytes`. Missing or incomplete observations are `Unknown` (BLOCKED); contradictions are `Violation` (FAIL).
+
+### Independence and provenance
+
+CI attests only Linux (`x86_64-linux`) facts, because CI runs only on Linux. The interim trusted runner is the Mac, and Rob accepts that explicitly at O3 adoption (R2). CI-attested facts come from a candidate-branch `workflow_dispatch` run; they show consistency with the candidate, not independent regeneration. The O3 target is an operator-controlled Linux runner (`provenance: "regenerated"`), which stays BLOCKED until adopted.
+
+The `expected` anchors must come from a record that is independent of the candidate run; O3 defines that record. An anchor derived from the same trusted run proves consistency only.
+
+### Decisions
+
+- **D1 (no attempt ID).** Evidence binds to the exact candidate, inventory, locks, model, graph, configurations and `report_sha256`, which the parent's attempt record references. An attempt ID would be a packet or report field, so it is deferred to O3 operator records.
+- **D2 (governance path gap).** Neither `allowed_governance_paths` nor `admission.GOVERNANCE_PATHS` includes `scripts/test_governance_binding.py`. A governance packet that owns it stays `policy-constraints` FAIL. **O3 follow-up:** one coordinated, reviewed change to both the ceiling and the policy. Rob decided on 2026-09-26 (D-7) that it is the same change in which O3 adopts the [G3 policy proposal](/superpowers/specs/2026-09-26-g3-accepted-policy-proposal.md#8-owner-decision-2026-09-26-adoption-with-the-governance-path-fix), after P1b's hermetic collection passes.
+- **D3 (configurations).** Only B4's six frozen IDs are used. They are pinned in the binding and the evaluator config, and compared with Codegen's `covered_configurations`; only Codegen ties them to the model.
+- **D4 (no model self-relaxation).** A code candidate may not change the architecture model or source profile relative to base (`boundary-checker` FAIL, no runner call). A model change goes first as its own reviewed governance change (R1).
+- **D5 (pinned collectors).** A candidate that edits a pinned collector stays BLOCKED until O3 refreshes the pins through a new accepted config.
+
+### P1b and B4 dependencies
+
+The production runner stays BLOCKED until P1b provides B4's `--hermetic` collection: it must collect the candidate tree at `cwd`, load its helpers from the trusted evaluator root, resolve tools from the pinned runtimes and honor the provisioned caches. B4 today rejects `--hermetic`, collects its own checkout and finds tools only on `/nix/store` PATH entries. P1b must also bind the helpers that the trusted collector loads but the config does not pin: `tools/build/frontend_action.py` and `tools/validation/typescript_loader.cjs`.
+
+The accepted runner and config must also meet these requirements:
+
+- **Unwrapped Bazel client.** `runtimes.bazel` is the unwrapped client: the Nix package's versioned `bazel-9.1.1-<os>-<arch>` or a `bazel-real`. It is never the package's `bazel` launcher or the repository's flake wrapper. The launcher defaults `BAZEL_WRAPPER` to the workspace's `tools/bazel` and execs it, and picks a version from `.bazelversion`. The flake wrapper only unsets the environment variables, so it still reaches that fallback. Admission's equality check on those files is defense in depth, not a substitute. If the unwrapped client needs the `--server_javabase` the flake wrapper passes, P1b supplies it as a reviewed fixed flag. CI-attested facts inherit CI's route: the Linux job runs Bazel through the flake wrapper and launcher on the candidate-branch checkout, so those facts carry whatever that route runs. They show consistency, not independent regeneration (R2).
+- **Read-only caches at the inode level.** The provisioned `cargo_home` and `repository_cache` must be unwritable by every step at the inode level, not only by path. The workspace `.bazelrc` sets `--experimental_repository_cache_hardlinks`, which hardlinks repository-cache files into the step's output base. Inside the writable step directory, a write through such a link would change the shared cache.
+- **No step process outlives its step.** When a step returns or times out, the runner ends its whole process tree, including any Bazel server (`--batch` starts none). Admission writes the CI-attested facts into the step directory between `collect` and `merge`, and relies on no candidate process remaining to change them.
+
+### Parent-only focused commands
+
+<Warning>
+  G3-20 needs a parent-built Codegen; without it that test skips and is recorded "BLOCKED — not run".
+</Warning>
+
+```bash
+python3 -B -m unittest discover -s scripts -p test_governance_admission.py
+python3 -B -m unittest discover -s scripts -p test_governance_binding.py
+MINDCLADE_CODEGEN_BIN=/absolute/path/to/codegen \
+  python3 -B -m unittest discover -s scripts -p test_governance_admission.py -k test_g3_20
+```
+
+## G3 source implementation: independently regenerated boundary evidence
+
+G3 lets code-class admission consume B4 without trusting anything the candidate produced. Code admission requires a matrix B4 pass whose trusted-host facts the accepted evaluator regenerated, and whose other-host facts are regenerated or CI-attested, as the result's `hosts` provenance records. A candidate's own receipt, facts or report under `target/` is never read. Codegen decides; Python only hashes the architecture model and never parses it or evaluates ownership, allow, deny or visibility.
+
+This is source and fixture behavior only. It claims no operational code admission, no trusted run and no matrix acceptance. Every production default is BLOCKED: evaluator inputs pending O3, the sandboxed runner pending P1b and O3, and CI facts custody pending O3. The shipped policy stays `pending`; the bound shape is a [proposal](/superpowers/specs/2026-09-26-g3-accepted-policy-proposal) that Rob adopts in O3, not active policy.
+
+### Trusted tools
+
+`admission.load_trusted_boundary_tools(root, binding, *, runner=None, attested_facts=None)` is the only constructor of `TrustedBoundaryTools`. `binding` is the accepted policy's `boundary_evaluator`. `root` must be an absolute, symlink-free directory. The loader reads `root/boundary-evaluator.json` with `O_NOFOLLOW` (a regular file of at most 1 MiB, strict JSON) and requires its SHA-256 to equal `binding.config_sha256`. The config has exactly these keys; any other key, including `argv` or `command`, is invalid:
+
+| Key | Content |
+| --- | --- |
+| `schema` | `mindclade.boundary-evaluator.v1` |
+| `host` | `aarch64-darwin` or `x86_64-linux` |
+| `configurations` | B4's six sorted IDs, equal to the binding's |
+| `codegen` | `{path, sha256}` |
+| `collectors` | exactly `dependency_facts.py`, `dependency_facts.bzl`, `typescript_facts.mjs`, each `{path, sha256}` |
+| `runtimes` | exactly `python`, `node`, `typescript`, `cargo`, `rustc`, `bazel`, `git`, each `{path, sha256}` |
+| `ts_options_sha256` | digest of the TypeScript option set |
+| `provisioned` | `{cargo_home, repository_cache}` directories, filled by the operator's separate network-on step (B4 R4) |
+| `work_root` | directory that holds disposable step directories |
+| `sandbox` | `{profile, sha256}` (the profile is a pinned file) or `null` |
+| `limits` | `{step_timeout_seconds, max_stdout_bytes, max_processes}`, positive integers |
+
+Every path is relative to `root` under admission's path rules. Each pinned file must be a regular, symlink-free file whose SHA-256 equals its pin; otherwise the loader raises `Invalid` (a symlinked config is `Invalid` too). The returned object is frozen and has no field that a packet, candidate file, environment variable or CLI flag can populate. `verify_boundaries` rejects any `TrustedBoundaryTools` the loader did not create, including direct construction, `dataclasses.replace` and copies. An omitted `runner` raises `Blocked("P1b/O3: no accepted sandboxed boundary runner")`; an omitted `attested_facts` raises `Blocked("O3 has not adopted independent CI facts custody")`.
+
+### `verify_boundaries`
+
+`admission.verify_boundaries(candidate_root, expected, trusted_tools) -> dict` raises `Invalid` (FAIL) for an observed contradiction and `Blocked` for unavailable or incomplete evidence. It never returns a partial result.
+
+`verify_boundaries` has no base anchor, so it does not compare the workspace files that configure or replace Bazel (`.bazelrc`, `.bazelversion`, `tools/bazel`) with base. Admission enforces that equality before it requests boundary inputs: a code candidate that adds, removes, modifies or re-modes any of them is `boundary-checker` BLOCKED with no runner call (O3 ruling). A caller that invokes `verify_boundaries` directly gets no such check and must enforce it itself.
+
+`expected` has exactly `candidate` (40 lowercase hex), `source_inventory_digest` and `graph_digest` (`sha256:<64 hex>`), `lock_digests` (exactly `Cargo.lock`, `MODULE.bazel.lock`, `pnpm-lock.yaml`, `flake.lock`), `model` (`{path: "docs/architecture/model/architecture.yaml", digest}`), `required_configurations` (equal to the tools' configurations), `scope` (`"matrix"`) and `other_host`. `other_host` is `null` or exactly `{provenance, host, repository_id, repository, run_id, run_attempt, artifact_id, artifact_sha256, workflow_digest, verifier_digest}`. It is validated before any I/O. An `argv` key is invalid, and packet acceptance `argv` is never executed.
+
+The steps run in this order:
+
+1. Validate `expected`. The evaluator and candidate roots must not contain each other.
+2. The candidate must be a clean checkout whose HEAD is `expected.candidate`; a dirty or historical tree is BLOCKED.
+3. A `null` sandbox or the production runner is BLOCKED before any call.
+4. Every pinned file is re-hashed before the first step and again after the last; a change is BLOCKED.
+5. `other_host: null` is BLOCKED ("host-scope evidence cannot satisfy matrix"), as is an other host equal to the trusted host. `provenance: "regenerated"` is BLOCKED until O3 adopts a second trusted runner. The candidate's committed collectors must equal the trusted pins byte for byte, or the CI facts are BLOCKED as coming from candidate-modified collectors. Then `attested_facts(*, other_host, candidate)` returns the observation that `github_binding.verify_attested_facts` checks; `Unknown` maps to BLOCKED and `Violation` to FAIL.
+6. Four runner steps run in a fresh exclusive directory under `work_root`, with `cwd` = the candidate root, list argv built only from pinned paths and fixed B4 flags, the configured limits and one writable path (that directory):
+   - `bazel --batch --nohome_rc --nosystem_rc --output_user_root=<step>/bazel-root build --lockfile_mode=error --repository_disable_download --repository_cache=<provisioned> --build_event_json_file=<step>/bep.json -- //codegen/frontend/typespec:vs001`. The semantic input is located only through the BEP (apparent or canonical label). `--batch` leaves no Bazel server after the step.
+   - trusted `dependency_facts.py collect --host <host> --out <step>/host --hermetic --bazel-output-user-root <step>/bazel-root` with `--bazel-repo-env` for each of `CC`, `DEVELOPER_DIR`, `JAVA_HOME`, `PATH`, `USER` (B4 ruling J). The facts must cover exactly the trusted host's three IDs; a missing ID is BLOCKED and named.
+   - `dependency_facts.py merge <host facts> <attested facts> --out <step>/merged.json`.
+   - trusted `codegen check-boundaries --input <semantic input> --architecture docs/architecture/model/architecture.yaml --facts <merged> --out <step>/report.json`.
+
+   The environment is an explicit allowlist built from pinned paths (`HOME`, `TMPDIR`, `PATH` of the pinned runtime directories, `CARGO_HOME`, `LANG`, `LC_ALL`, `TZ`), never `os.environ`. Each runner result must carry an isolation record equal to `{profile, sha256, network: "none", credentials: "none", writable: [<step directory>]}`; anything else is BLOCKED and later steps do not run. The adapter never provisions: no fetch, no download. Collector and merge stdout must match the facts they wrote. After the last step the candidate tree must be unchanged.
+
+   Between `collect` and `merge`, admission writes the CI-attested facts to `<step>/attested/facts.json` itself. It opens the step directory and `attested` with `O_NOFOLLOW` and creates the file exclusively through those descriptors, so a link or file an earlier step left there is BLOCKED and cannot redirect the write. Admission never removes a step directory, which holds the evidence behind the reported digests. The operator purges `work_root` after retaining what it needs.
+7. `parse_boundary_report` interprets the result (below).
+
+The return value has exactly `report_sha256`, `scope`, `candidate`, `source_inventory_digest`, `lock_digests`, `model_digest`, `graph_digest`, `covered_configurations`, `collectors`, `facts_digest`, `evaluator_config_sha256` and `hosts`: `{<trusted host>: {provenance: "regenerated", facts_digest}, <other host>: {provenance: "ci-attested", facts_digest, run_id, run_attempt, artifact_id, artifact_sha256}}`. It is a report identity, not a capability.
+
+`admission.parse_boundary_report(returncode, stdout, report, anchors, *, facts_digest=None)` is the frozen step 7-9 entry. `anchors` has exactly `candidate`, `source_inventory_digest`, `lock_digests`, `model_digest`, `graph_digest`, `required_configurations`, `scope` and `collector_digests` (the three collector paths plus `typescript-options`). Exit 1, a timeout, a missing report, stdout that is not exactly `passing|violations scope=... report=... graph=... model=... facts=...` for those bytes, a non-canonical report, a key set other than B4's `BoundaryReport@v1`, a wrong `schema`, exit 0 with violations or exit 2 without them, or a report not bound to the merged facts are BLOCKED. Then binding mismatches are FAIL ("stale candidate", "stale source_inventory_digest", "stale lock_digests", "stale model_digest", "stale graph_digest"), as are report or facts collectors that differ from the pins. Then violations are FAIL, naming only the sorted unique codes. Only then are `covered_configurations` other than the six IDs or a scope other than `matrix` BLOCKED. A correctly bound report with violations is FAIL at any scope.
+
+### CI-attested other-host facts
+
+`github_binding.verify_attested_facts(expected, observed) -> dict` is pure: no I/O, no input mutation. `expected` is the accepted `other_host` object plus `candidate`. `observed` has exactly `repository`, `run`, `run_after`, `artifact` (the receipt artifact), `receipt`, `facts_artifact`, `facts_archive`, `facts_custody` `(opaque_id, sha256, bytes)`, `accepted_identity` and `executed_identity`. The run must be a completed, successful `workflow_dispatch` run and attempt with no newer attempt; `pull_request`, `merge_group` and `push` runs are FAIL because they test another checkout. The run `head_sha`, the receipt `tested_sha` and the facts `candidate` must equal the candidate, and the receipt must be a `workflow_dispatch` receipt with null PR anchors. The facts artifact must be `boundary-facts-<run_id>-<run_attempt>` (B4 ruling H) with matching ID, run, repository and head. The optional API digest and the independent custody digest must both equal `artifact_sha256`. The archive must hold exactly `facts.json` and `report.json` under G1's ZIP rules. Only `facts.json` is inflated, bounded at 32 MiB; the uploaded `report.json` is never read. The facts must be canonical `DependencyFacts@v1` for exactly the attested host's three IDs. It returns exactly `run_id`, `run_attempt`, `artifact_id`, `artifact_sha256`, `facts_sha256` and `facts_bytes`. Missing or incomplete observations are `Unknown` (BLOCKED); contradictions are `Violation` (FAIL).
+
+### Independence and provenance
+
+CI attests only Linux (`x86_64-linux`) facts, because CI runs only on Linux. The interim trusted runner is the Mac, and Rob accepts that explicitly at O3 adoption (R2). CI-attested facts come from a candidate-branch `workflow_dispatch` run; they show consistency with the candidate, not independent regeneration. The O3 target is an operator-controlled Linux runner (`provenance: "regenerated"`), which stays BLOCKED until adopted.
+
+The `expected` anchors must come from a record that is independent of the candidate run; O3 defines that record. An anchor derived from the same trusted run proves consistency only.
+
+### Decisions
+
+- **D1 (no attempt ID).** Evidence binds to the exact candidate, inventory, locks, model, graph, configurations and `report_sha256`, which the parent's attempt record references. An attempt ID would be a packet or report field, so it is deferred to O3 operator records.
+- **D2 (governance path gap).** Neither `allowed_governance_paths` nor `admission.GOVERNANCE_PATHS` includes `scripts/test_governance_binding.py`. A governance packet that owns it stays `policy-constraints` FAIL. **O3 follow-up:** one coordinated, reviewed change to both the ceiling and the policy. Rob decided on 2026-09-26 (D-7) that it is the same change in which O3 adopts the [G3 policy proposal](/superpowers/specs/2026-09-26-g3-accepted-policy-proposal#8-owner-decision-2026-09-26-adoption-with-the-governance-path-fix), after P1b's hermetic collection passes.
+- **D3 (configurations).** Only B4's six frozen IDs are used. They are pinned in the binding and the evaluator config, and compared with Codegen's `covered_configurations`; only Codegen ties them to the model.
+- **D4 (no model self-relaxation).** A code candidate may not change the architecture model or source profile relative to base (`boundary-checker` FAIL, no runner call). A model change goes first as its own reviewed governance change (R1).
+- **D5 (pinned collectors).** A candidate that edits a pinned collector stays BLOCKED until O3 refreshes the pins through a new accepted config.
+
+### P1b and B4 dependencies
+
+The production runner stays BLOCKED until P1b provides B4's `--hermetic` collection: it must collect the candidate tree at `cwd`, load its helpers from the trusted evaluator root, resolve tools from the pinned runtimes and honor the provisioned caches. B4 today rejects `--hermetic`, collects its own checkout and finds tools only on `/nix/store` PATH entries. P1b must also bind the helpers that the trusted collector loads but the config does not pin: `tools/build/frontend_action.py` and `tools/validation/typescript_loader.cjs`.
+
+The accepted runner and config must also meet these requirements:
+
+- **Unwrapped Bazel client.** `runtimes.bazel` is the unwrapped client: the Nix package's versioned `bazel-9.1.1-<os>-<arch>` or a `bazel-real`. It is never the package's `bazel` launcher or the repository's flake wrapper. The launcher defaults `BAZEL_WRAPPER` to the workspace's `tools/bazel` and execs it, and picks a version from `.bazelversion`. The flake wrapper only unsets the environment variables, so it still reaches that fallback. Admission's equality check on those files is defense in depth, not a substitute. If the unwrapped client needs the `--server_javabase` the flake wrapper passes, P1b supplies it as a reviewed fixed flag. CI-attested facts inherit CI's route: the Linux job runs Bazel through the flake wrapper and launcher on the candidate-branch checkout, so those facts carry whatever that route runs. They show consistency, not independent regeneration (R2).
+- **Read-only caches at the inode level.** The provisioned `cargo_home` and `repository_cache` must be unwritable by every step at the inode level, not only by path. The workspace `.bazelrc` sets `--experimental_repository_cache_hardlinks`, which hardlinks repository-cache files into the step's output base. Inside the writable step directory, a write through such a link would change the shared cache.
+- **No step process outlives its step.** When a step returns or times out, the runner ends its whole process tree, including any Bazel server (`--batch` starts none). Admission writes the CI-attested facts into the step directory between `collect` and `merge`, and relies on no candidate process remaining to change them.
+
+Parent-only focused commands (G3-20 needs a parent-built Codegen; without it that test skips and is recorded "BLOCKED - not run"):
+
+```bash
+python3 -B -m unittest discover -s scripts -p test_governance_admission.py
+python3 -B -m unittest discover -s scripts -p test_governance_binding.py
+MINDCLADE_CODEGEN_BIN=/absolute/path/to/codegen \
+  python3 -B -m unittest discover -s scripts -p test_governance_admission.py -k test_g3_20
+```
+
+## Related
+
+<CardGroup cols={2}>
+  <Card title="WorkPacket v1" icon="file-lines" href="/developer/work-packet-v1">
+    WorkPacket v1 and local admission
+  </Card>
+
+  <Card title="Supervised development" icon="shield-halved" href="/developer/supervised-development">
+    Supervised development guide
+  </Card>
+
+  <Card title="GitHub governance runbook" icon="book" href="/operations/github-governance">
+    GitHub governance operator runbook
+  </Card>
+
+  <Card title="Foundation resume decisions" icon="gavel" href="/architecture/reviews/2026-09-23-foundation-resume-decisions">
+    Tracked resume decisions
+  </Card>
+</CardGroup>

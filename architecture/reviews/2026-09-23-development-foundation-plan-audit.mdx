@@ -1,0 +1,44 @@
+---
+title: "Development Foundation Plan Audit"
+sidebarTitle: "Foundation Plan Audit"
+description: "Audit of the Final V1 Integration proposal, identifying obsolete facts, missing B2-B4 gates and unproven contributor readiness against baseline 81644e8."
+---
+
+Date: 2026-09-23. Source baseline: `81644e8681fcecb8d60adb16cb3306e54495c6be`.
+
+The supplied **Final V1 Integration And Supervised Engineering Readiness** proposal has the right direction, but cannot establish a development-ready foundation as written. Its broad tasks omit compiler/runtime execution detail, trusted B4 admission and a fresh-contributor proof. Several starting facts are obsolete. The revised [master plan](/superpowers/plans/2026-09-23-v1-integration-readiness) and three linked companions replace its execution order; this audit does not implement their unchecked tasks.
+
+Original input SHA-256: `dc3e6cb2e2c068e00a90e3cdbed3baa905cb3f13173ff57b606adb385b8cde89`. The original attachment is retained unchanged with the downloadable planning package. Paragraph references below use its Task headings.
+
+## Findings and disposition
+
+| Priority | Finding in the original proposal | Current evidence / consequence | Resolution |
+| --- | --- | --- | --- |
+| P1 | Task 3 says complete v1 while Task 5 depends on B4, without defining the remaining B2/B3/B4 implementation gates | Existing B plan is still unchecked; generated VS-001 products, RuntimeKit and actual dependency collectors are not active. Declaration support is only part of B1 | B1a, B2a/B2b, B3a/B3b and B4 now have owned files, proposed interfaces, concrete tests, parent RED/GREEN commands and commits |
+| P1 | Task 4 treats PR CI/run/queue verification too generally | A source head and checked-out synthetic merge can differ; an observed earlier PR Actions response had empty PR associations. Matching SHA or successful main cannot supply missing authenticated membership | G1 and G2 independently bind repository, source/base, tested commit, actual run attempt/check producer, retained queue observation and resulting main; missing evidence stays BLOCKED |
+| P1 | Task 5 assumes B4 completion automatically permits code admission | `tools/engineering/admission.py` and `github_audit.py` enforce the pending policy; a new source checker alone does not replace accepted evaluator custody or establish trusted observations | G3 separately regenerates real facts from the candidate with accepted tools; O3 adopts reviewed policy/evaluator/packet inputs outside candidate control |
+| P1 | Task 2 combines access, protection and queue readiness | Current source private protection endpoint requires an entitlement upgrade; destination org reads are SAML-blocked. Private queue availability has a distinct entitlement requirement | O1 checks access and both entitlements; O2 requires separately approved transfer/App/settings and observed effective denial/delivery tests |
+| P1 | The proposal never proves a new person or agent can work without prior chat context | Current docs include stale expanded-compatibility wording; no implemented doctor or fresh-context rehearsal proves contributor readiness | DX1 supplies one entry point and read-only preflight; DX2 requires separate real human/agent exercises, negative controls and recoverable interruption |
+| P2 | The old composition plan ambiguously says 16 descriptor sections | The tracked descriptor contract lists 15 conceptual sections; the historical blueprint has a different example shape. Guessing a schema would create incompatible producer/consumer assumptions | B3a explicitly proposes an apiVersion discriminator plus the 15 sections, maps lifecycle settings, and requires a reviewed exact field table before coding |
+| P2 | Broad B2-before-B3 ordering hides a registry parser dependency | The authored Proto registry is YAML, but the strict parser is introduced with descriptor compilation | Split B2 and B3; execute B3a strict YAML before B2b protocol/registry generation |
+| P2 | Runtime limits are stated without proving the chosen transport can enforce them | Waiting for the next request is not a body deadline; dropping a listener does not itself terminate handlers with returned requests | B3b requires real slow/incomplete socket and finite-shutdown cases before admitting the pinned transport; failure requires a reviewed transport change |
+| P2 | Task 1 and the a561f18 starting point are stale | Recovery, reviewed source consolidation and PR #5 are merged at the audited baseline; complete bounded review-thread observation is already implemented | Preserve recovery artifacts and source history; start with the actual baseline and do not redo closed source work |
+| P2 | Archive/cleanup could be mistaken for full foundation completion | Source merges and retained local evidence do not prove protected engineering acceptance, durable execution or science | O4 requires exact protected demonstrations and approved shared retrieval; C1-C5/D1-D4 remain an explicit separate register; cleanup never destroys original worktrees/receipts |
+
+These are plan findings. They do not label proposed functions as current implementation bugs or turn historical CI into qualification.
+
+## Specification coverage and parent self-review
+
+- Design sections 3/5/6: B1a and B2 products preserve in-place v1 and strict public/internal boundaries; B3 compiles descriptors and real non-durable composition; B4 owns actual configured dependency enforcement.
+- Design durability and assurance sections: all C1-C5/D1-D4 tasks remain linked with predecessor and acceptance gates. Full VS-001 cannot close on TestAdmission.
+- Design CI evidence section and supervised lifecycle: G1-G3 plus O1-O4 cover exact identities, protected queue/main, evaluator custody, Rob acceptance and private archive readback.
+- New contributor requirement: DX1/DX2 add tracked setup, owner/maturity lookup, independent human/agent exercises, failure diagnosis and interruption handoff.
+- Parent checked interface names and dependency order, corrected YAML ordering, distinguished compiler descriptor from generated RuntimeKit config, removed an audit/binding exception import cycle, and aligned the developer test runner with the fixed command loop.
+- Fresh whole-candidate review found and resolved the architecture-membership prerequisite, the DX2/O4 completion cycle and conflicting retained B RuntimeKit/PostgreSQL instructions. B3a owns membership parsing before B4 enforcement; DX2 commits local proof before O4; retained B/C/D/delivery execution headers now follow the current supervised roles.
+- Parent checked every Review Focus condition against a named owning task and its required negative/positive cases. Proposed tests are not execution receipts. Schema/profile decisions requiring contract review remain explicit pre-implementation steps, not undocumented implementer choices.
+
+## Definition of done
+
+The planning package is ready for human review after repository inventory/link/scaffold and whitespace validation. It is not evidence that compiler/products, RuntimeKit, dependency enforcement, queue verification, fresh contributor rehearsal or operational acceptance are complete. SAML, private protection/queue entitlement, operator trust custody and tracker access remain external gates until freshly observed and accepted.
+
+The next source units are DX1 and G1, with independent criteria review and non-overlapping ownership. No blanket approval for future source-only merges, policy adoption, repository transfer, paid entitlement or release publication is created by this plan.

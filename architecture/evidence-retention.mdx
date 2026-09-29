@@ -1,0 +1,68 @@
+---
+title: "Evidence Retention Protocol"
+sidebarTitle: "Evidence Retention"
+description: "How to export, index, and verify evidence bundles using scripts/evidence_bundle.py, including the metadata contract, export commands, and archive gate status."
+---
+
+This page documents the `scripts/evidence_bundle.py` protocol, which transports declared regular files into an exclusive new directory and verifies readback against a canonical SHA-256 index. It does not fetch evidence, run evaluators, interpret contracts, or confer acceptance. Export and verification never overwrite existing files or follow bundle symlinks. Failed partial exports are preserved for inspection, never silently repaired.
+
+<Info>
+  The supervised governance tool `tools/engineering/evidence.py` has a different, explicitly narrower ZIP transport contract: it binds candidate/policy/packet identities and verifies bytes without accepting receipt claims. These formats are not interchangeable. A governance archive may include the explicit files and index from a foundation source-evidence export; verify that inner export with this script and the outer archive with the governance verifier. Neither layer provides independent acceptance, signer custody or archive authorization. See the [governance tool contract](/developer/governance-tools).
+</Info>
+
+## Metadata contract
+
+Prepare strict JSON `EvidenceMetadata@v1` with these exact fields:
+
+- `candidate` and `base`: full lowercase 40-character Git SHAs.
+- `platform`: `os` and `architecture`, exactly matching the receipt.
+- `tool_versions`: nonempty string map, exactly matching the receipt.
+- `ci`: null for local runs; otherwise `url`, positive integer `run_attempt`, and observed `conclusion` from that GitHub run. A missing conclusion is null and non-passing. URL and attempt must match the receipt. Older CI receipts without an attempt binding cannot satisfy this export contract; retain their original bytes separately rather than modifying them. Do not infer success from an upload.
+- `classification`: `source`, `runtime`, or `assessment`. Current supported receipt schema is `FoundationVerificationReceipt@v1`, source evidence only. Later runtime/assessment schemas require explicit reviewed verifier support.
+- `commands`: nonempty list of `{name, status, receipt}`. Foundation's name is `foundation-build-tests`; its receipt retains actual command arguments. Status must match its receipt. `failed`, `cancelled`, `running`, `blocked`, or `skipped` are retained as non-passing. Dirty source receipts are also non-passing.
+- `files`: explicit relative file paths, including each command receipt and all artifacts it hashes. Paths within a receipt are relative to that receipt's parent. Include canonical outputs and raw logs deliberately, not via wildcards.
+
+Metadata also has `schema: "EvidenceMetadata@v1"`. Unknown/duplicate fields, malformed or missing receipts, candidate/tool/platform mismatches, escaping paths, symlinks, unlisted receipt artifacts and incorrect digests fail validation.
+
+The index is compact recursively key-sorted JSON plus one newline. Its digest is reported externally, not inserted into its own bytes. File modes, timestamps and archive encoding do not define evidence identity. Readback rejects extra files.
+
+## Explicit export
+
+Inside the pinned shell:
+
+```bash
+python3 scripts/evidence_bundle.py export --source SOURCE --destination NEW_DIRECTORY --metadata METADATA.json
+python3 scripts/evidence_bundle.py verify --bundle RETRIEVED_DIRECTORY --expected-digest RECORDED_SHA256
+```
+
+Exit 0 means structurally valid bytes with reported passing source checks; exit 2 means valid retained non-passing evidence; exit 1 means malformed, incomplete, inconsistent or unavailable bytes.
+
+<Warning>
+  `qualification` is always `not-qualified`. Passing a transport verifier does not prove a receipt's author, independent execution, full aggregate success, or a remote service's current state.
+</Warning>
+
+Record the returned index digest outside the bundle in the candidate evidence index. On retrieval, require that identity with `--expected-digest sha256:...` (or the `expected_digest` keyword in the Python API). Internal hash consistency alone cannot detect wholesale substitution of both files and index. D4 supplies the trusted assessment boundary.
+
+Treat the chosen source/destination as quiescent local directories; concurrent hostile same-user filesystem mutation and power-loss durability of the archive are not established by these tests.
+
+## Archive gate: blocked
+
+<Warning>
+  GitHub artifacts are temporary transport. Before durable retention can pass, an owner must supply a controlled shared destination, access and retention policy, and successful independently verified retrieval. Record its owner, identity, retrieval location/time and policy in a Git-tracked evidence index, without raw logs or credentials. A local duplicate is only an interim backup. Do not create cloud storage or silently broaden CI permissions.
+</Warning>
+
+Rob chose the destination on 2026-09-26: GitHub immutable releases plus an `evidence/*` tag ruleset in `Mindclade-org` ([D-8](/developer/agent-handoff#owner-decisions-recorded-2026-09-26-after-the-closeout)). It is not yet set up, and the gate stays BLOCKED until the access and retention policy and an independently verified retrieval exist.
+
+Independent acceptance, protected review, and trusted signer custody remain separate blocked gates. No source pass, artifact upload, or author-owned export can approve the VS-001 engineering claim.
+
+## Related
+
+<CardGroup cols={2}>
+  <Card title="Agent Handoff" icon="handshake" href="/developer/agent-handoff">
+    Recovery entry point and recorded owner decisions.
+  </Card>
+
+  <Card title="Governance Tools" icon="gavel" href="/developer/governance-tools">
+    Supervised governance verifier contract.
+  </Card>
+</CardGroup>

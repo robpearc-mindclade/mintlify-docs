@@ -1,0 +1,34 @@
+---
+title: "ADR-001: Stable Truth and Dynamic Execution"
+sidebarTitle: "ADR-001 Truth/Execution"
+description: "Separates stable truth (contracts, graphs, identity) from dynamic execution (services, models, agents)."
+---
+
+ADR-001 defines the architectural boundary between stable truth and dynamic execution in Mindclade. Stable truth is the immutable record of what the system means, while dynamic execution is the runtime behavior that operates on it.
+
+| Status | Date | Related |
+| :-- | :-- | :-- |
+| Accepted | 2026-09-22 | Not stated |
+
+## Context
+
+To ensure reproducibility and auditability, the system must distinguish between artifacts that define meaning and the processes that act upon them.
+
+## Decision
+
+Stable truth and dynamic execution are separate.
+
+Stable truth includes authored contracts, semantic inputs, graph snapshots, identities, references, artifacts, evidence, claims, policies, decisions, and provenance. Dynamic execution includes services, workers, schedulers, model runs, agent sessions, and operational workflows.
+
+## Consequences
+
+- Runtime activity may produce new artifacts and evidence, but it does not rewrite authority without an explicit governed mutation.
+- Replay relies on stable truth, not ambient service state.
+
+## Related
+
+<CardGroup cols={2}>
+  <Card title="Architecture" icon="sitemap" href="https://github.com/Mindclade-org/mindclade-internal-monorepo/blob/main/docs/architecture">
+    Architecture documentation directory.
+  </Card>
+</CardGroup>

@@ -1,0 +1,97 @@
+---
+title: "Supervised Governance Status"
+sidebarTitle: "Governance Status"
+description: "Dated operational baseline for transfer, protection, merge queue, and archive readiness. Blocked gates remain explicitly listed with observed evidence through 2026-09-28."
+---
+
+This page records the current operational baseline for supervised governance on `Mindclade-org/mindclade-internal-monorepo` (private repository ID `1382446493`). It is updated through 2026-09-28. Overall connected supervised engineering readiness remains **BLOCKED**. Source integration and passing CI do not establish accepted policy, an operational evaluator, or a completed acceptance loop.
+
+<note>
+  Recorded work authority: [MIN-14](https://linear.app/mindclade/issue/MIN-14/vnext-establish-supervised-engineering-authority-and-enterprise).
+</note>
+
+## Current source checkpoint
+
+The [common handoff](https://github.com/Mindclade-org/mindclade-internal-monorepo/blob/main/docs/developer/agent-handoff.md#source-and-evidence-checkpoints) owns the current source/checkpoint table and final integration route.
+
+- DX1 and G1 reached reviewed bounded source milestones.
+- G1 at `f6437c8d6c2e6de5115c5714505632de8a4ca0d3` supplies transport/execution-binding source with production trust loaders still BLOCKED.
+- G2 adds reviewed queue-observation and one-change queue-binding source; its live queue proof stays BLOCKED until O3 adopts queue snapshot custody, although the queue itself is now live (see below).
+- G3 admission code merged through PR #24: the code-class boundary checker consumes an accepted evaluator binding and a regenerated matrix B4 report. The accepted policy still says `boundary_checker_status: "pending"`, so code admission stays BLOCKED until O3 adopts the [G3 proposal](https://github.com/Mindclade-org/mindclade-internal-monorepo/blob/main/docs/superpowers/specs/2026-09-26-g3-accepted-policy-proposal.md).
+- PR #33 (decision D-17) added only `dedicated_app` to the accepted policy.
+- At the 2026-09-28 R2 reconciliation checkpoint, the owner-supplied base was `5239ccff30e23992f50e800b4b0ae4b339426d32` after PR #64.
+- Protected `main` subsequently advanced to `ae1d83cae6d226685ae9ea74c1aedafc13ecd050` through PR #68; PR #54 already contains that revision through merge `ac9fb71`.
+- PR #54 is being reconciled under the [dated plan](https://github.com/Mindclade-org/mindclade-internal-monorepo/blob/main/docs/superpowers/plans/2026-09-28-pr54-main-reconciliation.md).
+
+This page records the current operational baseline for supervised governance on `Mindclade-org/mindclade-internal-monorepo` (private repository ID `1382446493`). It is updated through 2026-09-28. Overall connected supervised engineering readiness remains **BLOCKED**. Source integration and passing CI do not establish accepted policy, an operational evaluator, or a completed acceptance loop.
+
+<note>
+  Recorded work authority: [MIN-14](https://linear.app/mindclade/issue/MIN-14/vnext-establish-supervised-engineering-authority-and-enterprise).
+</note>
+
+## Current source checkpoint
+
+The [common handoff](https://github.com/Mindclade-org/mindclade-internal-monorepo/blob/main/docs/developer/agent-handoff.md#source-and-evidence-checkpoints) owns the current source/checkpoint table and final integration route.
+
+- DX1 and G1 reached reviewed bounded source milestones.
+- G1 at `f6437c8d6c2e6de5115c5714505632de8a4ca0d3` supplies transport/execution-binding source with production trust loaders still BLOCKED.
+- G2 adds reviewed queue-observation and one-change queue-binding source; its live queue proof stays BLOCKED until O3 adopts queue snapshot custody, although the queue itself is now live (see below).
+- G3 admission code merged through PR #24: the code-class boundary checker consumes an accepted evaluator binding and a regenerated matrix B4 report. The accepted policy still says `boundary_checker_status: "pending"`, so code admission stays BLOCKED until O3 adopts the [G3 proposal](https://github.com/Mindclade-org/mindclade-internal-monorepo/blob/main/docs/superpowers/specs/2026-09-26-g3-accepted-policy-proposal.md).
+- PR #33 (decision D-17) added only `dedicated_app` to the accepted policy.
+- At the 2026-09-28 R2 reconciliation checkpoint, the owner-supplied base was `5239ccff30e23992f50e800b4b0ae4b339426d32` after PR #64.
+- Protected `main` subsequently advanced to `ae1d83cae6d226685ae9ea74c1aedafc13ecd050` through PR #68; PR #54 already contains that revision through merge `ac9fb71`.
+- PR #54 is being reconciled under the [dated plan](https://github.com/Mindclade-org/mindclade-internal-monorepo/blob/main/docs/superpowers/plans/2026-09-28-pr54-main-reconciliation.md).
+
+Historical integrated compiler/governance main `a0d6d4139d52c60c42c2e47444c4a10d6f6bc698` passed its clean Apple Silicon aggregate and [Linux run 35869828746](https://github.com/robpearc-mindclade/mindclade-vnext/actions/runs/35869828746). Those are historical receipts, not passes for this closeout's changed candidatHistorical integrated compiler/governance main `a0d6d4139d52c60c42c2e47444c4a10d6f6bc698` passed its clean Apple Silicon aggregate and [Linux run 35869828746](https://github.com/robpearc-mindclade/mindclade-vnext/actions/runs/35869828746). Those are historical receipts, not passes for this closeout's changed candidate.
+
+## Transfer and rename
+
+## Transfer and rename
+
+Rob transferred the repository to `Mindclade-org` on 2026-09-26 (organization audit log `repo.transfer` at 22:27 UTC, as `Mindclade-org/mindclade-vnext`) and renamed it `Mindclade-org/mindclade-internal-monorepo` (`repo.rename` at 22:46 UTC). The API still reports private repository ID `1382446493`, and both older names redirect to it. This document includes read-only repository observations through 2026-09-28; it performs no App installation, protection change, archive publication, or Linear closure.
+
+## Remaining gates
+
+| Gate | State | Observed evidence (through 2026-09-28) or required evidence |
+| --- | --- | --- |
+| Integrated source checks | Revision-scoped only | Read the common handoff checkpoints and final parent evidence; recheck changed candidates.. |
+| R2 CI/evidence substrate | Reconciliation in progress | PR #64 placed the manual exact-candidate `r2-isolation` workflow on protected main and exact-main run `36470976479` on `5239ccf…` retained semantic `PASS / denied` while remaining `qualification=not-qualified`. Main later advanced to `ae1d83c…`; the PR #64 receipt remains bound to its original exact revision. PR #54 already contains the newer main, keeps required `linux-foundation` on Ubuntu 24.04, uses qualified Ubuntu 22.04 only for the R2 prerequisite, fails the required context closed, preserves PR #53 failure evidence, and carries PR #58's ephemeral Azure/JIT replacement plan. A refreshed PR #54 head still needs fresh exact-head CI and fresh CODEOWNER approval; neither lane by itself clears C1.. |
+| Trusted policy bootstrap | BLOCKED | Rob-approved immutable policy revision and packet digest outside candidate control. PR #33 is the owner-authorized D-17 revision (policy SHA-256 `0c26d305…`); no packet digest has been approved and WorkPacket@v1 was not run for PRs #32–#34.–#34. |
+| Enterprise migration | Done | Same-ID transfer and rename on 2026-09-26, above. The Linear and Notion GitHub Apps are installed on `Mindclade-org`. Not yet recorded: the D-6 redirect-host change ([runbook step 14](https://github.com/Mindclade-org/mindclade-internal-monorepo/blob/main/docs/operations/github-governance.md#source-verified-settings-for-the-mindclade-org-transfer)) and a post-transfer `workflow_dispatch` run of `linux-foundation` (step 16).. |
+| Agent publication identity | PARTIAL,, repository-scoped; permission profile not yet normalized | App `mindclade-monorepo-engineer` (ID `5090624`) is installed as installation `165284180` with `repository_selection=selected`; a metadata-only installation token observed exactly one accessible repository, immutable ID `1382446493`, `Mindclade-org/mindclade-internal-monorepo`. Routine App publication is observed again on PR #68, with short-lived installation tokens revoked after use. The latest operator `inspect` in this handoff reported installation permissions `checks:write`, `contents:write`, `metadata:read`, `pull_requests:write`, `workflows:write`, with `actions` absent, so `publication_ready=false` because the pinned policy requires `actions:read` and `checks:read`. The App registration also exposed unexpected `enterprise_people:write`. Normalize the registration/installation to exactly metadata read, Actions/Checks read, Contents/Pull requests write, and Workflows write, with no unexpected permissions; owner 2FA/passkey approval may be required after correction. Neither main protection nor any ruleset has bypass actors. |
+| Main protection | BLOCKED,, settings observed, acceptance missing | Classic protection on `main`: required `linux-foundation` from App 15368 with strict status checks, `enforce_admins`, one code-owner approval with stale approvals dismissed, conversation resolution, no force pushes or deletion, and no bypass allowances. Ruleset `main-merge-queue` (24054914) is active with no bypass actors. PR #32 records the live audit's `main-protection` PASS, and `/branches/main` reports `protected: true` (`main-protected-flag`). Approved denial tests on a disposable protected probe and complete acceptance evidence are not recorded.. |
+| Merge queue | Proven | Ruleset 24054914 carries `merge_queue` with build 1, merge 1, minimum 1, method `MERGE` and `ALLGREEN`. PR #32 was the first App-authored PR merged through it: merge-group run 36281404468 passed on candidate `8bea4a4`, which is the resulting main, and main push run 36282380279 passed. PRs #33 and #34 followed (merge-group runs 36290792273 and 36291710304; main `63690c9` and `e8a1c64`). Rob admitted each one.. |
+| Code-work admission | BLOCKED | O3 adoption of the evaluator-bound policy after P1b's hermetic collection, then a regenerated two-host B4 matrix report for each candidate; mechanical inventory is insufficient.. |
+| Evidence archive | BLOCKED | Immutable releases are enabled, and ruleset `evidence-tags` (24058653) blocks updating or deleting `refs/tags/evidence/*` with no bypass actors (D-8). No release or `evidence/*` tag exists, so no archive has been published or download-verified.. |
+| Linear-to-main acceptance | BLOCKED | Protected PR, queue, and main evidence now exists from PR #32 onward. Admitted WorkPacket@v1, Rob's acceptance, and a verified private immutable archive are still missing.. |
+| Unattended execution | BLOCKED | Not qualified. Each of PRs #32–#34 needed Rob's approval and queue admission; source checks and supervised merges do not establish an unattended lane.–#34 needed Rob's approval and queue admission; source checks and supervised merges do not establish an unattended lane. |
+
+The [operator runbook](https://github.com/Mindclade-org/mindclade-internal-monorepo/blob/main/docs/operations/github-governance.md) defines the gated actions. The source closeout did not close Linear. MIN-14's last recorded state was In Progress; live tracker state and ownership were not refreshed in this handoff update and must be checked before dispatch. No live-cloud, scientific, release, or unattended-execution qualification follows from source checks.
+
+## Historical external observations
+
+Earlier private protection/ruleset reads returned HTTP 403 with a source-account plan restriction. `Mindclade-org` organization/membership preflight returned HTTP 403 under SAML enforcement. These historical responses do not establish current entitlement or destination access. Recheck them before planning a transfer or protection change; do not infer name availability from a 404 or broaden privacy or billing to resolve a blocker. The 2026-09-26 transfer and the observations above supersede them. The [previous governance status](https://github.com/robpearc-mindclade/mindclade-vnext/blob/a0d6d4139d52c60c42c2e47444c4a10d6f6bc698/docs/architecture/engineering/governance-status.md) retains the original observations and candidate identities.
+
+## Follow-on candidates
+
+n8n coordination follows governance acceptance; Mintlify documentation follows the generated Echo consumer. The [Eve source assessment](/architecture/reviews/2026-09-23-eve-factory) records a possible executor behind the same gates. None is an installed dependency, accepted authority, second backlog, or prerequisite to continuing the tracked foundation sequence.
+
+## Related
+
+<CardGroup cols={2}>
+  <Card title="Supervised Blueprint" icon="map" href="/architecture/engineering/supervised-system-blueprint">
+    Component boundaries, trust model, rollout phases, and open decisionsmodel, rollout phases, and open decisions.
+  </Card>
+
+  <Card title="Traceability" icon="link" href="/architecture/engineering/requirements-traceability">
+    Requirement-to-owner mapping and the remaining acceptance loop before readinessRequirement-to-owner mapping and the remaining acceptance loop before readiness.
+  </Card>
+
+  <Card title="GitHub RunbookGitHub Runbook" icon="book-open" href="https://github.com/Mindclade-org/mindclade-internal-monorepo/blob/main/docs/operations/github-governance.md">
+    Transfer, App, protection, queue, and archival proceduresTransfer, App, protection, queue, and archival procedures.
+  </Card>
+
+  <Card title="Agent HandoffAgent Handoff" icon="hand" href="https://github.com/Mindclade-org/mindclade-internal-monorepo/blob/main/docs/developer/agent-handoff.md">
+    Exact branch/base, inventory, current verification, and blockerExact branch/base, inventory, current verification, and blockers.
+  </Card>
+</CardGroup>

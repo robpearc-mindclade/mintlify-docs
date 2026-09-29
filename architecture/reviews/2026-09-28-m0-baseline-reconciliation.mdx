@@ -1,0 +1,160 @@
+---
+title: "M0 Baseline Reconciliation: Source Evidence and seventeen-Row Dependency Accounting"
+sidebarTitle: "M0 Reconciliation"
+description: "Reconcile the existing foundation with the next durability slice, auditing every root, the Echo pipeline and all seventeen original C criteria dependency rows with eight workplan discrepancy groups."
+---
+
+This record reconciles the existing foundation with the next durability slice so an implementer reuses working source and stops at unresolved prerequisites. Audience: integration owners, criteria authors and reviewers. Status: partial. This is dated source evidence for M0-A and preparation for M0-B, not an authority amendment, implementation dispatch or acceptance of the full platform.
+
+## Scope and status
+
+| Attribute | Value |
+| --- | --- |
+| Purpose | Reconcile foundation with next durability slice |
+| Audience | Integration owners, criteria authors and reviewers |
+| Status | Partial; M0-A evidence and M0-B preparation |
+| Inspected baseline | `7f23af35f78ae58b41758056c2b630b0fa391d8e`, tree `ee08935b4c11ab5761138bd879ffab940c57ec7e` |
+
+## Source and evidence boundary
+
+The parent supplied clean-checkout and ownership evidence. This author read source and wrote prose only: no Git, build, test, workload or remote operation. The input [whole-repository workplan](https://github.com/Mindclade-org/mindclade-internal-monorepo/blob/9b12997558b4a6669dedfd5997ac91f66f2a6fdb/docs/superpowers/plans/2026-09-28-whole-repository-workplan.md) is an inventory starting point, independently checked here against actual source. Its candidate is distinct from both this baseline and this later documentation candidate. Its merge outcome is not frozen into this audit.
+
+Parent-local evidence locations are `/Users/robpearc/Documents/Codex/2026-09-28/ci-and-c1-preparation/` (**R**) and `/Users/robpearc/Documents/Codex/2026-09-28/m0-and-r2-continuation/` (**M**). They are recoverable local records, not shared immutable custody. R's `c1-delivery.json`, `c1-clean-local-verification-e9b97f2.json` and `c1-linux-main-result.json` bind the following limited reuse:
+
+| Evidence | What it establishes |
+| --- | --- |
+| macOS `e9b97f272901ef9a99a030d1d13228a358cdc095` | Parent-recorded clean aggregate and uncached 21-test PG substrate PASS. The later `c5c7ae5a108e8d3a3de225d95b610970d2c355a9` and `7f23af3` trees are parent-verified equal; neither is described as an exact-commit macOS rerun. |
+| Linux [PR run 36395496664](https://github.com/Mindclade-org/mindclade-internal-monorepo/actions/runs/36395496664) | PASS on synthetic `1ca494185f065a22bfd6f8a986cd7863f4637abb`; distinct from exact-branch push run 36395493729 on `c5c7ae5`. |
+| Linux [main run 36399916440](https://github.com/Mindclade-org/mindclade-internal-monorepo/actions/runs/36399916440) | PASS on exact `7f23af3`, after queue run 36397681066 on that same SHA. Parent checked 81 artifact hashes, 11 generated-file comparisons, 21 PG tests, 32 SHOW observations and 23 joined helpers. |
+| M/`m0-source-inventory.json` | Parent inventory: 1,371 tracked files, 24 modeled roots, 698 sealed stubs with all hashes matching, 39 aggregate Bazel test targets. Counts measure source disposition, not completion. |
+
+M/`prior-source-evidence-recheck.json` freshly rechecks all five retained delivery receipt hashes and the e9/c5/7f tree equality, without rerunning those checks. M/`remote-baseline.json` is the parent's dated repository/protection/PR snapshot; later integration requires refreshed evidence rather than copying that state.
+
+Linux's actual strategy was `processwrapper-sandbox`; **R-2 remains BLOCKED**. The reason for fallback is unestablished. Passing database lifecycle checks does not establish network denial or satisfy all both-host A4 prerequisites. Fresh documentation checks, rendering and independent reviews belong to the parent candidate receipts; at author handoff these are **BLOCKED — not run**. Later PR, queue, main, protection and local parity are parent-refreshed facts in the [single task register](/developer/agent-handoff#current-task-register). Live Linear ownership remains unverified because no live connector was available. There is no release, deployment, scientific, independent acceptance or custody claim.
+
+## Every root and its evidence route
+
+Owners below come from the [layout model](/architecture/model/repository-layout). Disposition is physical, not a replacement for [maturity](/architecture/maturity): the foundation remains experimental/partial and scaffold remains planned under [ADR-015](/architecture/adr/adr-015-original-blueprint-scaffold-alignment). For every scaffold row, the source is that root's manifest-listed markers/placeholders in [blueprint-scaffold](/architecture/model/blueprint-scaffold); the applicable route is `just verify-scaffold` plus `just verify-tree`, backed by M's inventory and R's seal records. Those twelve roots contain no activated implementation.
+
+The table names existing **parent-only routes**: run a recipe as `nix develop --no-write-lock-file -c just <recipe>`; `//...` and `:` labels name Bazel targets. Listing a route is not a new execution claim.
+
+| Root / owner | Actual source or disposition | Command/evidence route and boundary |
+| --- | --- | --- |
+| `.agents` / Agent governance | Roles, workflows, prompts, evaluations and candidate policy | `verify-fast` governance tests; instructional source, not product agents or admission |
+| `.azuredevops` / Build engineering | Scaffold | Scaffold route; optional CI adapter needs a separate need/activation decision |
+| `.buildkite` / Build engineering | Scaffold, including pipeline stub | Scaffold route; no second working CI system |
+| `.github` / Repository assurance | `workflows/foundation.yaml`, PR template; issue stubs | `verify-fast` policy tests; parent exact PR/queue/main records, not source-only protection proof |
+| `agents` / Scientific agents | Scaffold | Scaffold route; no runtime, sandbox or provider implementation |
+| `biology` / Biological semantics | Scaffold | Scaffold route; canonical protein semantics remain missing |
+| `codegen` / Compiler | `src/`, official TypeSpec frontend, compatibility, target lowering, emitters, publisher, B4 | `verify-foundation`, `verify-generated`, `verify-boundaries`; reuse one compiler/graph |
+| `compute` / Compute | Scaffold | Scaffold route; no operator, generated C ABI or numerical kernel implementation |
+| `contracts` / Contract owners | Public/internal TypeSpec, foundation fixture, Proto field registries; other reservations scaffold | `verify-fast`, frontend and protocol conformance in `verify-foundation` |
+| `core` / Kernel | `src/{identity,digest,reference}.rs` and other checked/in-memory records | `//core:tests`, Cargo doctests in aggregate; no universal serialization/assurance guarantee |
+| `data` / Scientific data | Scaffold | Scaffold route; no ingestion, lineage, splits or contamination evidence |
+| `docs` / Architecture | ADRs, models, guides, APIs and runbooks | `verify-tree`, `verify-scaffold`; authored explanation is not a generated semantic atlas |
+| `generated` / Compiler | Two-file foundation and fourteen-file VS-001 catalogs; other projections scaffold | `verify-generated` exact-byte drift; manifests bind inputs/outputs, not execution |
+| `infra` / Infrastructure | Scaffold | Scaffold route; no live environment or deployment |
+| `ml` / Learning | Scaffold | Scaffold route; no training/evaluation/checkpoint qualification |
+| `models` / Model definitions | Scaffold (`common`, `nova`, `protenix`, `virtual_cell`, `registry`) | Scaffold route; approved family naming does not activate a model or path migration |
+| `platform` / Control plane | RuntimeKit HTTP/config/lifecycle/telemetry; TestKit clock/identity/barrier/sink | Component targets in aggregate; broader durable control and reusable PG harness absent |
+| `products` / Developer products | Scaffold | Scaffold route; emitted Echo client lives under `generated`, not an installable SDK product here |
+| `protocols` / Compiler | Scaffold | Scaffold route; actual current protocol outputs remain in `generated/vs001/public` |
+| `runtime` / Model execution | Scaffold | Scaffold route; distinct from RuntimeKit, no model executor/serving implementation |
+| `scripts` / Repository maintenance | Verification/generation drivers, doctor, workflow binding, DX2 verifier | `verify-fast`, `verify-foundation`, `verify-developer`; rehearsal execution remains separately required |
+| `services` / Deployment shells | Echo source and fixed PG testing binary/test; other service reservations scaffold | `:composition_tests` and separate `:postgres_substrate_tests`; no durable service |
+| `tests` / Independent assurance | VS-001 generated consumers, protocols, adapter/config and real compiler drivers | `//tests/conformance/vs001:*` selected by aggregate; owner name does not prove independent qualification |
+| `tools` / Engineering factory | `build`, `engineering`, `validation`; remaining manifest stubs | `verify-fast`, `verify-foundation`, `verify-boundaries`; governance/evidence tooling exists, connected adoption is separate |
+
+The root-file group is cross-cutting, not a twenty-fifth component. Policy/routing owners maintain `AGENTS.md`, `CLAUDE.md`, `CODEOWNERS`, `CONTRIBUTING.md`, `SECURITY.md`, `LICENSE` and `README.md`. Build engineering owns the active Nix, Bazel, Cargo/Rust, Node/pnpm and `justfile` configuration: `flake.nix/lock`, `MODULE.bazel/lock`, `.bazelrc`, `.bazelversion`, `REPO.bazel`, `BUILD.bazel`, `Cargo.toml/lock`, `rust-toolchain.toml`, `rustfmt.toml`, `package.json`, `pnpm-lock.yaml`, `pnpm-workspace.yaml`. Repository maintenance owns `.gitattributes`/`.gitignore`. Their source checks flow through `doctor`, `verify-fast` and the aggregate. `go.mod`, `go.sum`, `pyproject.toml`, `uv.lock`, `buf.yaml` and `buf.gen.yaml` remain scaffold; their route is scaffold validation, not language-package execution.
+
+**Correction to the workplan:** no tracked `tools/bazel` path exists at this baseline. The launcher is authored in [flake.nix](https://github.com/Mindclade-org/mindclade-internal-monorepo/blob/main/flake.nix), lines 26-59, as `pkgs.writeShellScriptBin "bazel"`, exported and included in the pinned shell. The plan's supposed omitted extensionless tool is a false premise, not a missing implementation or a reason to alter `tools/README.md`.
+
+The aggregate's exact list is [scripts/verify_foundation.py](https://github.com/Mindclade-org/mindclade-internal-monorepo/blob/main/scripts/verify_foundation.py) `TEST_TARGETS` (lines 27-50), with 39 targets. The PG target is in neither that list nor Echo's `:composition_tests`; the workflow invokes it separately: `bazel test //services/foundation_echo:postgres_substrate_tests --lockfile_mode=error --nocache_test_results --local_test_jobs=1 --test_output=all`. Build caches are reuse, never execution evidence.
+
+## Echo through the actual pipeline
+
+[echo.tsp](https://github.com/Mindclade-org/mindclade-internal-monorepo/blob/main/contracts/typespec/public/echo.tsp) owns `POST /echo/{requestId}`, bounded request fields and 200/400/409/503 alternatives. The official frontend in `codegen/frontend/typespec/src/{cli,index,declarations}.mjs` resolves supported TypeSpec semantics once; the `:vs001_services` action stages declared descriptor files and records their path/digest/location inventory in `SemanticInputV1`. `codegen/src/pipeline.rs` exposes `Compiler::{compile,compile_with_architecture,compile_services}`; `compile_services` receives the descriptor bytes separately as `DescriptorSource` values and checks their duplicate-free inventory/digest correspondence before compiling and sealing the immutable graph in `graph.rs`. Semantic, capability, public, architecture and service views borrow that graph; none is another authority.
+
+`codegen/src/target_ir.rs:149` implements the TargetBundleIR responsibility as `TargetBundle<'a>`, borrowing the sealed graph and carrying the transport profile. Emitters consume this checked lowering, not TypeSpec again. Descriptor, architecture model and current/previous Proto registries are authored inputs. `emit/`, `projection.rs` and `publication.rs` own the recoverable fourteen-file catalog: graph/manifest, TypeScript client, Rust modules, OpenAPI, messages-only Proto, MCP metadata, README, descriptor, checked config and HTTP adapter. MCP metadata is not a running MCP server; Proto is not a gRPC service.
+
+The actual client API is `createEchoClient({ baseUrl, fetch? }).echo(requestId, body, { signal? })`, returning `Promise<EchoResponse>` (`generated/vs001/public/client.ts:327-339`). It validates before fetch, checks bounded responses, rejects redirects and distinguishes validation, API, protocol, transport and transport-rejection errors. Abort is a transport outcome, not durable cancellation. Consumer tests and the process harness exercise this client; installed-package consumer qualification is absent.
+
+Echo includes generated DTO/config/HTTP modules; `composition.rs` binds an `AdmissionPort` to checked tenant, environment, identity and descriptor digest. The generated adapter validates route/method/media/body and maps typed errors. RuntimeKit receives a generic handler and owns bounded HTTP and lifecycle; it does not import Echo, Codegen or TestKit or parse the YAML descriptor. The current descriptor selects loopback, `admission: test`, optional PostgreSQL and disabled deployment. `TestAdmission` returns the checked message, writes nothing and never returns conflict. Readiness is `FoundationEchoReady@v1` with test admission; stdin shutdown/EOF drains through the bounded supervisor. A restart preserves no Run, artifact or outbox state.
+
+Real-socket process tests, independent-expectation conformance, malformed-input negatives and TestKit-ordered races exist. B4's configured dependency collectors, compiler evaluator and four wrappers exist; W6 activated-source records and the DX2 verifier/fixtures also exist. These should be reused, while both actual DX2 rehearsal halves and connected engineering acceptance remain separate. The PostgreSQL probe proves only its fixed prerequisite workload: three clusters, owned lifecycle/recovery/cleanup and bounded observations. It exposes no reusable `PgHarness`, `PgStore`, migration, execution engine or fixture library.
+
+## Original C section 2: all seventeen rows
+
+This accounting preserves the original seventeen rows in [C criteria section 2](/superpowers/specs/2026-09-26-c-durability-criteria#2-dependencies-on-unmerged-gates). SAME and RECONCILED are audit labels, not maturity or GovernanceReport statuses. A2's larger 39-row table is also binding context; it does not replace this count. Locations below refer to the inspected baseline. No new mismatch in these seventeen dependency rows was found beyond changes already addressed by A2/A4; this author's audit does not waive S3 or constitute the criteria author's formal reconciliation and independent review.
+
+1. **AdmissionPort — SAME.** `services/foundation_echo/src/ports.rs:50-57` retains `execute(&self, context: &AdmissionContext, request_id: &str, request: EchoRequest) -> Result<EchoResponse, EchoError>` and `Send + Sync`; `lib.rs:107` re-exports it. A2.1 row 1 holds; A4.6 explicitly preserves this signature through C1-C4. A3's future trace plumbing belongs to C0/C5.
+2. **AdmissionContext — SAME.** `ports.rs:9-45` retains four private values with `tenant/environment/identity -> &Identity`, `descriptor_digest -> &Digest`, and `pub(crate) new(...) -> Self`. A2.1 row 2; no request-authored context.
+3. **TestAdmission — SAME.** `ports.rs:59-78` remains stateless/non-durable and never 409. A2.1 row 3 and A4.6 preserve it; later durable wiring cannot relabel it.
+4. **Composition — SAME.** `composition.rs:70-77` takes `ServiceConfig`, `Arc<dyn Clock>`, `Arc<dyn IdentityProvider>`, `ShutdownLatch`, `Arc<dyn TelemetrySink>`, `Arc<dyn AdmissionPort>` and returns `Result<ComposedService, RuntimeError>`. `address(&self) -> SocketAddr` and `shutdown(self) -> Result<(), RuntimeError>` remain root exports. A2.1 row 4.
+5. **Generated module visibility — RECONCILED by A2.2 item 1.** `lib.rs:92` is public `generated_dto`; lines 96/100 keep HTTP/config modules private. Old line numbers/allow attributes moved. Root `build_service_config` is exported; `echo_handler` remains unnameable outside the crate. No interface rename needed.
+6. **Echo errors — SAME.** `generated/vs001/rust/public.rs:223-243` and `service/http.rs:113-115` retain InvalidInput/IdempotencyConflict/Unavailable, codes `invalid_input/idempotency_conflict/unavailable`, statuses 400/409/503. A2.1 row 6; an available conflict DTO is not an implemented idempotency store.
+7. **TestKit helpers — SAME.** `platform/testkit/src/faults.rs` retains `new`, `arrive(&self, &str)`, `arrive_or_cancel(&self, &str, &dyn ShutdownSignal) -> Arrival`, `release`, `arrivals -> usize`, `wait_arrivals(&self, &str, usize, Duration) -> bool`. `Arrival::{Released, Cancelled}`, `ManualClock::new(u64)/advance(&self,u64)` and `RecordingSink` remain. A2.1 row 7; manual time does not control socket deadlines.
+8. **RuntimeKit — SAME.** `src/lifecycle.rs:28-36,79-163,682` retains Clock, IdentityProvider, ShutdownSignal/Latch, Lifecycle, RuntimeError and `serve(ServiceConfig, Arc<dyn Handler>, Lifecycle) -> Result<RunningService, RuntimeError>`; `telemetry.rs:279` retains TelemetrySink. A2.1 row 8; A3.3's future trace/event extension is not present and belongs to C0.
+9. **Test-only admission mode — SAME.** `config.rs:11-13,83-96` has only Test and the eleven-argument `ServiceConfig::new`, no dependency argument. Echo `lib.rs:49-87` contains compiling controls and negative doctests. A2.1 row 9; OD-6/C0 owns their later coordinated transition.
+10. **Frozen B3b assertions — SAME.** Echo `tests/composition.rs:539,591,676-745` retains both named sleep/closure tests. Normal Echo dependencies remain core/RuntimeKit/serde/serde_json, TestKit dev-only. A4.1 postpones A2 P4's expected-set/comment transition until Echo actually gains its postgres edge.
+11. **Bazel labels — SAME, with A4 additions.** `platform/testkit/BUILD.bazel` still defines `:testkit`, `:sources` and **`:tests`**, the latter a suite of `:unit_tests` and `:testkit_tests`. The aggregate selecting those children does not remove `:tests`. Echo's BUILD retains all ten originally listed labels; A4 adds separate `:postgres_substrate_tests` and `//services/foundation_echo/testing:postgres_substrate_probe`. No future `:testing`, `:recovery_child` or `:compile_fail` target exists yet.
+12. **Cargo tests — SAME.** Both original manifests retain `autotests = false` and explicit composition/testkit tests. A4's testing member has an actual binary with test/bench disabled; PostgreSQL tests remain Bazel-only.
+13. **Process protocol — SAME.** `tests/process.{rs,test.mjs}` and `src/lib.rs:124-140` retain ready/stopped schemas, stdin `shutdown`, exits 0/1/3/4/5. A2.1 row 15; durable readiness/exit transition remains C0/C5 work.
+14. **Generated config/descriptor — RECONCILED by A2/A4.** Both paths exist in `generated/vs001/service`; A2.1 row 16 records architecture-digest change. A4 model inputs require regeneration, not handwritten projections. Current profile still uses optional PG/Test admission, not a durable dependency.
+15. **Generated HTTP adapter — SAME.** `service/http.rs:21` still exports `echo_handler(Arc<dyn EchoCapability>) -> Arc<dyn Handler>` inside the private included module. A2.1 row 16 confirms merged source; A3 does not silently add trace.
+16. **B4 recipes/wrappers — SAME.** `justfile:6,38-51` retains `verify-boundaries` last in the aggregate and the four `tools/validation` wrappers; `arch-lint.py`, `dependency-lint.py`, `descriptor-lint.py` and `generated-provenance.py` are the actual names. `scripts/test_ci_policy.py` pins the route. A2.3 P3's later `verify-vs001` insertion remains future; separate A4 PG invocation does not implement it.
+17. **R1 model — RECONCILED by A2.2 item 2 and A4.2.** R1 was applied, not still awaiting B4. `architecture.yaml:106-120` preserves both Echo Bazel memberships and the test-scoped `#tests` unit, and adds the testing Cargo member/unit. The external list now has 42 entries, the original 40 plus reviewed postgres and nix_postgresql permissions. B4 ruling R resolves unit ownership by endpoint path; Cargo normal-edge kind remains production even in the test-scoped unit. The future testing-library membership/TestKit edge and recovery-child membership wait for actual targets. C/B4 owners retain concrete-model review and C5-07.
+
+A2 also corrects internal `Admission.capability`, its four-part admission key, the supervisor construction site and scaffold counts. A4 supersedes its obsolete "nothing PostgreSQL" and all-at-once model timing. A4.7 distinguishes 73 global lock additions from 53 Darwin/50 Linux normal/build additions while preserving the original 27 pins. A4.8-10 govern registered process identity, bounded observer environment, Darwin args-last parsing and the app-visible four SHOW settings (server_version, listen_addresses, max_connections, wal_sync_method). They retain earlier failed-attempt evidence and residual identity races; a later PASS does not rewrite those failures. Product C1's restricted SHOW observation still needs role-correct finalization under A4.10.
+
+## Disposition of the eight workplan discrepancy groups
+
+These are dated dispositions, not another live backlog. Historical blueprint, criteria, review and receipt bytes remain intact; the parent adds only this reference's navigation and dated status reconciliation in the allowed register.
+
+| Group | Correction, responsible role and follow-up |
+| --- | --- |
+| 1. Blueprint V runtime wording | `MASTER_BLUEPRINT.md:200` predates demonstrated B3b. Architecture documentation owner should reference current RuntimeKit/Echo source and maturity in a separately scoped explanatory reconciliation; preserve historical authority, broader runtime remains planned. |
+| 2. Roadmap/coverage wording | B2b/B3b/B4 source exists; `foundations/blueprint-coverage.md` still calls enforcement separate B4 work. Architecture owner uses actual compiler/products/runtime/boundary source; this slice permits roadmap navigation only, not wholesale historical rewrite. |
+| 3. Developer-products preamble | Actual protocol products and real-process conformance supersede its pending-source wording. Product/docs owners should distinguish those from still-absent packaging and qualification in a later scoped edit. |
+| 4. Codebase map | Old revision binding omits the testing member/toolchain. Docs/service owners should add the fixed probe and separate PG route; its 39 aggregate target count still matches source and needs no invented numerical correction. Reusable harness/schema remain absent. |
+| 5. Handoff/maturity/checklist dates | Parent records PR44/45/46 evidence with exact bindings in the existing register. Architecture owner retains formal maturity review separately; no model/maturity or historical checklist bytes change here. Old pending text is not current remote proof. |
+| 6. Tools launcher | The workplan is wrong: `tools/bazel` does not exist; `flake.nix:26-59` owns the launcher. Build/docs owners should use this correction when reading the preserved plan. No fabricated file or cleanup task follows; the alleged README omission is withdrawn. |
+| 7. DX2-before-C ordering | Current [dispatch readiness](/superpowers/specs#dispatch-readiness) and C's finalization confirmation supersede D-15/A2's earlier order. Parent/criteria owners preserve original records and apply existing-source finalization then C; DX2 evidence still precedes O4. Evaluation wording does not dispatch a rehearsal. |
+| 8. Later C/C0/D/P1b/E1 amendments | Criteria authors read through each final amendment, not draft-state preambles. C A4 staging governs now; C0's B=13/capability-equality approval does not settle T1's ADR-017 keep-alive or exact trace accessor. Each affected criteria owner resolves its remaining gate; no blanket approval or waiver follows. |
+
+For group 8, the recorded integration clarifications leave specific work with the criteria owner and independent reviewer: D2-07/08 must distinguish raw cross-host capture identity from normalized replay equality and permit exactly the required read-only capture SQL; P1B-12/13/15 must separate unchanged trusted tool behavior from changed scratch-commit identity; E1-14 needs atomic daily-budget reservation across issues, E1-10 explicit required/deferred transition checks, and E1-16 a consistent writer/order for durable pre-action records. These remain BLOCKED, not editorial corrections or waived obligations. P1b's _proposed malicious scratch_ `tools/bazel` is not evidence that the baseline contains such a file.
+
+## Remaining preparation and implementation boundary
+
+The criteria author and a distinct reviewer must finish M0-B's candidate-bound S3 reconciliation before dependent dispatch; this audit supplies source findings, not revised criteria. Exact stage interfaces come from C section 4.2/4.3 with A3/A4, including any role-correct product SQL reconciliation. No new signature is inferred from a table's shorthand. Overall M0-B/operational acceptance stays **BLOCKED** while its required inputs are absent; M0-A can be reviewed within its declared limits.
+
+For R-2, the integration parent routes a bounded diagnostic proposal through the existing H1 Stage 2/Rob owner decision before any workflow/security change. The proposal should bind the disposable Linux environment and pinned Bazel, capture the actual forced sandbox strategy/startup result and bounded connection-denial probe, retain identity/cleanup evidence, and only then propose a correction to an observed cause. AppArmor, unshare, privileges or a sysctl are not established causes or authorized fixes. A4.4 still requires actual candidate-bound both-host P-PG1-8/K2/K3; diagnostic execution is **BLOCKED — not run** here. C1 product RED is not authorized.
+
+After prerequisites and stage-specific criteria review, A4.5 separates the missing work:
+
+- **C1 harness:** TestKit owner implements the six PgHarness methods, closed Role, deadline-only StartOptions and product-neutral lifecycle/provenance/environment checks; no driver or service SQL moves into TestKit. W6's TestKit gate/reason must transition with actual sources.
+- **C1 schema/store/trace:** service owner implements migration, PgStore connection validation/durability and the exact real fixture subset. Independent service tests own SQL in `observe.rs`. A3's std-only TraceContext has `from_fields`, `traceparent`, `tracestate`; direct parser/schema vectors need no RuntimeKit accessor.
+- **C2-C4:** add real admission/outbox, lease/completion, then cancellation/recovery and full fixture/RecoveryHarness union at their stages. A3 changes store `admit` to take `trace: Option<&TraceContext>`; trace is metadata, excluded from admission identity, artifacts, events and replay equality. No empty future helper or no-op reconciler substitutes for these behaviors.
+- **T1/C0/C5:** their owners settle the accepted-ADR transport conflict and exact trace/accessor/adapter/port/event interfaces, then transition descriptor, configuration, readiness and dependency failures together. Preserve C1->C2->C3->C4->T1->C0-A->C5+C0-B. Replay/assurance D follows the durable proof.
+
+Broad SDK/CLI/MCP products, scientific semantics/data/evaluation, model execution, release signing and deployment retain their own missing capabilities and owners from the root inventory/workplan. Nothing in this audit creates a second compiler, activates scaffold or substitutes engineering review for independent assurance.
+
+## Related
+
+<CardGroup cols={2}>
+  <Card title="Current Task Register" icon="clipboard-list" href="/developer/agent-handoff#current-task-register">
+    Sole status route, current parent receipts and remaining ownership.
+  </Card>
+
+  <Card title="C Durability Criteria" icon="floppy-disk" href="/superpowers/specs/2026-09-26-c-durability-criteria">
+    Exact interfaces, staging and stop conditions for C1-C5 durability.
+  </Card>
+
+  <Card title="Implementation Roadmap" icon="map" href="/architecture/implementation-roadmap">
+    Roadmap and gate dispatch readiness for the platform.
+  </Card>
+
+  <Card title="Architecture Docs Workflow" icon="book-open" href="https://github.com/Mindclade-org/mindclade-internal-monorepo/blob/main/.agents/workflows/architecture-docs.md">
+    Distinct task/whole-candidate review, parent checks and narrow/wide rendering.
+  </Card>
+</CardGroup>

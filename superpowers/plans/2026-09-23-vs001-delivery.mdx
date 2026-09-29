@@ -1,0 +1,85 @@
+---
+title: "VS-001 Delivery Implementation Plan"
+sidebarTitle: "Delivery Plan"
+description: "Plan to complete the generated TypeScript-to-Rust capability slice through durable execution, sealed replay, and independently assessed policy decision."
+---
+
+This page documents the VS-001 delivery implementation plan. It is intended for implementers, reviewers, and supervised agents working on the durable capability slice.
+
+<Warning>
+  This plan grants no operational admission. Written criteria review precedes implementation. No installed plugin is required.
+</Warning>
+
+> **For agentic workers:** Follow the tracked [foundation workflow](https://github.com/Mindclade-org/mindclade-internal-monorepo/blob/main/.agents/workflows/foundation-development.md), or available `superpowers:subagent-driven-development` tooling with equivalent fresh criteria/implementation/task-review and whole-candidate-review separation. The parent owns commands, jobs, receipts, Git and remote operations.
+
+**Goal:** Complete the generated TypeScript-to-Rust capability slice through real durable execution, sealed replay, and independently assessed policy decision.
+
+**Architecture:** Codegen is the sole semantic compiler. RuntimeKit composes one Rust service from a compiled `ServiceDescriptor@v1`; typed internal contracts isolate PostgreSQL/outbox/scheduler/worker from the public client. TestKit controls collaborators while durability tests use PostgreSQL.
+
+**Tech Stack:** Existing pinned Nix/Bazel/Rust/TypeSpec/Node toolchain, PostgreSQL, generated TypeScript and Rust, small HTTP/SQL adapters, strict signed assessment verification.
+
+**Spec:** [VS-001 durable capability design](/superpowers/specs/2026-09-23-vs001-durable-capability-design).
+
+## Global Constraints
+
+- Preserve Bazel 9.1.1, Rust 1.96.1, TypeSpec compiler/HTTP 1.16.0, Node 22.23.2, pnpm 12.3.4, Python 3.12.14, and the committed Nix lock baseline.
+- Nix supplies tools; Bazel owns product compilation and tests. No downloads or package installation within build/test actions.
+- Architecture YAML remains authoritative. Planned JSON architecture placeholders remain inactive.
+- Preserve all required scaffold directories and activate only reviewed source paths. Generated files change only through Codegen.
+- No cloud deployment, paid work, external effect providers, real NOVA/science, message broker, Temporal, Kubernetes, TileLang implementation, generated C ABI implementation, Triton, or tch-rs.
+- Require clean-checkout Apple Silicon and Linux results; Intel Mac remains configured but untested unless independently executed.
+- Every task follows failing test, observed relevant failure, implementation, passing tests, and a scoped commit. Missing tools are blockers, not a valid behavioral RED test.
+- One integration owner owns shared locks/manifests and regeneration. No implementation-owned acceptance waiver.
+
+## Review Focus
+
+1. Interrupted/concurrent publication must never pass mismatched canonical outputs: A1.
+2. Public generators and resolved dependency graphs must reject internal leakage, architectural bypass and incompatible contract changes: A2/B1/B2/B4.
+3. Duplicate delivery, stale generations, and cancellation races must never create a second authoritative completion: C2-C4.
+4. Replay must reject substituted bytes/versions and must not contact a live database: D1-D2.
+5. Self-signed, incomplete, failed, or wrong-candidate evidence must never authorize qualification: A3/D3-D4.
+
+## Ordered Plans
+
+1. [A: Foundation hardening](/superpowers/plans/2026-09-23-vs001-a-foundation): 3 tasks.
+2. [B: Generated contracts and composition](/superpowers/plans/2026-09-23-vs001-b-composition): 4 tasks, including explicit architecture/dependency enforcement.
+3. [C: Durable execution](/superpowers/plans/2026-09-23-vs001-c-durability): 5 tasks.
+4. [D: Replay and independent assessment](/superpowers/plans/2026-09-23-vs001-d-assurance): 4 tasks.
+
+Sixteen scoped implementation tasks, not one large unreviewable merge. Each plan establishes its own testable milestone. Plans B-D depend on their predecessors' interfaces; B4 is required before accepting the durable milestone and reruns after C/D dependency changes. A later failure does not turn an earlier partial milestone into full VS-001 completion.
+
+The [2026-09-23 audit reconciliation](/architecture/reviews/2026-09-23-foundation-audit-reconciliation) maps every supplied finding to this plan or an explicitly separate later gate. Audit evidence belongs to the audited foundation revision, not the future implementation candidate.
+
+## Execution Setup
+
+- [ ] Re-read AGENTS, accepted ADRs, design, all four plans, current maturity, and Git status/worktree inventory. Preserve unrelated work.
+- [ ] Obtain consent for an isolated implementation worktree if no explicit preference has been established; otherwise work on an isolated branch without discarding local work. Do not start product edits on main.
+- [ ] Record the exact integration base, candidate branch, owned paths, and plan revision in an ignored execution receipt. Do not alter acceptance criteria after observing failures without independent owner review.
+- [ ] Run the unchanged baseline through the pinned shell and retain results. Use the installed CPJ lifecycle for long/uncertain finite jobs; launch, release the turn, then inspect the completion in a later turn. Never treat a launch as a pass.
+- [ ] Establish an independently controlled acceptance owner, criteria revision, trust-bundle custody, and evidence archive destination. Product implementation may proceed while these are pending; independent completion cannot.
+
+## Shared File Discipline
+
+At each task, explicitly stage authored changes, new tests, generated outputs, and the mechanically refreshed `docs/architecture/REPOSITORY_TREE.md`. Do not use blanket staging over concurrent changes. Run `scripts/validate_generator_inputs.py` after compiler/toolchain changes; update its source inventory and regenerate projections when required. Use reviewed transitions in `docs/architecture/model/blueprint-scaffold.json` and `repository-layout.json`; do not reseal stubs. Keep maturity changes specific to actually observed behavior.
+
+The documents are proposals, not authorization for a deployable service or a signed release. The previously merged executable-foundation exception is not reused. Future integration requires applicable policy or a new explicit source-only exception; full VS-001 acceptance still requires independently assessed evidence.
+
+## Final Handoff
+
+- [ ] Fresh whole-branch review, independent from the implementation context, covering the combined diff and fault matrix. Fix findings through another RED/GREEN cycle.
+- [ ] Re-run clean Apple Silicon and Linux checks against the exact reviewed source candidate. Retain run URL/attempt, SHA/base, tools, output/action/test receipts, and artifact digests.
+- [ ] Obtain owner-controlled assessment and evaluate the policy; missing owner, trust custody, archive, protection, evidence, or review remains BLOCKED with exact reason.
+- [ ] Commit and push reviewed work to its branch. Merge only under applicable policy. Compare local, tracking, and remote SHA after any authorized integration; retest an actual merge result if its tree differs.
+- [ ] Export and verify evidence before cleaning up only this task's clean, merged branches/worktrees. Preserve recovery material and any unrelated/unmerged work.
+
+## Planning Verification
+
+The plan package is documentation only. Its own validation covers repository inventory, local links, scaffold preservation, whitespace, and spec-to-task coverage. It does not constitute an execution of the tests described in these plans.
+
+## Related
+
+- [VS-001 A: Foundation Hardening](/superpowers/plans/2026-09-23-vs001-a-foundation)
+- [VS-001 B: Composition](/superpowers/plans/2026-09-23-vs001-b-composition)
+- [VS-001 C: Durability](/superpowers/plans/2026-09-23-vs001-c-durability)
+- [VS-001 D: Assurance](/superpowers/plans/2026-09-23-vs001-d-assurance)
+- [VS-001 Durable Capability Design](/superpowers/specs/2026-09-23-vs001-durable-capability-design)

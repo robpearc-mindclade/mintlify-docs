@@ -1,0 +1,178 @@
+Plan to make the private codebase a reproducible, enforced foundation for safe developer and agent work without hidden conversation context.
+
+> **For agentic workers:** Follow the tracked [foundation workflow](https://github.com/Mindclade-org/mindclade-internal-monorepo/blob/main/.agents/workflows/foundation-development.md), or available `superpowers:subagent-driven-development` tooling with equivalent fresh criteria/implementation/task-review and whole-candidate-review separation. The parent owns commands, jobs, receipts, Git and remote operations. No installed plugin is required; this plan grants no operational admission. Written criteria review precedes implementation.
+
+**Goal:** Make the private codebase a reproducible, understandable and enforced foundation on which any authorized developer or supervised agent can safely develop, test, resume and hand off work without hidden conversation context.
+
+**Architecture:** Preserve one in-place SemanticInput@v1/MindcladeGraph@v1, Codegen-owned generation and authoritative architecture YAML. Complete a generated public Echo client and descriptor-composed RuntimeKit/TestKit service, enforce actual configured dependencies, and independently establish protected engineering operation. Keep durable VS-001, independent assessment, release and scientific claims separately gated.
+
+**Tech Stack:** Pinned Nix/Bazel/Rust/TypeSpec/Node/pnpm/Python; reviewed additions limited to the B/C/D specifications; GitHub Actions/App/merge queue, Linear work authority and Git technical authority.
+
+**Spec:** [VS-001 design](/superpowers/specs/2026-09-23-vs001-durable-capability-design), [master blueprint](/architecture/master-blueprint), [supervised roles](https://github.com/Mindclade-org/mindclade-internal-monorepo/blob/main/.agents/roles/supervised.md), [descriptor contract](/architecture/service-descriptor-v1), [GitHub runbook](/operations/github-governance). The [audit](/architecture/reviews/2026-09-23-development-foundation-plan-audit) records why the pasted proposal required revision.
+
+## Source continuation checkpoint
+
+The user originally paused after G1, then explicitly requested one full real vertical. [Current task status](/developer/agent-handoff#current-task-register) and the [B1a sequencing record](/architecture/reviews/2026-09-23-vs001-wire-values) now prioritize the source/runtime chain B1a → B2a → B3a → B2b → B3b → B4 → C1–C5 → D1–D2. G2/G3/DX2/O1–O4 remain pending; this sequencing amendment grants no operational admission. The dependency sequence below remains pending as shown there; this plan does not authorize continuation by itself. [Tracked resume decisions](/architecture/reviews/2026-09-23-foundation-resume-decisions) preserve consequential B2 proposals and G1 interface limits. Rob owns manual Enterprise migration; O1–O4 acceptance remains separate.
+
+## Global Constraints
+
+- Preserve Bazel 9.1.1, Rust 1.96.1, TypeSpec compiler/HTTP 1.16.0, Node 22.23.2, pnpm 12.3.4, Python 3.12.14, and the committed Nix lock baseline.
+- Nix supplies tools; Bazel owns product compilation and tests. No downloads or package installation within build/test actions.
+- Architecture YAML remains authoritative. Planned JSON architecture placeholders remain inactive.
+- Do not add `tch-rs` or Triton dependencies.
+- Keep service semantics modular-monolith-first until deployment evidence justifies a split.
+- Treat PostgreSQL state plus transactional outbox as the durable baseline.
+- Do not hand-edit generated outputs. Regenerate them through Codegen and preserve provenance.
+- Preserve all required scaffold directories. Retire only implemented, reviewed stub entries; never reseal placeholders to conceal changes.
+- Preserve private visibility and audience, repository ID 1382446493, old worktrees and original receipts. No force push, reset, blanket staging or automatic deletion.
+- Keep existing toolchain pins. Required new libraries get exact reviewed versions, licences/MSRV/transitive review, lock changes and closure hashes in their introducing task, not speculative pins in a plan.
+- No cloud deployment, paid work, external effect providers, real NOVA/science, message broker, Temporal, Kubernetes, TileLang implementation, generated C ABI implementation, Triton, or tch-rs.
+- Rob accepts supervised engineering work and approves bot-authored PRs; fresh agent review does not create independent scientific or release assurance.
+- Source proposals may progress while external readiness is blocked. This plan grants no transfer, purchase, privacy change, App installation, queue admission, evidence publication or policy adoption. A scoped source merge is not a standing bypass.
+- Tests proposed here are implementation acceptance cases. Separate owner approval/freeze is required before using them as independent acceptance authority.
+
+## Review Focus
+
+1. A fresh clone with missing tools, stale locks or unsupported platform must fail with an actionable diagnostic; developer/agent onboarding cannot depend on hidden caches or chat context: DX1, DX2.
+2. Invalid Unicode, duplicate JSON keys, forged references, invalid calendar dates and generation exhaustion must fail identically at generated Rust/TS boundaries; validators cannot merely reflect declared types: B1a, B2a.
+3. Internal leakage, missing build configurations and unowned imports must fail based on real resolved facts, not path inventory or a candidate-supplied passing flag: B2b, B4, G3.
+4. Wrong PR/run/queue/base/attempt identities, partial pagination, stale approval and candidate-edited evaluator bytes cannot produce an accepted engineering observation: G1, G2, G3, O3.
+5. An interrupted agent, lingering service process, lost acknowledgement or unavailable archive must preserve recoverable work and remain unresolved until independently observed: B3b, DX2, O4; C/D retain durability and assurance cases.
+
+---
+
+## Baseline, scope and success criteria
+
+Planning baseline: **81644e8681fcecb8d60adb16cb3306e54495c6be**, merged through [PR #5](https://github.com/robpearc-mindclade/mindclade-vnext/pull/5) on 2026-09-23. Its tree equals reviewed candidate `d94285eed3b41fb0c22453f728044eca11e4bcbb`. Candidate clean local aggregate passed 254 Python tests, 93 Rust tests, five doctests and five Bazel test targets; branch/PR Linux CI and downloaded artifact digests passed. Exact resulting-main Linux run [35879370074](https://github.com/robpearc-mindclade/mindclade-vnext/actions/runs/35879370074) passed; its downloaded clean-candidate receipt, 12 artifact digests and canonical graph/manifest bytes were independently checked against this main revision. This is source validation, not protected acceptance.
+
+Already complete in source: A1 recoverable publication, A2 directional compatibility, A3 evidence export/readback; partial B1 sealed declarations/public view; governance admission/archive tools; complete bounded review-thread observation with strict 64-bit PR identity. Do not redo these or chase stale `a561f18`, PR #1 or old main SHAs. No parallel v2 implementation was found; retain legitimate route-version and rejection fixtures.
+
+**Development foundation ready** requires all of the following. Source/product/check claims bind the final reviewed candidate. The documentation and code demonstrations retain their distinct lane-specific revisions; revalidate the affected final-candidate gates after their sequential integrations rather than claiming both PRs have one commit:
+
+1. A clean-clone human and a separately started agent can follow tracked instructions, identify maturity/ownership, run exact local checks, exercise generated Echo, recover an interruption and produce a bounded handoff.
+2. B1-B4 source gates pass on Apple Silicon and Linux: complete admitted value semantics, public products, compiled descriptors, RuntimeKit/TestKit, real dependency facts and enforcement. Intel Mac remains unqualified without execution.
+3. Every activated root has an owner, tests, build target and enforced boundary; no active path relies on an exit-zero stub. Planned roots remain visibly planned and non-admissible.
+4. A separately adopted evaluator binds exact policy, packet, source/base, PR, tested merge, queue and resulting-main identities. Missing observations remain non-passing.
+5. The protected documentation lane and then B4-gated code lane both pass with operator-controlled App identity, Rob's review/admission, verified main and approved private archive retrieval.
+
+**Full VS-001 complete** additionally requires C1-C5 and D1-D4. The non-durable TestAdmission service cannot satisfy that claim. Production, scientific, deployment and release readiness remain outside both claims. "Anybody" means an authorized contributor; it does not make the repository public or permit unsupervised agents.
+
+## Dependency order and ownership
+
+| Order | Task / review unit | Dependencies | Owned implementation surface | Exit |
+| --- | --- | --- | --- | --- |
+| 1 | DX1: reproducible entry and preflight | Existing foundation | README, CONTRIBUTING, developer docs, scripts/doctor.py and tests, justfile | Fresh-clone instructions and read-only diagnostics |
+| 2 | G1: source-head/tested-merge evidence | Merged review-thread observer | Engineering audit/binding helpers, CI receipt capture, governance tests | Correct PR/run/tested-commit binding |
+| 3 | G2: retained queue observation | G1 | Same governance surface, sequential owner | Queue/base/member/run binding; missing live queue stays blocked |
+| 4 | B1a: exact v1 value semantics | Existing B1 declarations | TypeSpec/frontend/IR constraints and Codegen validation/emission rules | Frozen wire semantics and negative fixtures |
+| 5 | B2a: typed Rust/TS projections | B1a | Codegen target IR/emitters, owned generated outputs, conformance tests | Strict generated client/DTO round trip |
+| 6 | B3a: descriptor and architecture views | B1a, B2a | Codegen descriptor/YAML/ownership adapters and sealed views | Validated ownership and descriptor; no runtime YAML |
+| 7 | B2b: protocol/public conformance | B2a, B3a | OpenAPI/Proto/MCP/docs emitters, field registry, consumer fixtures | Cross-product expectations and no internal leakage |
+| 8 | B3b: RuntimeKit/TestKit composition | B2a, B3a | platform/runtimekit, platform/testkit, services/foundation_echo | Real loopback generated-client path, bounded lifecycle |
+| 9 | B4: actual dependency enforcement | B2b, B3b | YAML rules, Codegen checker, Cargo/Bazel/TS collectors, four validator entrypoints | Permitted real graph and deliberate violations tested |
+| 10 | G3: trusted B4 admission integration | B4, G1, G2 | Admission/audit adapters; separately proposed policy revision | Independent B4 regeneration; forged or stale receipt cannot admit |
+| 11 | DX2: new contributor/agent rehearsal | DX1, B4, G3 source | Onboarding/handoff/verification scripts and independent rehearsal records | Two fresh contexts complete local lifecycle |
+| parallel | O1: access and entitlement | Rob/operator | Read-only organization/repository preflight | Verified private protection AND queue entitlement |
+| then | O2: transfer, App, protection and queue setup | O1, approval, G2 source | Operator-controlled settings and trust records | Actual denial tests and merge-group delivery |
+| then | O3: accepted evaluator/policy/packet bootstrap | Reviewed G1-G3, O2 | Externally held immutable inputs and approvals | Documentation admission, then code admission after accepted B4 |
+| final | O4: protected demonstrations, archive, acceptance | DX2, O3 | Exact-candidate external receipts | Human and agent workflows demonstrated and accepted |
+
+G1/G2 may run alongside compiler planning only with disjoint owned paths. The parent serializes locks, source inventory, generated ownership, root activation, CI and integration. Shared-path changes are never dispatched simultaneously. Every task has a fresh reviewer; the parent alone runs validation and creates attempt/job records. B3a introduces strict YAML and validated architecture ownership before descriptor compilation and before B2b parses its Proto field registry; B2a itself has no YAML dependency.
+
+Task details are in [developer readiness](/superpowers/plans/2026-09-23-foundation-developer-readiness), [governance completion](/superpowers/plans/2026-09-23-foundation-governance-completion), and [compiler/composition completion](/superpowers/plans/2026-09-23-foundation-compiler-completion). These define new APIs as proposals, not existing callable functions. They refine the [B plan](/superpowers/plans/2026-09-23-vs001-b-composition); no old unchecked box overrides observed source or the authority order.
+
+## Global task cycle
+
+- [ ] Parent inventories worktrees, remotes, changes, current Linear assignment, path owners and existing attempts/receipts; record exact source/base and one dispatch route. Local proposal work cannot be reported as admitted connected execution when trusted inputs are absent.
+- [ ] Freeze the bounded task's criterion IDs, owned paths, proposed API, source/policy/spec identities and budget; independent criteria review precedes implementation. Approval required by the supervised workflow remains explicit.
+- [ ] Implementer writes the named failing cases. Parent executes the focused command and retains a relevant behavioral failure; missing tools or missing unrelated fixtures do not count as RED.
+- [ ] Implementer makes the narrow source change. Parent runs focused checks, then applicable Bazel/conformance/boundary gates and `nix develop --no-write-lock-file -c just verify`. Do not repeat unaffected checks after a pass without a reason.
+- [ ] Refresh generator inventory, regenerate owned outputs and mechanical tree, inspect exact changes, and obtain fresh source review. Any fixes invalidate affected checks/review and get fresh evidence.
+- [ ] Parent stages explicit reviewed files, commits, pushes serially, records exact candidate and run attempt, then follows the applicable merge authorization. Reconcile local/tracking/remote main and actual tree after integration; collect resulting-main evidence.
+- [ ] Preserve old failed/superseded receipts. Stop owned processes, confirm their disposition, and hand off candidate, changed paths, commands/results, blockers and next task. Never kill shared Codex processes or delete another worktree.
+
+Expected commit subjects by task: `docs(dev): define reproducible contributor entry`, `feat(governance): bind tested PR commits`, `feat(governance): observe exact merge groups`, `feat(codegen): validate final v1 wire values`, `feat(codegen): emit checked Echo clients and DTOs`, `feat(codegen): verify public protocol conformance`, `feat(codegen): compile service descriptors`, `feat(platform): compose generated Echo`, `feat(architecture): enforce actual dependencies`, `feat(governance): consume independently verified boundaries`, `test(dev): prove fresh contributor and agent workflows`. Commit paths come from each task; no blanket `git add -A`.
+
+## O1. Access and entitlement preflight
+
+**Owner:** Rob/operator; integrator records sanitized observations. **Files:** update `docs/architecture/engineering/governance-status.md` with dated facts; no credential material in Git. **Input:** repository ID 1382446493 and approved private audience. **Output:** independently retained preflight identifying source/destination permissions, entitlements and blockers.
+
+- [ ] Re-run these read-only observations under an operator session; retain statuses and selected identity fields, never tokens, raw auth headers or SSO secrets:
+
+```bash Terminal
+gh api --hostname github.com repos/robpearc-mindclade/mindclade-vnext
+gh api --hostname github.com repos/robpearc-mindclade/mindclade-vnext/branches/main
+gh api --hostname github.com repos/robpearc-mindclade/mindclade-vnext/branches/main/protection
+gh api --hostname github.com orgs/Mindclade-org
+gh api --hostname github.com user/memberships/orgs/Mindclade-org
+```
+
+- [ ] If SAML fails, Rob authorizes the operator's existing GitHub authentication for the destination organization. Re-read membership and transfer permissions. No agent receives the operator credential or signing key.
+- [ ] Check private branch-protection entitlement and private merge-queue entitlement separately. GitHub documents private merge queues for organizations using Enterprise Cloud; access to ordinary private branch protection alone is insufficient. Record the destination's actual entitlement instead of assuming its name implies it. [GitHub queue availability](https://docs.github.com/en/enterprise-cloud%40latest/repositories/configuring-branches-and-merges-in-your-repository/configuring-pull-request-merges/managing-a-merge-queue).
+- [ ] Compare intended and inherited audience, destination name availability and same-repository transfer eligibility. A 403/404 under missing access is unknown, not proof that a name is free. If entitlement requires money, prepare the exact option for Rob; do not purchase or make the repository public.
+
+Latest observed blockers before this planning revision: source private main unprotected; source protection endpoint required an account upgrade or public visibility; destination org/membership reads failed under SAML. These dated observations do not prove present entitlement, and they do not stop unrelated local source proposals.
+
+## O2. Protected operation setup
+
+**Owner:** Rob/operator. **Files:** `docs/operations/github-governance.md`, governance status and operator-held inventory/approval records. **Inputs:** passing O1, reviewed exact transfer and App permission proposals, reviewed G2. **Output:** same-ID private repository with verified effective protection and working merge-group checks.
+
+- [ ] Snapshot repository ID, all refs, issues/PRs, collaborators/teams, protection, Actions, Apps, runners, webhook destinations, environments and secret names/scopes. Record identity bindings that change on transfer. Pause publication and inventory pending effects before requesting transfer approval.
+- [ ] After explicit approval, transfer the existing repository; verify unchanged ID/ref tips/metadata and intended private audience. On an uncertain result, read both locations by ID before any retry. Rebind remotes, App installation scope, workflow identity and policy anchors only after verification; publication stays paused until destination controls are effective.
+- [ ] Propose the minimum App permissions needed for branch/PR publication. Keep private key/token minting outside workers; installation tokens restricted to this repository and required operations. Verify author immutable App ID and bot identity, token expiry/revocation and denied writes outside scope. No App bypass or admin capability.
+- [ ] On an approved disposable branch, test rejected direct pushes, missing/failed/wrong-producer checks, stale approvals, unresolved conversations, force push/deletion and unauthorized queue admission. Preserve denied-operation evidence and undo only owned test fixtures after recording their final state.
+- [ ] Configure required PR, Rob CODEOWNERS review, stale-review dismissal, conversation resolution, producer-bound checks, no bypass actors, no force/deletion and one-change queue. The workflow already declares `merge_group`; observe actual delivery/check execution before making the queue mandatory. Verify effective inherited rules, not only configured flags.
+
+## O3. Adopt the evaluator and admission inputs separately
+
+**Owner:** Rob plus separate reviewer; implementation cannot adopt itself. **Files:** proposed changes to `.agents/policies/supervised.v1.json`, `docs/developer/work-packet-v1.md` and operator records are reviewed separately from the source candidate they assess.
+
+- [ ] Freeze evaluator distribution/runtime and workflow/verifier digests at immutable accepted revisions. Supply `TOOL_ROOT` separately from candidate checkout. Hashes reported by candidate code are descriptions, not trust anchors.
+- [ ] Approve the exact WorkPacket digest, policy revision/digest, criterion revision, source/base and concrete implementation/review/integration/acceptance owners outside candidate control. Verify the specification at both base and candidate and stop on substitution.
+- [ ] Keep the existing code admission block until reviewed B4 exists and G3 can independently regenerate facts from the candidate. Replacing `boundary_checker_status: pending` with a passing word is forbidden. Adopt the revised policy schema/fields only after negative tests and separate approval.
+- [ ] Prove documentation admission first. Prove code admission only after same-candidate B4 evidence is accepted. Test candidate-edited policy/evaluator, missing approvals, stale packet/specification, wrong source, exhausted budget and ownership overlap as non-passing.
+
+## O4. Demonstrate, archive and accept
+
+**Owner:** Rob/operator and independent reviewer. **Inputs:** DX2, O3, retained exact-run observations. **Output:** two accepted protected engineering demonstrations and verified retrieval, limited to engineering readiness.
+
+- [ ] Documentation lane: approved bounded packet → App-authored PR → CI → fresh source review → Rob approval → human queue admission → verified queue run → resulting main checks. Retain source head, tested merge, queue/base, resulting main and run-attempt identities separately.
+- [ ] Code lane: independently meaningful final-v1 regression with a valid positive control; rerun actual B4 and the same protected sequence. Record fresh human and agent handoffs. Missing stages remain blocked; source-only historical merges cannot substitute.
+- [ ] Package sanitized evidence with the existing evidence tool; verify locally and retain the digest independently. Request publication approval for the exact private draft, tag target, assets and digest. Publish only under protected non-reusable `evidence/` tags with immutable releases enabled and `latest=false`; download and verify against the retained digest. If immutable release support or retention is unavailable, report the exact blocker.
+- [ ] Rob accepts the engineering result and authorizes MIN-14 closure only after its agreed gates pass. Update Notion with outcome links through an available authorized connector; do not invent status or duplicate the engineering backlog. Existing lack of a Linear connector is a real tracking-access gap, not permission to replace Linear.
+- [ ] Update README, maturity, roadmap and handoffs to name exact observed outcomes. Retain architecture planning boundaries and preserve local evidence until approved shared retrieval succeeds.
+
+## Remaining durable and assurance work: complete register
+
+This register preserves all remaining C/D work; none is silently dropped to call the development foundation finished. Implementation follows [C durability](/superpowers/plans/2026-09-23-vs001-c-durability) and [D assurance](/superpowers/plans/2026-09-23-vs001-d-assurance), with the same task/review cycle. Their APIs and fault cases remain binding.
+
+| ID | Exact result required | Predecessors | Principal files / gate |
+| --- | --- | --- | --- |
+| C1 | Owned real PostgreSQL cluster, schema constraints, migrations/checksums, restart and cleanup | Completed A and B1-B4 | `platform/testkit/src/postgres.rs`, service migrations; `//platform/testkit:postgres_tests` |
+| C2 | Atomic admission/outbox, canonical idempotency, two-connection races and uncertain-commit reconciliation | C1 | service execution store/admission; durability tests |
+| C3 | At-least-once dispatch/inbox, bounded positive generations, DB-time leases and fenced completion | C2 | execution dispatch/lease/completion; real SQL negative cases |
+| C4 | Process/DB restart, lost acknowledgements, bounded retries, cancellation/completion races and observed termination | C3 | execution recovery/cancellation; deterministic fault schedules |
+| C5 | Generated client through HTTP/PostgreSQL/worker to one committed result; fresh configured dependency evidence | B2, C4, fresh B4 | service durable composition, `scripts/verify_vs001.py`, `just verify-vs001` |
+| D1 | Immutable provenance bindings and acyclic ExecutionCapsule@v1 with exact inventories | C5 | evidence/capsule seal and independent byte/hash assertions |
+| D2 | Replay in a fresh isolated database; reject tampering, missing/extra input and incompatible versions | D1 | replay implementation/harness, causal and artifact equivalence |
+| D3 | Strict trusted signed assessment verification and fail-closed policy decision; test keys never accept | D2, fresh B4 | assessment verifier/policy, externally supplied trust/evaluator |
+| D4 | Fresh whole-branch review, same-candidate Mac/Linux evidence, independent owner-controlled assessment, final envelope and verified shared retrieval | D3, separate trust custody | qualification/envelope, independently retained archive identity |
+
+Real scientific workloads, biological validity, model training, TileLang/C ABI implementation, cloud deployment and product release remain later platform projects. They are not prerequisites for ordinary supervised development and must not be accidentally included in a foundation closeout claim.
+
+## Final acceptance checklist
+
+- [ ] Every activated package has one authoritative owner, real builds/tests and dependency coverage; every still-planned component is accurately labelled.
+- [ ] A fresh human and fresh agent reproduce local setup, a meaningful change, failure diagnosis, deterministic generation, tests and interruption recovery from tracked instructions only.
+- [ ] Public clients reject invalid inputs and private leakage; generated Rust/protocol consumers agree with independent expectations.
+- [ ] Descriptor-composed service enforces loopback test identity, bounds, readiness and graceful shutdown; its TestAdmission milestone is explicitly non-durable.
+- [ ] Actual Cargo/Bazel/TypeScript facts prove admitted dependencies; deliberately forbidden edges and missing/stale collectors fail.
+- [ ] Trusted governance observations bind complete PR/review/run/queue/main identities and do not self-accept policy or evidence.
+- [ ] O1-O4 protected operation and archive retrieval pass, with Rob's acceptance recorded. Otherwise report source-ready or locally rehearsed, never development-foundation complete.
+- [ ] C/D status and separate production/scientific boundaries remain visible. Stop owned jobs, preserve evidence and give the next owner one current handoff and one work authority.
+
+## Planning verification and execution handoff
+
+This revision is a plan, not implementation of its unchecked tasks. Self-review checks specification coverage, exact file ownership, defined new interfaces, negative/positive controls, dependency order and placeholder absence. Repository tree/link/scaffold/whitespace checks validate the documentation only. Tests written inside the task plans are proposed tests, not executed receipts.
+
+Review this package and the current handoff before new implementation. DX1 and G1 have reached reviewed source milestones; use the current source continuation checkpoint above and the parent-owned/fresh-role method. Reconcile the current Linear task and trusted admission inputs before connected dispatch; continue only explicitly authorized local proposal work when those external inputs are unavailable.

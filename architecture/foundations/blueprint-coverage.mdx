@@ -1,0 +1,104 @@
+---
+title: "Blueprint and Image Coverage"
+sidebarTitle: "Blueprint Coverage"
+description: "Locate every section of the supplied greenfield blueprint and every architectural box in the layered reference image. For developers, reviewers, and agents checking design alignment."
+---
+
+This page locates every section of the supplied greenfield blueprint and every architectural box in the layered reference image. It is for developers, reviewers, and agents checking design alignment.
+
+<Warning>
+  This is an explanatory traceability map, dated 2026-09-23. Coverage means a concept has an owned reference and repository responsibility. It does not mean the concept is implemented, qualified, or approved for operation. The [task register](/developer/agent-handoff#current-task-register) and [maturity model](https://github.com/Mindclade-org/mindclade-internal-monorepo/blob/main/docs/architecture/maturity.yaml) retain status authority.
+</Warning>
+
+## Source and interpretation
+
+The immutable [original greenfield blueprint](https://github.com/Mindclade-org/mindclade-internal-monorepo/blob/main/docs/architecture/sources/original-greenfield-blueprint.md) is the exact supplied source, SHA256 `c23d824ea6d2890bde8d1032ce4e0341cbd98ea4cc217c94eb0cec36c7665c38`. Accepted ADRs reconcile its target picture without silently rewriting that source. [ADR-003](/architecture/adr/adr-003-mindcladegraph-and-typed-graph-views) makes SemanticGraph and CapabilityGraph typed views of one immutable MindcladeGraph; [ADR-015](/architecture/adr/adr-015-original-blueprint-scaffold-alignment) preserves the original roots through an explicit planned-scaffold exception.
+
+The [layered diagram](/architecture/platform-diagram) and its text equivalent show the same design from a different viewpoint than the master's four cross-cutting responsibilities. The image is illustrative, not a Codegen-emitted atlas. Its earlier 38%/42%/20% annotations described layout widths, never implementation or qualification percentages; the cleaned illustration omits them.
+
+## All 20 blueprint sections
+
+| Original section | Maintained explanation | Governing reference and boundary |
+| --- | --- | --- |
+| 1. Canonical Architecture | [System context](/architecture/foundations/system-context), [semantic compilation](/architecture/foundations/semantic-compilation) | [ADR-002](/architecture/adr/adr-002-codegen-is-the-sole-semantic-compiler), [ADR-003](/architecture/adr/adr-003-mindcladegraph-and-typed-graph-views): one `codegen/`, one graph; Forge is historical naming only. |
+| 2. Final Repository Tree | [System context](/architecture/foundations/system-context), [full file inventory](https://github.com/Mindclade-org/mindclade-internal-monorepo/blob/main/docs/architecture/REPOSITORY_TREE.md) | [Layout](https://github.com/Mindclade-org/mindclade-internal-monorepo/blob/main/docs/architecture/model/repository-layout.json), [scaffold manifest](https://github.com/Mindclade-org/mindclade-internal-monorepo/blob/main/docs/architecture/model/blueprint-scaffold.json), ADR-015; target reservations are not activated packages. |
+| 3. Root Responsibilities | [System context](/architecture/foundations/system-context) | Layout ownership and [master blueprint IV](https://github.com/Mindclade-org/mindclade-internal-monorepo/blob/main/docs/architecture/MASTER_BLUEPRINT.md#iv-domain-ownership-and-dependency-direction); concrete review owners remain in [CODEOWNERS](https://github.com/Mindclade-org/mindclade-internal-monorepo/blob/main/CODEOWNERS). |
+| 4. Architecture Laws | [Foundations overview](/architecture/foundations/overview), [security and assurance](/architecture/foundations/security-and-assurance) | [Constitution](/architecture/adr/adr-000-mindclade-vnext-architecture-constitution), [architecture laws](/architecture/architecture-laws) and accepted ADRs. |
+| 5. Dependency And Ownership Rules | [Semantic compilation](/architecture/foundations/semantic-compilation), [system context](/architecture/foundations/system-context) | [ADR-007](/architecture/adr/adr-007-compute-models-learning-and-runtime-boundaries); actual configured dependency enforcement remains separate B4 work. |
+| 6. Generated Vs Authored Boundaries | [Semantic compilation](/architecture/foundations/semantic-compilation) | [Generated-output policy](/architecture/generated-output-policy), [ADR-013](/architecture/adr/adr-013-generated-projection-law); placeholders are not emitted artifacts. |
+| 7. RuntimeKit | [Platform and execution](/architecture/foundations/platform-and-execution) | [ADR-008](/architecture/adr/adr-008-runtimekit-and-testkit), `platform/runtimekit/`; lifecycle/configuration/identity/health/telemetry/shutdown. B3b source (`0d44a36`) is a bounded, non-durable subset: checked configuration ABI, bounded HTTP/1.1 transport and finite shutdown. See [maturity](https://github.com/Mindclade-org/mindclade-internal-monorepo/blob/main/docs/architecture/maturity.yaml). |
+| 8. TestKit | [Platform and execution](/architecture/foundations/platform-and-execution) | ADR-008, `platform/testkit/`; deterministic ports and faults, not an alternate runtime or durability claim. B3b source (main `72b762d`) has test-only clock, identity, fault-barrier and recording collaborators; no deterministic stores, events, workers or fake models exist yet. |
+| 9. ServiceDescriptor@v1 | [Platform and execution](/architecture/foundations/platform-and-execution) | [Descriptor reference](/architecture/service-descriptor-v1), [VS-001 design](/superpowers/specs/2026-09-23-vs001-durable-capability-design); the bounded Foundation Echo descriptor is implemented compiler input; other named descriptors remain incomplete stubs. |
+| 10. Deployment Synthesis, Qualification, And GitOps | [Delivery and operations](/architecture/foundations/delivery-and-operations) | [ADR-012](/architecture/adr/adr-012-synthesis-qualification-signing-promotion-gitops); signed plan, scoped promotion and actual environment evidence remain required. |
+| 11. Engineering Provenance Model | [Kernel and provenance](/architecture/foundations/kernel-and-provenance), [delivery and operations](/architecture/foundations/delivery-and-operations) | [Provenance requirements](/architecture/provenance-requirements), [evidence retention](/architecture/evidence-retention); byte integrity does not authenticate custody or acceptance. |
+| 12. Scientific Provenance Model | [Kernel and provenance](/architecture/foundations/kernel-and-provenance), [scientific and agent planes](/architecture/foundations/scientific-and-agent-planes) | Provenance requirements, [ADR-005](/architecture/adr/adr-005-evidence-claim-policy-and-decision-law); source, prediction, hypothesis and causal claims retain distinct scope. |
+| 13. Architecture Source Models | [Semantic compilation](/architecture/foundations/semantic-compilation), [system context](/architecture/foundations/system-context) | [Active architecture YAML](https://github.com/Mindclade-org/mindclade-internal-monorepo/blob/main/docs/architecture/model/architecture.yaml); reserved JSON models and generated atlas are planned. Authored explanation and mechanical inventory do not replace Codegen views. |
+| 14. VS-001 Semantic Development Loop | [Semantic compilation](/architecture/foundations/semantic-compilation), [platform and execution](/architecture/foundations/platform-and-execution) | [VS-001 loop](/architecture/vs-001-semantic-development-loop), bounded design and [task register](/developer/agent-handoff#current-task-register); broad loop is not complete. |
+| 15. Development Platform And Engineering Graph | [System context](/architecture/foundations/system-context), [security and assurance](/architecture/foundations/security-and-assurance) | [Engineering blueprint](/architecture/engineering/supervised-system-blueprint), [requirements traceability](/architecture/engineering/requirements-traceability); Linear/Git/Notion roles remain distinct. |
+| 16. Scientific Planes | [Scientific and agent planes](/architecture/foundations/scientific-and-agent-planes) | [Programmable biology](/architecture/programmable-biology), [ADR-006](/architecture/adr/adr-006-biological-world-model-authority), ADR-007; scientific/model/agent systems are planned. |
+| 17. Trust And Security Boundaries | [Security and assurance](/architecture/foundations/security-and-assurance) | [ADR-009](/architecture/adr/adr-009-independent-assurance), [ADR-011](/architecture/adr/adr-011-agent-capability-attenuation), [supervised policy](https://github.com/Mindclade-org/mindclade-internal-monorepo/blob/main/.agents/policies/supervised.md); claims need independent evidence and applicable policy. |
+| 18. External Tool Policy | [System context](/architecture/foundations/system-context), [delivery and operations](/architecture/foundations/delivery-and-operations) | [AGENTS.md](https://github.com/Mindclade-org/mindclade-internal-monorepo/blob/main/AGENTS.md), master blueprint; external systems are adapters and new dependencies need demonstrated requirements. |
+| 19. What Must Be Marked Planned | [Foundations overview](/architecture/foundations/overview), [system context](/architecture/foundations/system-context) | Maturity model and ADR-015; current accepted vocabulary additionally distinguishes implemented and qualified before production. |
+| 20. Final Operating Principle | [Foundations overview](/architecture/foundations/overview), [kernel and provenance](/architecture/foundations/kernel-and-provenance) | Contracts define meaning, descriptors composition, tests observations, qualification permissible claims and provenance their lineage. The repository remains technical authority. |
+
+The [historical alignment review](/architecture/reviews/2026-09-22-original-blueprint-alignment) records the initial reconciliation. Its dated implementation/CI observations remain history. This map supplies current navigation without changing that record.
+
+## Every layered image box
+
+The paths below are ownership locations, not availability claims. Only the bounded kernel/compiler/TypeSpec/foundation projection has partial source. Broader frontend/IR/product paths and the platform/scientific/deployment planes remain planned. The complete tree includes reserved descendants that this compact map intentionally groups; use the [full inventory](https://github.com/Mindclade-org/mindclade-internal-monorepo/blob/main/docs/architecture/REPOSITORY_TREE.md) for all files.
+
+| Image box or named surface | Owned repository paths | Explanation |
+| --- | --- | --- |
+| Authoring: TypeSpec | `contracts/typespec/`, `codegen/frontend/typespec/` | [Semantic compilation](/architecture/foundations/semantic-compilation); official frontend and bounded authored contracts exist. |
+| Authoring: Domain IRs (Science, Agent, Operator) | `contracts/science/`, `contracts/agents/`, `contracts/operators/`, corresponding `codegen/frontend/` adapters | [Scientific and agent planes](/architecture/foundations/scientific-and-agent-planes), semantic compilation; broader adapters remain planned. |
+| Authoring: Source Models (descriptors, architecture models, registries) | `services/`, `docs/architecture/model/`, `contracts/registries/` | [Platform and execution](/architecture/foundations/platform-and-execution), semantic compilation; active YAML and descriptor stubs are distinguished. |
+| SemanticInput | `codegen/src/frontend.rs`, `codegen/semantic_input/` | Semantic compilation; normalized versioned input, with broader reserved layout. |
+| Mindclade Codegen | `codegen/src/`, `codegen/compiler/`, `codegen/lowering/` | Semantic compilation; sole Rust semantic compiler, not a parallel Forge root. |
+| Immutable MindcladeGraph: Semantic view, Capability view | `codegen/src/graph.rs`, `codegen/graph/` | Semantic compilation; one snapshot, borrowed typed views. |
+| Target IR: Protocol, Resource, API, Agent, Operator | `codegen/ir/`, `codegen/lowering/` | Semantic compilation; target lowering does not reinterpret authored meaning. |
+| Generated Protobuf, OpenAPI, SDK and MCP | `generated/`, `protocols/`, declared generated subtrees under `products/` | Semantic compilation; broader consumers are planned, with audience and compatibility obligations. |
+| Generated Terraform, CDK, docs and bindings | `generated/terraform/`, `generated/cdk/`, `generated/docs/`, `infra/generated/`, `docs/architecture/generated/`, declared product/native generated subtrees | Semantic compilation and [delivery and operations](/architecture/foundations/delivery-and-operations); illustration is not one of these emitted artifacts. |
+| Experience: Console, SDK, CLI, MCP | `products/console/`, `products/sdk/`, `products/cli/`, `products/mcp/` | [System context](/architecture/foundations/system-context), semantic compilation; products consume governed public surfaces. |
+| Mindclade Platform: Agent Plane | `agents/`, `platform/`, `services/agent_service/` | Scientific and agent planes; planned product runtime, distinct from current `.agents/` engineering instructions. |
+| Mindclade Platform: Science Plane | `biology/`, `data/knowledge/`, `platform/experiments/`, science-related service shells | Scientific and agent planes; logical grouping of biological, knowledge, data, and experiment responsibilities. |
+| Mindclade Platform: Model Plane | `models/`, `ml/`, `runtime/` | Scientific and agent planes; model definition, learning, and execution retain separate owners. |
+| Control Plane: Authorization, Budgets, Jobs, Reconciliation | `platform/authorization/`, `platform/budgets/`, `platform/control/`, `platform/policy/`, `platform/tenancy/` | Platform and execution; policy and orchestration above durable mechanisms. |
+| Durable Runtime: PostgreSQL, outbox, scheduler, attempts, fencing | `platform/persistence/`, `platform/scheduler/`, `platform/control/`, `platform/workflow/` | Platform and execution; VS-001 scopes its initial slice state machine separately, without activating these shared mechanisms. |
+| Data / Features | `data/`, especially `data/features/` | Scientific and agent planes; versioned curation, snapshots, splits, features, and lineage. |
+| Training / Eval | `ml/training/`, `ml/posttraining/`, `ml/evaluation/`, `ml/qualification/` | Scientific and agent planes; evaluator independence remains a separate obligation. |
+| Inference | `runtime/inference/`, `runtime/serving/`, `runtime/batching/` | Scientific and agent planes, platform and execution; eligible pinned model execution. |
+| Execution Fabric: Kubernetes, CPU, GPU | `infra/kubernetes/`, `infra/clusters/`, `infra/gpu/`, `compute/` | Delivery and operations; infrastructure placement is distinct from compute semantics. |
+| Cloud Substrate: GCP, Azure | `infra/clusters/gcp/`, `infra/clusters/azure/`, authored infrastructure modules | Delivery and operations; replaceable external substrate, no live deployment claim. |
+| Shared Kernel: Identity, typed references, artifacts, provenance | `core/src/`, reserved kernel areas under `core/` | [Kernel and provenance](/architecture/foundations/kernel-and-provenance); shared laws with partial implementations. |
+| Service Composition: RuntimeKit, generated transport, capability, ports; TestKit | `platform/runtimekit/`, `platform/testkit/`, `services/`, generated transport destinations | Platform and execution; thin wrappers and deterministic collaborators. |
+| Independent Assurance: Conformance, replay, scientific assessment | `tests/qualification/`, `tools/qualification/`, conformance/replay/evaluator scopes | [Security and assurance](/architecture/foundations/security-and-assurance); separate ownership and protected evidence, not self-certification. |
+| Governed Delivery: DeploymentPlan, qualification, signing, promotion, GitOps | `codegen/ir/deployment/`, `infra/`, `tools/release/`, `tools/qualification/` | Delivery and operations; each stage has a separate artifact/decision/evidence boundary. |
+| Architecture Rules: Thin services, modular monolith, adapters, Forge consolidation | `AGENTS.md`, accepted ADRs, `docs/architecture/model/` | Foundations overview and system context; cross-cutting laws, not a deployable service. |
+
+The image's partial-foundation footer and planned-line legend express scope; they are not measurements. The accompanying editable/text views preserve meaning without requiring color or image access. A future model-emitted atlas must obtain its own source model, generator, provenance, and drift evidence under B3/B4.
+
+## Maintaining coverage
+
+When a component is activated, update its authoritative model/maturity, contracts, descriptor, ownership, and checks together with the relevant explanatory page. Retire manifest-listed stubs through the reviewed transition; do not reseal them or infer implementation from a file's presence. Refresh the mechanical inventory through its existing tool. Keep this map about coverage and leave revision-bound results and pending work in their existing records.
+
+The corrected image shows the default TypeSpec-led path: Protobuf is generated. The [surface ownership ledger](/architecture/generated-surface-ownership) retains the original blueprint's optional Protobuf-first input only under disjoint reviewed ownership. Generated bindings do not make all SDK, MCP, Terraform, CDK, or UI code disposable output.
+
+## Related
+
+<CardGroup cols={2}>
+  <Card title="System Context" icon="sitemap" href="/architecture/foundations/system-context">
+    Who uses Mindclade and where the system boundaries are.
+  </Card>
+
+  <Card title="Platform Diagram" icon="image" href="/architecture/platform-diagram">
+    Layered target diagram combining all views.
+  </Card>
+
+  <Card title="Maturity Model" icon="gauge" href="https://github.com/Mindclade-org/mindclade-internal-monorepo/blob/main/docs/architecture/maturity.yaml">
+    Recorded implementation scope and maturity.
+  </Card>
+
+  <Card title="Original Blueprint" icon="file-text" href="https://github.com/Mindclade-org/mindclade-internal-monorepo/blob/main/docs/architecture/sources/original-greenfield-blueprint.md">
+    Immutable supplied source with SHA256.
+  </Card>
+</CardGroup>

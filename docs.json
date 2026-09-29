@@ -1,7 +1,7 @@
 {
   "$schema": "https://mintlify.com/docs.json",
-  "theme": "luma",
-  "name": "MindClade",
+  "theme": "maple",
+  "name": "Mindclade",
   "colors": {
     "primary": "#ef7025",
     "light": "#eec9bc",
@@ -15,14 +15,14 @@
   "navbar": {
     "links": [
       {
-        "label": "Support",
-        "href": "mailto:support@mindclade.com"
+        "href": "https://github.com/Mindclade-org/mindclade-internal-monorepo",
+        "label": "Repository"
       }
     ],
     "primary": {
       "type": "button",
-      "label": "Dashboard",
-      "href": "https://app.mindclade.com"
+      "label": "Start Here",
+      "href": "/developer/start-here"
     }
   },
   "navigation": {
@@ -33,42 +33,148 @@
           {
             "group": "Get Started",
             "pages": [
-              "introduction",
-              "quickstart",
-              "authentication"
+              "index",
+              "developer/start-here",
+              "developer/codebase-map",
+              "glossary",
+              "developer/troubleshooting"
             ]
           },
           {
-            "group": "Core Concepts",
+            "group": "Development Workflow",
             "pages": [
-              "concepts/overview",
-              "concepts/data-model",
-              "concepts/environments"
+              "developer/supervised-development",
+              "developer/codex-development-workflow",
+              "developer/work-packet-v1",
+              "developer/governance-tools",
+              "developer/linear-task-template",
+              "developer/documentation-automation",
+              "developer/contributor-rehearsal"
             ]
           },
           {
-            "group": "Guides",
+            "group": "Runbooks",
             "pages": [
-              "guides/first-integration",
-              "guides/webhooks",
-              "guides/error-handling",
-              "guides/pagination"
+              "runbooks/overview",
+              "runbooks/local-verification",
+              "runbooks/regenerate-generated-outputs",
+              "runbooks/run-foundation-echo",
+              "operations/github-governance"
             ]
           },
           {
-            "group": "SDKs",
+            "group": "Project Status",
             "pages": [
-              "sdks/overview",
-              "sdks/javascript",
-              "sdks/python"
+              "developer/agent-handoff",
+              "developer/claude-handoff",
+              "developer/vs001-handoff",
+              "developer/foundation-next-steps",
+              "architecture/bootstrap-status",
+              "architecture/implementation-roadmap",
+              "architecture/vs001-todo"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "Architecture",
+        "groups": [
+          {
+            "group": "Overview",
+            "pages": [
+              "architecture/overview",
+              "architecture/system-design",
+              "architecture/master-blueprint",
+              "architecture/platform-diagram",
+              "architecture/architecture-laws",
+              "architecture/vs-001-semantic-development-loop",
+              "architecture/repository-tree"
             ]
           },
           {
-            "group": "Help",
+            "group": "Foundations",
             "pages": [
-              "help/faq",
-              "help/troubleshooting",
-              "help/changelog"
+              "architecture/foundations/overview",
+              "architecture/foundations/system-context",
+              "architecture/foundations/kernel-and-provenance",
+              "architecture/foundations/semantic-compilation",
+              "architecture/foundations/platform-and-execution",
+              "architecture/foundations/scientific-and-agent-planes",
+              "architecture/foundations/security-and-assurance",
+              "architecture/foundations/delivery-and-operations",
+              "architecture/foundations/blueprint-coverage"
+            ]
+          },
+          {
+            "group": "Contracts & Policies",
+            "pages": [
+              "architecture/service-descriptor-v1",
+              "architecture/service-config-v1",
+              "architecture/toolchain",
+              "architecture/execution-reliability",
+              "architecture/evidence-retention",
+              "architecture/provenance-requirements",
+              "architecture/generated-output-policy",
+              "architecture/generated-surface-ownership",
+              "architecture/developer-products",
+              "architecture/programmable-biology",
+              "architecture/architecture-source-profile",
+              "architecture/assets/overview"
+            ]
+          },
+          {
+            "group": "Engineering System",
+            "pages": [
+              "architecture/engineering/supervised-system-blueprint",
+              "architecture/engineering/requirements-traceability",
+              "architecture/engineering/governance-status",
+              "architecture/sources/original-greenfield-blueprint",
+              {
+                "group": "Generated Views",
+                "pages": [
+                  "architecture/generated/index",
+                  "architecture/generated/landscape",
+                  "architecture/generated/context",
+                  "architecture/generated/atlas",
+                  "architecture/generated/codegen-semantic-graph",
+                  "architecture/generated/artifact-provenance",
+                  "architecture/generated/agent-fabric",
+                  "architecture/generated/scientific-planes",
+                  "architecture/generated/development-platform",
+                  "architecture/generated/engineering-graph",
+                  "architecture/generated/deployment-topology",
+                  "architecture/generated/trust-security"
+                ]
+              }
+            ]
+          },
+          {
+            "group": "Decision Records",
+            "pages": [
+              "architecture/adr/adr-000-mindclade-vnext-architecture-constitution",
+              "architecture/adr/adr-001-stable-truth-dynamic-execution",
+              "architecture/adr/adr-002-codegen-is-the-sole-semantic-compiler",
+              "architecture/adr/adr-003-mindcladegraph-and-typed-graph-views",
+              "architecture/adr/adr-004-identity-reference-and-artifact-law",
+              "architecture/adr/adr-005-evidence-claim-policy-and-decision-law",
+              "architecture/adr/adr-006-biological-world-model-authority",
+              "architecture/adr/adr-007-compute-models-learning-and-runtime-boundaries",
+              "architecture/adr/adr-008-runtimekit-and-testkit",
+              "architecture/adr/adr-009-independent-assurance",
+              "architecture/adr/adr-010-modular-monolith-first-deployment",
+              "architecture/adr/adr-011-agent-capability-attenuation",
+              "architecture/adr/adr-012-synthesis-qualification-signing-promotion-gitops",
+              "architecture/adr/adr-013-generated-projection-law",
+              "architecture/adr/adr-014-engineering-factory-and-governed-evolution",
+              "architecture/adr/adr-015-original-blueprint-scaffold-alignment",
+              "architecture/adr/adr-016-postgresql-outbox-durable-execution",
+              "architecture/adr/adr-017-runtimekit-transport-engine",
+              "architecture/adr/adr-018-biosecurity-and-dual-use-controls",
+              "architecture/adr/adr-019-pytorch-training-substrate",
+              "architecture/adr/adr-020-kernel-adoption-and-operator-binding",
+              "architecture/adr/adr-021-clade-adopt-or-build-gate",
+              "architecture/adr/adr-022-evaluation-and-data-split-standards",
+              "architecture/adr/adr-023-model-organization"
             ]
           }
         ]
@@ -77,20 +183,92 @@
         "tab": "API Reference",
         "groups": [
           {
-            "group": "Overview",
+            "group": "VS-001 Public API",
+            "openapi": "api/openapi.json",
             "pages": [
-              "api-reference/introduction",
-              "api-reference/authentication",
-              "api-reference/rate-limits",
-              "api-reference/errors"
+              "api/vs001-echo",
+              "POST /echo/{requestId}"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "Records",
+        "groups": [
+          {
+            "group": "Reviews",
+            "pages": [
+              "architecture/reviews/2026-09-28-m0-baseline-reconciliation",
+              "architecture/reviews/2026-09-26-design-audit",
+              "architecture/reviews/2026-09-26-k1-32-contracts-typespec-main-retired",
+              "architecture/reviews/2026-09-26-k1-compatibility-reports",
+              "architecture/reviews/2026-09-23-codebase-alignment",
+              "architecture/reviews/2026-09-23-codebase-finalization",
+              "architecture/reviews/2026-09-23-development-foundation-plan-audit",
+              "architecture/reviews/2026-09-23-engineering-governance",
+              "architecture/reviews/2026-09-23-eve-factory",
+              "architecture/reviews/2026-09-23-foundation-audit-reconciliation",
+              "architecture/reviews/2026-09-23-foundation-resume-decisions",
+              "architecture/reviews/2026-09-23-layered-docs-alignment",
+              "architecture/reviews/2026-09-23-vs001-b1-source-review",
+              "architecture/reviews/2026-09-23-vs001-local-bootstrap",
+              "architecture/reviews/2026-09-23-vs001-partial-source-review",
+              "architecture/reviews/2026-09-23-vs001-products",
+              "architecture/reviews/2026-09-23-vs001-service-compilation",
+              "architecture/reviews/2026-09-23-vs001-wire-values",
+              "architecture/reviews/2026-09-22-notion-hq",
+              "architecture/reviews/2026-09-22-original-blueprint-alignment"
             ]
           },
           {
-            "group": "Endpoints",
+            "group": "Plans",
             "pages": [
-              "api-reference/endpoints/resources",
-              "api-reference/endpoints/events",
-              "api-reference/endpoints/webhooks"
+              "superpowers/plans/2026-09-28-whole-repository-workplan",
+              "superpowers/plans/2026-09-28-agent-authoring-compiler",
+              "superpowers/plans/2026-09-28-ephemeral-linux-runner",
+              "superpowers/plans/2026-09-28-pr54-main-reconciliation",
+              "superpowers/plans/2026-09-24-pre-migration-foundation-completion",
+              "superpowers/plans/2026-09-23-v1-integration-readiness",
+              "superpowers/plans/2026-09-23-foundation-compiler-completion",
+              "superpowers/plans/2026-09-23-foundation-developer-readiness",
+              "superpowers/plans/2026-09-23-foundation-governance-completion",
+              "superpowers/plans/2026-09-23-engineering-governance",
+              "superpowers/plans/2026-09-23-vs001-delivery",
+              "superpowers/plans/2026-09-23-vs001-a-foundation",
+              "superpowers/plans/2026-09-23-vs001-b-composition",
+              "superpowers/plans/2026-09-23-vs001-c-durability",
+              "superpowers/plans/2026-09-23-vs001-d-assurance",
+              "superpowers/plans/2026-09-22-executable-foundation"
+            ]
+          },
+          {
+            "group": "Gate Criteria",
+            "pages": [
+              "superpowers/specs/overview",
+              "superpowers/specs/2026-09-28-agent-authoring-compiler-design",
+              "superpowers/specs/2026-09-28-agent-authoring-compiler-criteria",
+              "superpowers/specs/2026-09-28-c1-prerequisite-reconciliation",
+              "superpowers/specs/2026-09-28-ephemeral-linux-runner-criteria",
+              "superpowers/specs/2026-09-28-r2-linux-diagnostic-criteria",
+              "superpowers/specs/2026-09-27-t1-transport-engine-criteria",
+              "superpowers/specs/2026-09-26-b4-r1-architecture-model",
+              "superpowers/specs/2026-09-26-c-durability-criteria",
+              "superpowers/specs/2026-09-26-c0-durable-profile-criteria",
+              "superpowers/specs/2026-09-26-d-assurance-criteria",
+              "superpowers/specs/2026-09-26-doc1-engineering-docs-criteria",
+              "superpowers/specs/2026-09-26-e1-connected-loop-criteria",
+              "superpowers/specs/2026-09-26-g3-accepted-policy-proposal",
+              "superpowers/specs/2026-09-26-h1-hardening-criteria",
+              "superpowers/specs/2026-09-26-h1-stage2-hardening-criteria",
+              "superpowers/specs/2026-09-26-k1-codegen-contracts-hardening-criteria",
+              "superpowers/specs/2026-09-26-p1b-hermetic-collection-criteria",
+              "superpowers/specs/2026-09-24-b2b-criteria",
+              "superpowers/specs/2026-09-24-b3b-criteria",
+              "superpowers/specs/2026-09-24-b4-criteria",
+              "superpowers/specs/2026-09-24-dx2-criteria",
+              "superpowers/specs/2026-09-24-g2-criteria",
+              "superpowers/specs/2026-09-24-g3-criteria",
+              "superpowers/specs/2026-09-23-vs001-durable-capability-design"
             ]
           }
         ]
@@ -99,9 +277,18 @@
   },
   "footer": {
     "socials": {
-      "x": "https://x.com/mindclade",
-      "github": "https://github.com/mindclade",
-      "linkedin": "https://linkedin.com/company/mindclade"
+      "github": "https://github.com/Mindclade-org"
     }
+  },
+  "contextual": {
+    "options": [
+      "copy",
+      "view",
+      "claude",
+      "chatgpt",
+      "cursor",
+      "vscode"
+    ],
+    "display": "header"
   }
 }

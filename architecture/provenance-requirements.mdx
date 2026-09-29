@@ -1,0 +1,106 @@
+---
+title: "Engineering and Scientific Provenance Requirements"
+sidebarTitle: "Provenance"
+description: "Planned receipt contracts for engineering and scientific provenance, covering shared receipt law, qualification lanes, and required evidence chains."
+---
+
+This page defines planned contracts for engineering and scientific provenance requirements. It reconciles the original blueprint sections 11 and 12 with ADR-004, ADR-005, and independent assurance in ADR-009. These are planned contracts, not populated receipts or implementation evidence.
+
+<Warning>
+  Status: Planned contracts, not populated receipts or implementation evidence.
+</Warning>
+
+## Shared receipt law
+
+Use typed immutable references and content digests from core, not a parallel identity system. Every receipt binds the exact subject, method, producer, environment, scope, and limitations. Missing required evidence is Blocked. A scaffold manifest records file reservations; it is not a qualification receipt.
+
+## Engineering receipt
+
+Preserve the chain:
+
+```text
+requirement -> specification -> ADR -> contract -> source
+  -> generated artifact -> test/evaluation -> build -> signed artifact
+  -> deployment -> telemetry -> incident -> remediation -> updated requirement
+```
+
+A future engineering receipt must bind:
+
+| Field | Requirement |
+| --- | --- |
+| Requirement/issue identity | The tracker reference and scope |
+| Specification path | Relevant specification document |
+| ADR reference | ADR identity that governs the decision |
+| Contract path/version | Exact contract being implemented |
+| Source paths | Exact source files involved |
+| Candidate/integration-base commit | Exact Git SHAs |
+| Generated manifest and input | Graph, compiler, and output digests |
+| Test commands/evaluators | Actual commands run, outcomes, and scope |
+| Build environment | Exact toolchain identity |
+| Artifact hashes | Hashes of produced artifacts |
+| SBOM reference | Linked SBOM document |
+| Signature and signer identity | Real signer, not a placeholder |
+| Deployment target/environment | Connected reconciliation evidence when claimed |
+| Telemetry evidence | Observed runtime behavior |
+| Incident/remediation linkage | Tracked incidents and fixes |
+| Review/approval state | Current review status |
+
+Fields irrelevant to a narrow source claim are explicitly out of scope. They are not fabricated to resemble a complete release receipt.
+
+## Scientific receipt
+
+Preserve the chain:
+
+```text
+source -> quarantined raw object -> curated record -> biological entity
+  -> dataset snapshot -> split manifest -> feature set -> experiment
+  -> training run -> checkpoint -> model manifest -> evaluation
+  -> qualified release -> inference result -> artifact -> evidence -> claim
+```
+
+A future scientific receipt must bind:
+
+| Field | Requirement |
+| --- | --- |
+| Source database/laboratory | Origin of raw data |
+| Access date | When data was accessed |
+| Licence and permitted-use constraints | Legal scope of use |
+| Raw object hash | Immutable raw data reference |
+| Quarantine state | Curation status |
+| Curation transform and version | Applied transformations |
+| Biological entity identities | Ontology/mapping versions |
+| Dataset snapshot | Immutable dataset reference |
+| Split-manifest digests | Train/test/validation boundaries |
+| Contamination/overlap reports | Leakage assessment |
+| Feature schema/transforms | Feature engineering provenance |
+| Experiment protocol/controls/deviations | Exact experimental design |
+| Training configuration | Exact code commit, execution environment, and operators |
+| Checkpoint/model-manifest hashes | Artifact references |
+| Runtime compatibility scope | Supported environments |
+| Evaluation metrics | Benchmark corpus and frozen evaluator |
+| Protected holdouts | Separated evaluation data |
+| Review state | Distinct computed, retrieved, inferred, human-reviewed, and rejected |
+| Claim type, applicability, uncertainty | Scope and limitations of the claim |
+| Missing/conflicting evidence | Explicitly acknowledged gaps |
+
+Association, prediction, causal claims, and hypotheses are distinct. Execution success, scientific support, model eligibility, and deployment authorization are separate assessments.
+
+## Qualification lanes
+
+Source, runtime, deployment, connected, scientific, and release lanes each record their own inputs and decision. A valid manifest does not prove rollout; a real provider call does not establish biological validity; a source check does not establish independent CI. Signing requires real signer identity, not a placeholder string. No stub in this repository satisfies these receipt contracts.
+
+## Related
+
+<CardGroup cols={2}>
+  <Card title="Execution Reliability" icon="shield-check" href="/architecture/execution-reliability">
+    Durable execution, recovery, and reservation requirements.
+  </Card>
+
+  <Card title="Evidence Retention" icon="archive" href="/architecture/evidence-retention">
+    Export, verification, and archive policy.
+  </Card>
+
+  <Card title="Programmable Biology" icon="dna" href="/architecture/programmable-biology">
+    Scientific domain design and Clade model family.
+  </Card>
+</CardGroup>

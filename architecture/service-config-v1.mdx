@@ -1,0 +1,254 @@
+---
+title: "Foundation Echo Service Configuration Contract v1"
+sidebarTitle: "Service Config v1"
+description: "Frozen service constructor and descriptor inspection contract for Foundation Echo test admission, with exact RuntimeKit API, validation rules, and generated inspection schema."
+---
+
+This page defines the Foundation Echo generated configuration contract. It specifies the RuntimeKit API, the generated callable boundary, and the compiled `service/descriptor.json` projection. The contract is independently reviewed and frozen as of 2026-09-23.
+
+<Warning>
+  Status: Independently reviewed B3a/B3b source contract, frozen 2026-09-23. Implementation and behavioral evidence remain pending.
+</Warning>
+
+## RuntimeKit API
+
+Package: `mindclade-runtimekit`, Rust crate `mindclade_runtimekit`. `platform/runtimekit/src/lib.rs` exposes `pub mod config;`. All types below have their canonical public path under `mindclade_runtimekit::config`; generated code uses those paths and does not depend on optional crate-root re-exports.
+
+```rust
+// platform/runtimekit/src/config.rs — public API, not an implementation
+use mindclade_core::{Digest, Identity};
+use std::{net::SocketAddr, time::Duration};
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum AdmissionMode { Test }
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum LogLevel { Error, Warn, Info }
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ConfigError {
+    Listen,
+    Service,
+    Tenant,
+    Environment,
+    DescriptorDigest,
+    MaxBodyBytes,
+    MaxInFlight,
+    RequestTimeout,
+    ShutdownTimeout,
+}
+
+// Private fields, no Default, setters, public builder or Deserialize.
+// Clone, Debug, PartialEq and Eq are permitted on this checked value.
+pub struct ServiceConfig { /* private */ }
+
+impl ServiceConfig {
+    pub fn new(
+        listen: SocketAddr,
+        service: Identity,
+        tenant: Identity,
+        environment: Identity,
+        descriptor_digest: Digest,
+        max_body_bytes: usize,
+        max_in_flight: usize,
+        request_timeout: Duration,
+        shutdown_timeout: Duration,
+        admission: AdmissionMode,
+        log_level: LogLevel,
+    ) -> Result<Self, ConfigError>;
+
+    pub fn listen(&self) -> SocketAddr;
+    pub fn service(&self) -> &Identity;
+    pub fn tenant(&self) -> &Identity;
+    pub fn environment(&self) -> &Identity;
+    pub fn descriptor_digest(&self) -> &Digest;
+    pub fn max_body_bytes(&self) -> usize;
+    pub fn max_in_flight(&self) -> usize;
+    pub fn request_timeout(&self) -> Duration;
+    pub fn shutdown_timeout(&self) -> Duration;
+    pub fn admission(&self) -> AdmissionMode;
+    pub fn log_level(&self) -> LogLevel;
+}
+
+impl ConfigError {
+    pub fn code(&self) -> &'static str;
+}
+// ConfigError also implements std::fmt::Display and std::error::Error.
+```
+
+The argument order above is exact. A successfully constructed value is immutable; copying/cloning its fields does not expose mutation of the stored configuration. It has no source path, YAML/JSON parser, environment lookup, filesystem read, network call, socket bind, qualification status or hidden default. Dependencies of this API are only `std` and the existing `mindclade_core` primitives. Do not add a parser, Codegen type, serde deserializer or another configuration library.
+
+### Direct-caller validation and exact errors
+
+`new` checks the following rules in listed order and returns the first failure. This is independent validation, not trust in a generated caller. Construction is pure and failure starts no runtime. Limits are inclusive.
+
+| Argument | Accepted value | Failure variant / `code()` / exact `Display` |
+| --- | --- | --- |
+| listen | IPv4 in `127.0.0.0/8`, or IPv6 exactly `::1` with `flowinfo == 0` and `scope_id == 0`; any `u16` port including 0 | `Listen` / `config-listen` / `invalid TestAdmission listen address` |
+| service | Identity exactly `Mindclade.Foundation/foundation-echo@v1` | `Service` / `config-service` / `invalid TestAdmission service identity` |
+| tenant | Identity exactly `Mindclade.Test/tenant@v1` | `Tenant` / `config-tenant` / `invalid TestAdmission tenant identity` |
+| environment | Identity exactly `Mindclade.Test/local@v1` | `Environment` / `config-environment` / `invalid TestAdmission environment identity` |
+| descriptor_digest | Already checked `Digest`; no additional text parsing in `new` | `DescriptorDigest` / `config-descriptor-digest` / `invalid descriptor digest` is reserved for the generated text-to-Digest boundary below |
+| max_body_bytes | Exactly 65536 bytes | `MaxBodyBytes` / `config-max-body-bytes` / `invalid TestAdmission body limit` |
+| max_in_flight | 1..64 requests/connections admitted into bounded work, as subsequently enforced by B3b | `MaxInFlight` / `config-max-in-flight` / `invalid TestAdmission concurrency limit` |
+| request_timeout | 1..30000 **integral** milliseconds; no fractional millisecond | `RequestTimeout` / `config-request-timeout` / `invalid TestAdmission request timeout` |
+| shutdown_timeout | 1..30000 **integral** milliseconds; no fractional millisecond | `ShutdownTimeout` / `config-shutdown-timeout` / `invalid TestAdmission shutdown timeout` |
+| admission | The only constructible variant is `Test` | No invalid string or unused `Durable`/`Unknown` variant exists |
+| log_level | `Error`, `Warn` or `Info` | No free-form string or unused variant exists |
+
+For durations, reject a nanosecond remainder modulo 1,000,000 before accepting the millisecond range. Do not truncate `Duration::as_millis()` and accidentally accept 1 ms + 1 ns or an out-of-range duration. Compare in the wide/typed domain; no unchecked narrowing cast or overflow. IPv4-mapped IPv6, unspecified addresses, multicast/non-loopback and nonzero IPv6 scope/flow fields fail `Listen`. The latter cannot be authored by the accepted descriptor grammar; direct callers must not introduce a wider socket profile. Port zero requests an ephemeral bind and is not an error; `listen()` retains the configured port, while B3b's `RunningService` reports the bound address.
+
+Errors contain no rejected input text. `Error::source()` is `None`; variants and fixed messages are the full public error interface. There is deliberately no blanket `From<IdentityError>`: the generated code assigns the precise field variant. All variants are equality-comparable, so tests assert fields/codes without matching vendor error text. RuntimeKit's later `RuntimeError::Config(ConfigError)` can preserve this typed error at service startup; this contract does not freeze unrelated transport/shutdown error internals.
+
+The actual core API already provides `Identity::new(namespace, name, version)` returning `IdentityError`, and `Digest::parse(&str)` returning `DigestError`; both have private checked state. `Identity` accessors are `namespace`, `name`, `version` and `canonical`; `Digest` provides `as_str`. Use these existing APIs. A typed Digest proves syntax only: `new` does not prove its bytes match an authored file, that a descriptor was compiled, or that caller identity is authorized. Compiler binding, generation provenance and the trusted B3b composition supply those separate guarantees. Zero-valued valid hex is not intrinsically an invalid Digest.
+
+## Generated `service/config.rs` Callable Boundary
+
+The accepted output remains `generated/vs001/service/config.rs`. Its one public entrypoint has **no arguments**:
+
+```rust
+pub fn build_service_config() -> std::result::Result<
+    mindclade_runtimekit::config::ServiceConfig,
+    mindclade_runtimekit::config::ConfigError,
+>;
+```
+
+The file is a Rust module body, with ordinary comments rather than a crate-level attribute/inner doc comment that prevents declared module inclusion. Hand-authored B3b composition includes it as module `generated_service_config` and invokes `generated_service_config::build_service_config()?`. The build wrapper supplies the declared path/runfile; the generated file has no host-specific include path. The existing DTO `rust/mod.rs` stays independent of RuntimeKit and this module.
+
+Emit a deterministic constructor body equivalent to the following algorithm:
+
+1. Parse the compiler-normalized numeric bind literal as `std::net::SocketAddr`; map any parse error to `ConfigError::Listen` with `map_err`, without echoing it.
+2. Call `mindclade_core::Identity::new` for service, tenant and environment in that order; map failures to `Service`, `Tenant`, `Environment` respectively.
+3. Call `mindclade_core::Digest::parse` on the **exact authored descriptor-byte digest**, mapping failure to `DescriptorDigest`. This is neither the compiled JSON digest, architecture digest nor graph digest.
+4. Call the exact `ServiceConfig::new` above, passing these checked values, compiler-checked body/concurrency integer literals, `Duration::from_millis` for each checked millisecond literal, and the typed enum literals. Return its `Result` directly. Use `?` for prior fallible construction; no panic, unwrap, expect, default, dynamic lookup or error-string conversion.
+
+For the accepted sample, the final constructor arguments are listen parsed from `"127.0.0.1:0"`, the three exact identities above, computed source Digest, `65536_usize`, `8_usize`, `Duration::from_millis(2000_u64)`, `Duration::from_millis(5000_u64)`, `AdmissionMode::Test`, `LogLevel::Info`. Other accepted descriptor values produce the corresponding checked literals. Rust string literal emission must escape values correctly; it does not splice YAML text as code. There are no generated generic helper APIs or service-global configuration caches. Callers cannot override tenant, mode or limits through arguments, environment or headers to this function.
+
+B3a tests can inspect deterministic emitted source and its source/provenance bindings. Actual Rust compilation and construction against **real RuntimeKit** are B3b gates. A fake RuntimeKit shim is not proof of that seam. The emitted file must never be reported as a running service or bounded lifecycle merely because its source exists.
+
+## Compiled `service/descriptor.json` Projection
+
+This is a closed **generated inspection/provenance projection**, not another authored descriptor and not a RuntimeKit input format. Codegen emits it solely from the checked final service view. Do not add a JSON/YAML load method to RuntimeKit or a public unchecked `CompiledServiceDescriptor::deserialize`.
+
+The following is the complete field table. Every field is required; all object keys are case-sensitive and closed except the explicitly dynamic `semantic_sources` path map. No `null`, duplicate decoded keys, unknown fields, unknown version/profile, numeric strings or unlisted enum values are valid under this projection contract. Schema validators in conformance code must enforce these rules; no runtime parser is implied by documenting them.
+
+| JSON path | Type | Exact meaning/rule |
+| --- | --- | --- |
+| `schema` | string | Exactly `CompiledServiceDescriptor@v1`. |
+| `profile` | string | Exactly `FoundationEchoTestAdmission@v1`. This labels the frozen profile; it cannot enable another mode. |
+| `source` | object | Exactly `path`, `digest`. |
+| `source.path` | string | Exactly `services/foundation_echo/service.descriptor.yaml`. |
+| `source.digest` | Digest string | SHA-256 of exact authored descriptor bytes, including comments/formatting, equal to the frontend inventory and manifest `descriptor_inputs` entry. |
+| `architecture` | object | Exactly `path`, `digest`. |
+| `architecture.path` | string | The explicit normalized repository-relative architecture input path validated by the driver; never an absolute host path. |
+| `architecture.digest` | Digest string | SHA-256 of exact architecture bytes; equals the checked architecture source binding and manifest `architecture_input.digest`. |
+| `semantic_sources` | object `<source-path, Digest string>` | Exactly the path-to-digest projection of the structurally checked, duplicate-free SemanticInput `sources` inventory: one entry for every source path and its supplied checked Digest, sorted by the canonical serializer. Preserve the inventory's visibility records in compiler input/context validation; this JSON map does not replace or reassign visibility. Descriptor and architecture inputs have their separate bindings. No directory discovery, omitted source, invented digest or extra entry is permitted. The generation driver independently verifies these digests against exact authored source bytes before publication. |
+| `identity` | Identity object | Exactly `{namespace,name,version}`; checked `Mindclade.Foundation/foundation-echo@v1`. |
+| `owner_component` | string | Exactly `services.foundation_echo`, resolved in the same checked architecture model with service role and canonical source ownership. |
+| `operation` | Identity object | Exactly `{namespace,name,version}` for the resolved public HTTP operation, currently `Mindclade.Public/echo@v1`. Use the graph's exact revision, never a split/reparse of the unversioned authored name. |
+| `config` | object | Exactly the nine fields below; source digest and service identity are already bound above, so do not duplicate them here. |
+| `config.listen` | string | Validated socket rendered by `SocketAddr::to_string()`; numeric and normalized, preserving port. |
+| `config.tenant` | Identity object | Exactly `Mindclade.Test/tenant@v1`. |
+| `config.environment` | Identity object | Exactly `Mindclade.Test/local@v1`. |
+| `config.max_body_bytes` | JSON integer | Exactly 65536 bytes. |
+| `config.max_in_flight` | JSON integer | 1..64 inclusive. |
+| `config.request_timeout_ms` | JSON integer | 1..30000 inclusive, milliseconds. |
+| `config.shutdown_timeout_ms` | JSON integer | 1..30000 inclusive, milliseconds. |
+| `config.admission` | string | Exactly `test`; maps to `AdmissionMode::Test`. |
+| `config.log_level` | string | Exactly `error`, `warn` or `info`; maps to the corresponding enum variant. |
+
+Identity strings must satisfy the existing core grammar and exact profile values; Digest strings use `sha256:` plus 64 lowercase hexadecimal digits. Path keys use the already reviewed canonical source-path grammar. The `operation` is one semantic reference; there is no second independent operation name or route in this file. HTTP route/method/body/error types remain the checked graph/transport products' authority. The profile implies internal AdmissionPort binding, optional-future PostgreSQL, empty secrets, local readiness/identity, single-process single-replica topology, no body logging, disabled deployment and pending qualification. These fixed source validations are not separate mutable JSON configuration knobs.
+
+### Provenance and cycle boundary
+
+`semantic_sources` records source-byte digests supplied by the existing SemanticInput inventory. They are not hashes of graph JSON, a reserialized SemanticInput object or another generated artifact. Pure compilation validates inventory structure, canonical unique paths, checked Digest syntax and the existing source-visibility/declaration-location rules, then preserves these bindings in private immutable graph context. It cannot independently verify TypeSpec file bytes because its API receives no such bytes. The generation driver performs the existing exact-byte source reads and digest comparisons before emission/publication; a valid Digest alone proves syntax, not content. Descriptor and architecture bytes are supplied to their pure compiler APIs, so their exact digests can be computed or compared there. The driver also binds them to the explicit declared files. Private staging preserves all inventories and never reconstructs them through filesystem access. The manifest's existing `input_digest` separately binds the actual raw SemanticInput file. These are private provenance additions, not new public compiler parameters, a public mutable graph builder or a second authority.
+
+Neither this JSON nor the descriptor payload embedded in the graph contains the final graph digest, its own JSON digest, the manifest digest, timestamps or absolute paths. The manifest binds the final graph digest and all eight output hashes. Thus authored inputs then checked descriptor/graph then projections then manifest is acyclic. Source-only comments/key order can change provenance, graph and product bytes while interpreted configuration/operation values remain equal. They do not leave a falsely unchanged source digest. Relocated identical source trees retain identical product bytes.
+
+Serialization uses the existing Codegen canonical JSON serializer: recursively sorted object keys, compact UTF-8, exactly one trailing LF, integer values only for these bounds. No pretty-printed artifact or second serializer is introduced.
+
+### Sample shape
+
+This sample is pretty-printed for reading. Repeated hex digests are **illustrative syntactically valid placeholders**, not computed hashes or passing fixture data. Tests and generated output must replace them with independently computed exact source-byte hashes. The current checked TypeSpec inventory has these four paths.
+
+```json
+{
+  "schema": "CompiledServiceDescriptor@v1",
+  "profile": "FoundationEchoTestAdmission@v1",
+  "source": {
+    "path": "services/foundation_echo/service.descriptor.yaml",
+    "digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  },
+  "architecture": {
+    "path": "docs/architecture/model/architecture.yaml",
+    "digest": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+  },
+  "semantic_sources": {
+    "contracts/typespec/internal/assurance.tsp": "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+    "contracts/typespec/internal/execution.tsp": "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+    "contracts/typespec/internal/main.tsp": "sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+    "contracts/typespec/public/echo.tsp": "sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+  },
+  "identity": {"namespace":"Mindclade.Foundation","name":"foundation-echo","version":"v1"},
+  "owner_component": "services.foundation_echo",
+  "operation": {"namespace":"Mindclade.Public","name":"echo","version":"v1"},
+  "config": {
+    "listen": "127.0.0.1:0",
+    "tenant": {"namespace":"Mindclade.Test","name":"tenant","version":"v1"},
+    "environment": {"namespace":"Mindclade.Test","name":"local","version":"v1"},
+    "max_body_bytes": 65536,
+    "max_in_flight": 8,
+    "request_timeout_ms": 2000,
+    "shutdown_timeout_ms": 5000,
+    "admission": "test",
+    "log_level": "info"
+  }
+}
+```
+
+## Required Independent Acceptance Criteria
+
+These are independently reviewed criteria, **not executed results**. The parent must integrate the cases and retain actual RED/GREEN before source acceptance.
+
+1. **Source/product agreement (B3a):** generate from the actual service frontend artifact. Independently recompute descriptor/architecture/TypeSpec digests; inspect exact JSON key sets, marker/profile, operation identity/revision, owner and all config values; verify the constructor literals agree. Keep the accepted exact nine-file catalog/eight output hashes and no-publication driver matrix, including pending-journal preservation on invalid input.
+2. **Canonical/provenance controls (B3a):** relocated source root and repeated generation are byte-identical. Comment/key-order changes bind changed exact source digests; interpreted config and resolved operation are unchanged. A descriptor inventory digest that disagrees with supplied descriptor bytes fails pure `compile_services`; missing, duplicate or unexpected descriptor source records remain failures. Standalone descriptor validation does not fabricate final service membership or manifest verification. A stale TypeSpec/source digest fails service generation when the driver compares actual authored bytes; it is not an independently detectable error in a pure compiler call that only receives the inventory. The pure compiler preserves supplied source bindings without falsely labelling them filesystem-verified. Architecture source digest comes from the exact bytes passed to `parse_architecture`; the service driver independently binds those bytes to its explicit source path. There is no enclosing-graph/self/manifest hash in the compiled descriptor and no absolute path/timestamp in either product.
+3. **Public API shape (B3b):** compile the actual generated module against the real RuntimeKit crate through the declared build action; call the exact no-argument entry and assert every accessor. Test configured IPv4/IPv6, ports 0/65535, concurrency 1/64, durations 1/30000 ms and all three log levels. Include exact generated-source drift checks and DTO-only consumers that cannot acquire a RuntimeKit/Codegen/YAML dependency through module glue.
+4. **Direct-call negatives (B3b):** wrong but syntactically valid service/tenant/environment separately; IPv4 wildcard/external, IPv6 wildcard/external, IPv4-mapped IPv6 and nonzero scope/flow; body limits 0/65535/65537/usize::MAX; concurrency 0/65/usize::MAX; both duration positions with zero, 1 ns, 999999 ns, 1 ms + 1 ns, 30000 ms + 1 ns, 30001 ms and Duration::MAX. Require the exact variant/code and no side effects. Multiple-invalid controls prove deterministic validation order. Positive syntax-only Digests must not be misrepresented as verified provenance.
+5. **Construction error propagation (B3b):** isolated tests of generated constructor source mutations may replace one literal with malformed socket, each malformed identity component and malformed Digest, then compile/run with real RuntimeKit to prove the exact mapped error and no panic. This is a test mutation of a temporary generated artifact, never a hand edit of owned output. A valid-but-wrong profile identity reaches `new` and fails there.
+6. **Closed input and output policy (B3a/B3b):** source descriptor negatives already require all unknown keys/profile values/required PostgreSQL/secrets/deployment/body logging to fail before publication. Independently validate emitted JSON against this closed table; adversarial validation fixtures reject duplicate/extra/missing keys, unknown schema/profile, invalid identity revision, digest/path, numeric-string/float/negative/overflow limits and unrecognized modes/log levels. Do not add a production runtime JSON reader merely to exercise these fixtures. Compile-fail tests prove config cannot be forged through public fields/Default/Deserialize or a nonexistent Durable variant; preserve the existing core checked-constructor tests.
+
+B3b still needs real socket deadline, concurrency-before-header, trusted identity, drain and owned worker/socket termination evidence. C1/C2 still needs a separately reviewed durable configuration/port/readiness profile. B4 still needs observed dependency enforcement. No field, error or profile proposed here closes those requirements or changes the public Echo API.
+
+## Inventory and Revision Acceptance Boundaries
+
+The service, tenant and environment identities match their exact frozen profile values. The operation identity matches the actually resolved public graph operation, including its revision; `@v1` in the example is not an independent hard-coded operation revision. Reject an operation reference that differs from that graph identity even if its Identity syntax is valid.
+
+| Boundary | Required observation |
+| --- | --- |
+| Inventory structure and visibility | Duplicate source paths, invalid source paths, missing/wrong visibility and a declaration location outside its checked source visibility fail pure compilation. An emitter must not silently reconstruct an inventory from declarations and omit unused but inventoried sources. |
+| Path-to-digest fidelity | With a valid retained source inventory, `semantic_sources` has exactly its path/digest pairs, independent of input ordering. No descriptor/architecture path appears in this map merely because the driver reads it. Existing input visibility policy is unchanged. |
+| Pure versus file verification | Changing only one supplied TypeSpec/source Digest to a different syntactically valid value cannot become a filesystem lookup inside pure compilation. Where all other structural conditions remain valid, the binding is preserved as supplied. The real service generation driver rejects the same stale binding against the actual file, before any product, receipt, lock or pending-journal mutation. |
+| Descriptor supplied bytes | Mismatched descriptor inventory digest versus supplied bytes fails pure `compile_services`; missing, duplicate or unexpected descriptor source records remain failures. Standalone descriptor validation does not fabricate final service membership or manifest verification. |
+| Provenance availability | A graph without required architecture/source context cannot produce an apparently fully bound compiled descriptor. No empty/default inventory fallback or regeneration from ambient files is accepted. The official `compile_with_architecture` and private service staging paths retain the required context. |
+| Revision fidelity | Retain the exact fixed service/tenant/environment identity tests. A consistently changed package/declaration revision in a pure valid graph is preserved in the resolved operation projection; a mismatched operation revision is rejected by the independent projection comparison. Actual driver source-byte verification remains mandatory for published products. |
+| Missing output fields | Independently remove each top-level, source, architecture, identity and nine config fields from a temporary JSON fixture; require failure. Check extra keys, duplicate decoded keys and schema/profile mismatch without adding a runtime JSON loader. |
+
+## Related
+
+<CardGroup cols={2}>
+  <Card title="Toolchain Authority" icon="wrench" href="/architecture/toolchain">
+    Pinned prerequisites, build commands, and CI configuration.
+  </Card>
+
+  <Card title="VS-001 Semantic Loop" icon="arrows-spin" href="/architecture/vs-001-semantic-development-loop">
+    The end-to-end development loop that produces the generated config contract.
+  </Card>
+
+  <Card title="Master Blueprint" icon="compass" href="/architecture/master-blueprint">
+    Full target architecture organized by responsibility.
+  </Card>
+
+  <Card title="Bootstrap Status" icon="chart-bar" href="/architecture/bootstrap-status">
+    Current implementation maturity and open gates.
+  </Card>
+</CardGroup>

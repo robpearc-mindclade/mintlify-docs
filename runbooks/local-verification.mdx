@@ -1,0 +1,188 @@
+---
+title: "Run local verification"
+sidebarTitle: "Local Verification"
+description: "Run local doctor and aggregate `just verify`, read receipts, and distinguish host failures from verdicts about the candidate. For parent-owned execution only."
+---
+
+Purpose: run the local doctor and the aggregate `just verify`, read what they produce, and tell a host failure apart from a verdict about the candidate.
+
+Audience: the authorized parent or integrator who owns execution. A worker under parent-owned execution does not run these commands; it asks the parent for the receipts.
+
+Status: matches `justfile` and `scripts/` at `main` `1fe3c1a` (B4, K1, G3 and H1 Stage 2 merged), plus the closeout's recipe descriptions and the `check`, `test`, `fmt`, `run-echo` and `git-setup` recipes.
+
+Use it when: running `just doctor`, `just check` or `just verify`, finding the right recipe, reading the receipts, or telling a host failure from a verdict.
+
+Prerequisites: Nix `2.35.1`, a supported host, provisioning and caches, as set out in [start here](/developer/start-here). Owners and recovery for failed prerequisites are in [troubleshooting](/developer/troubleshooting). Version pins are in [toolchain authority](/architecture/toolchain). This runbook does not repeat them.
+
+A passing local run is a source observation for one candidate on one host. It is not admission, remote CI, independent acceptance, or runtime, scientific, release or deployment qualification.
+
+## Recipes at a glance
+
+`nix develop --no-write-lock-file -c just` (no recipe) lists every recipe with its one-line description, in `justfile` order; it runs nothing. Run a recipe as `nix develop --no-write-lock-file -c just <recipe>`.
+
+| Recipe | Runs | Use it for |
+| --- | --- | --- |
+| `doctor` | `python3 -B scripts/doctor.py` | Read-only prerequisites (section 1) |
+| `check` | `verify-fast`, `verify-scaffold`, `verify-tree` | The fast loop before pushing; no Bazel |
+| `verify` | The six recipes in section 2 | The full aggregate CI runs |
+| `verify-fast`, `verify-scaffold`, `verify-tree`, `verify-foundation`, `verify-generated`, `verify-boundaries` | One aggregate step each (section 2) | Rerunning one failing step |
+| `flake-check` | `nix flake check --no-build --all-systems --no-write-lock-file` | Evaluating the flake for every system; builds nothing |
+| `fmt` | `cargo fmt --all` | Formatting Rust in place (writes files) |
+| `fmt-check` | `cargo fmt --all --check` | Checking formatting only |
+| `test <targets>…` | `bazel test --lockfile_mode=error <targets>` | One or more Bazel test targets, for example `just test //core:tests` |
+| `run-echo` | `bazel build` of `//services/foundation_echo:foundation_echo`, then runs the binary that `bazel cquery --output=files` names, in the foreground | Running Foundation Echo ([runbook](/runbooks/run-foundation-echo)); type `shutdown` or close stdin to drain it |
+| `generate-foundation`, `generate-vs001` | The two Codegen drivers | Regenerating `generated/` ([regeneration runbook](/runbooks/regenerate-generated-outputs)) |
+| `update-tree` | `python3 scripts/validate_repository.py --write-tree` | Refreshing `docs/architecture/REPOSITORY_TREE.md` |
+| `git-setup` | Two `git config` lines for the `repotree` merge driver | Once per clone ([regeneration runbook, section 7](/runbooks/regenerate-generated-outputs#7-merging-branches-that-both-changed-the-tree)) |
+
+A passing `check` is not a `verify` pass: it runs no Bazel build or test and no generated-drift or boundary check (its clippy step does compile the Cargo targets). A `test` run gives Bazel's verdict on the named targets only and writes no foundation receipt.
+
+## 1. Run the doctor
+
+```bash
+nix develop --no-write-lock-file -c just doctor
+```
+
+`just doctor` runs only `python3 -B scripts/doctor.py`. It reads local declarations, Git state and tool versions. It does not evaluate Nix, build, test, fetch or change files. Each probe has a 10-second timeout and a 64 KiB output bound.
+
+It prints one JSON document, `{"checks":[…],"status":…}`. Each check has `id`, `status`, `detail` and `remediation`. The overall status is FAIL if any check fails, otherwise BLOCKED if any check is blocked, otherwise PASS. The exit code is 0 for PASS, 2 for FAIL and 3 for BLOCKED.
+
+| Check ids | What is checked |
+| --- | --- |
+| `lock:<name>`, `unchanged:<name>` | `flake.lock`, `Cargo.lock`, `pnpm-lock.yaml` and `MODULE.bazel.lock` exist, are non-empty and have the same bytes after the probes |
+| `nix` | The launcher reports Nix `2.35.1` |
+| `root`, `revision` | The directory is the Git top level, and `HEAD` resolves |
+| `candidate` | No changed or untracked paths. Dirty source is BLOCKED; a changed lock is FAIL |
+| `platform` | Apple Silicon macOS or x86_64 Linux; anything else is BLOCKED |
+| `declarations` | Pins in `.bazelversion`, `rust-toolchain.toml`, `package.json`, `codegen/frontend/typespec/package.json`, `MODULE.bazel`, `flake.nix`, `flake.lock` and `docs/architecture/toolchain.md` |
+| `shell` | `MINDCLADE_TOOLCHAIN_AUTHORITY` and `MINDCLADE_TOOLCHAIN_INFO` from the pinned shell, with matching metadata |
+| `bazel`, `rustc`, `cargo`, `node`, `pnpm`, `python3`, `java`, `cc`, `just` | Each resolves under `/nix/store/`. Versions must match exactly; `cc` is checked by path only and `just` by format only |
+
+A probe that the host cannot start (a spawn or pipe `OSError` such as EAGAIN or ENOMEM) is BLOCKED with "Local host could not run the probe", never FAIL.
+
+To act on the output, find each check whose status is not PASS and follow its `remediation`, then the matching row in [troubleshooting](/developer/troubleshooting). Doctor never installs tools, rewrites locks or cleans the checkout.
+
+## 2. Run the aggregate
+
+```bash
+nix develop --no-write-lock-file -c just verify
+```
+
+`verify` runs six recipes in this order. `just` stops at the first failing command, so later recipes do not run.
+
+| Order | Recipe | What it runs |
+| --- | --- | --- |
+| 1 | `verify-fast` | `scripts/validate_bootstrap.py`; `scripts/validate_contract_sources.py` (every `contracts/**/*.tsp` is a declared compile source or an explicit exclusion, K1-32); `scripts/validate_generator_inputs.py` (the Codegen source inventory in `codegen/src/generator.rs` matches the files on disk); every `scripts/test_*.py` through `python3 -m unittest discover`, with `B3A_FRONTEND_ACTION` and `B3A_WRAPPER` set; `cargo fmt --all --check`; `cargo clippy --workspace --all-targets --locked -- -D warnings` (K1-20) |
+| 2 | `verify-scaffold` | `scripts/validate_scaffold.py`: blueprint coverage and unchanged scaffold stubs |
+| 3 | `verify-tree` | `scripts/validate_repository.py`: layout, a current `docs/architecture/REPOSITORY_TREE.md` and local Markdown links |
+| 4 | `verify-foundation` | `scripts/verify_foundation.py`: the real build and tests (below) |
+| 5 | `verify-generated` | `scripts/generate_foundation.py --check`, then `scripts/generate_vs001.py --check` with the composition flags: a read-only, exact-byte drift check that never repairs. Each passing check ends with `verified <product> sha256:<manifest digest>` |
+| 6 | `verify-boundaries` | The B4 host-scope dependency check (below). It builds with Bazel; `verify-fast` still calls no Bazel |
+
+`just flake-check` is separate from `verify`. It runs `nix flake check --no-build --all-systems --no-write-lock-file`, an evaluation-only check of every declared system that builds nothing.
+
+`verify-foundation` fails if any of the four lock files changes. It runs:
+
+1. `tools/build/toolchain_test.py` (runs the real pinned shell tools; each generator driver runs it too);
+2. `tools/build/bazel_policy_test.py`, once per run (pins the sandbox network denial, a `.bazelrc` with no `import`, `try-import` or strategy line, the shared disk-cache lines ([toolchain authority](/architecture/toolchain#bazel-configuration-and-the-shared-disk-cache)), and the exact-tag allowlists: `requires-network`, `local` and `no-sandbox` empty, `external` only on the host socket probes, all from one bounded `bazel query`);
+3. `bazel build //codegen/frontend/typespec:vs001 //codegen/frontend/typespec:vs001_services --lockfile_mode=error`;
+4. `cargo test --workspace --locked`, with `B3A_FIXTURES`, `VS001_INPUT` and `VS001_SERVICES_INPUT` pointing at the fixture file and the two `*.semantic.json` outputs from step 3;
+5. `bazel test` over the 39 targets in `TEST_TARGETS`, writing `build-events.jsonl`;
+6. `bazel build //core:core //codegen:codegen`;
+7. the negative analysis check: `bazel build --nobuild` of `//tests/conformance/vs001/rule_analysis:duplicate_descriptor_declaration` must fail with the duplicate-descriptor diagnostic;
+8. `bazel aquery` to check that the Rust, TypeSpec and generated-TypeScript actions use the Nix compiler, linker, Node and Python, then copies each test's logs.
+
+The run passes only if exactly one Bazel finish event reports success and every target in `TEST_TARGETS` has exactly one summary, with status `PASSED`.
+
+`verify-boundaries` collects fresh dependency facts for the running host and has Codegen check them against `docs/architecture/model/architecture.yaml` ([B4 criteria](/superpowers/specs/2026-09-24-b4-criteria)). It runs:
+
+1. `rm -rf target/foundation-verification/boundaries`: facts are never reused;
+2. `bazel build //codegen:codegen //codegen/frontend/typespec:vs001 --lockfile_mode=error`, then exports `MINDCLADE_CODEGEN_BIN` and `VS001_INPUT` from `bazel info bazel-bin`;
+3. `python3 -B -m unittest discover -s tools/validation -p 'test_*.py'`: the reserved `test_dependency_facts.py` and `test_boundary_entrypoints.py` and the collector unit tests;
+4. `tools/validation/arch-lint.py`: `codegen check-architecture`, which prints `valid model=<digest>`;
+5. `tools/validation/dependency-lint.py --allow-dirty`: `dependency_facts.py collect` for the running host, then `codegen check-boundaries`. Its stdout line is `passing\|violations scope=host:<host> report=<digest> graph=<digest> model=<digest> facts=<digest>`. Exit 0 is a passing report, 2 a report with violations, 1 invalid input, binding, coverage or a failed collection;
+6. `tools/validation/descriptor-lint.py`: the `verify-generated` vs001 check;
+7. `tools/validation/generated-provenance.py`: both `verify-generated` checks, each ending with its `verified` line.
+
+A dirty tree gives the candidate `worktree:<HEAD>`. `verify-boundaries` covers only the running host (`scope: host:<host>`), never the two-host matrix.
+
+For a focused check, run one recipe the same way, for example `nix develop --no-write-lock-file -c just verify-fast`, or the fast loop `just check` (see [Recipes at a glance](#recipes-at-a-glance)).
+
+## 3. Where results land
+
+The aggregate itself writes no summary receipt. Its result is the exit status of `just verify`. Artifacts:
+
+| Path | Written by | Content |
+| --- | --- | --- |
+| `target/foundation-verification/verification.json` | `verify-foundation` | `FoundationVerificationReceipt@v1`: `status` (`running`, `failed` or `passed`), `error`, `candidate_sha`, `candidate_tree_clean`, `host`, `tool_versions`, `nix_version`, `commands`, `dependency_locks`, `artifacts` digests, `negative_checks` (the expected analysis failure of `rule_analysis:duplicate_descriptor_declaration`), start and finish times, and `"qualification":"not-qualified"` |
+| `target/foundation-verification/build-events.jsonl` | `verify-foundation` | Bazel build events for the test run |
+| `target/foundation-verification/actions.json` | `verify-foundation` | `bazel aquery` output used for the action checks |
+| `target/foundation-verification/tests/<package>/<target>/test.log`, `test.xml` | `verify-foundation` | Copies of each test's Bazel logs |
+| `bazel-testlogs/<package>/<target>/test.log` | Bazel | The live test log (failures also print to the console: `.bazelrc` sets `--test_output=errors`) |
+| `target/foundation-verification/generation-receipt.json`, `target/vs001-verification/generation-receipt.json` | `just generate-foundation`, `just generate-vs001` | Generation receipts. The `--check` runs in `verify-generated` write none |
+| `target/foundation-verification/boundaries/facts.json` | `verify-boundaries` (`dependency-lint.py`) | `DependencyFacts@v1` for the running host: candidate, source inventory, model and lock digests, collectors, nodes and edges |
+| `target/foundation-verification/boundaries/report.json` | `verify-boundaries` (`codegen check-boundaries`) | `BoundaryReport@v1` with `scope` `host:<host>` and the sorted violations. Written only on exit 0 or 2 |
+
+In CI, the workflow also writes `doctor.log`, `ci.log` and `workflow-binding.json` to the same directory and uploads source evidence after checkout. The dedicated `workflow-binding` and `boundary-facts-<run_id>-<run_attempt>` artifacts remain strict when their producing phase succeeds; after an earlier qualification failure they are uploaded only when the expected files were actually produced. Missing late evidence therefore cannot replace the primary qualification failure with an artifact-upload error. `boundary-facts` remains Linux host-scope evidence, not a matrix pass. `target/` is ignored by Git.
+
+**Freshness.** `verification.json` is overwritten each time `verify-foundation` starts. If an earlier recipe failed, `verify-foundation` did not run and the file may belong to an older run. Before citing it, check that `candidate_sha` equals the commit you ran and that `started_unix_seconds` belongs to this run. A receipt's presence is not proof of a current pass ([AGENTS.md](https://github.com/Mindclade-org/mindclade-internal-monorepo/blob/main/AGENTS.md)). A `"passed"` receipt covers only the build and tests. It does not establish the aggregate result ([toolchain authority](/architecture/toolchain), "Current Limits").
+
+## 4. Reading PASS, FAIL and BLOCKED
+
+Record each required check as PASS, FAIL or BLOCKED, the only statuses GovernanceReport@v1 allows:
+
+| Observation | Record |
+| --- | --- |
+| `just verify` exits 0 on a clean candidate | PASS for the aggregate on that candidate and host |
+| A recipe fails because of the candidate: a failing test, drift, a scaffold or tree violation, formatting, a changed lock, an action not using Nix tools | FAIL |
+| A recipe fails because the host failed (section 5) | BLOCKED, with the host cause; this is not a verdict on the candidate |
+| A recipe did not run because an earlier one failed | BLOCKED, "not run" |
+| `candidate_tree_clean` is `false`, or doctor reports `candidate` BLOCKED | No clean-candidate claim, whatever the other results |
+
+Keep failed and superseded attempts. Never relabel an old receipt with a newer candidate.
+
+## 5. If it fails: host failure or verdict?
+
+| Signal | Source | Meaning | Action |
+| --- | --- | --- | --- |
+| stderr JSON `{"code":"frontend-action-host",…}` and exit 74 | [`tools/build/frontend_action.py`](https://github.com/Mindclade-org/mindclade-internal-monorepo/blob/main/tools/build/frontend_action.py) (TypeSpec frontend action), often seen inside `//tests/conformance/vs001:service_driver` | A host or staging `OSError`, most often a full disk (ENOSPC), or the TypeSpec child ending on a signal such as an OOM `SIGKILL`. The code says it is "never a verdict about the declared inputs" | BLOCKED. Free disk or quiet the host, then rerun |
+| stderr JSON `{"code":"frontend-action",…}` and exit 1 | Same action | The declared frontend inputs are invalid | FAIL |
+| `foundation verification failed: negative analysis target unexpectedly analyzed: …` or `… failed without the duplicate descriptor diagnostic …` | `verify_foundation.py` | The manual negative target `rule_analysis:duplicate_descriptor_declaration` no longer fails analysis as required | FAIL |
+| `foundation verification failed: lockfile changed: <name>` | `verify_foundation.py` | A command changed a lock | FAIL. Stop, and have the integrator inspect the lock; do not restore it by hand |
+| `foundation verification failed: 'MINDCLADE_TOOLCHAIN_INFO'` or `… missing Nix tool metadata` | `verify_foundation.py` | Not running in the pinned shell | BLOCKED. Re-enter with `nix develop --no-write-lock-file` |
+| `test did not pass: <label>: <status>` or `missing or unexpected test summaries` | `verify_foundation.py` | A test verdict, unless its `test.log` shows a host error such as exit 74 or ENOSPC | FAIL, or BLOCKED if the log shows a host cause |
+| `harness timeout: bazel query did not finish within 300s` | `tools/build/bazel_policy_test.py` | The tag-allowlist query outlived its bound, usually on a cold or loaded Bazel server | BLOCKED. Rerun on a quiet, warm host; it is never a verdict on the allowlist |
+| `Operation not permitted` (EPERM) or `Permission denied` (EACCES) from `socket`, `bind` or `connect` in a `test.log` | A Bazel test under the sandbox | `.bazelrc` denies sandboxed actions and tests any network except loopback (`build --sandbox_default_allow_network=false`) | FAIL. No target may need non-loopback network; `requires-network` is pinned to an empty allowlist |
+| `bounded child timed out; timeout is failure, not a rejection` | `service_driver_test.py` | A subprocess passed its bound; on a loaded host this can be host slowness | Rerun on a quiet host before treating it as a verdict; keep the first attempt |
+| `Rustc action does not use Nix compiler` and similar action messages | `verify_foundation.py` action checks | Build configuration verdict | FAIL |
+| `Foundation projection failed: …` or `VS-001 projection failed: …` in `verify-generated` | Generator drivers | Drift, an active publication journal or missing outputs; could also be a host error in the build | FAIL for drift. See [regenerate generated outputs](/runbooks/regenerate-generated-outputs) |
+| `violations scope=host:<host> …` and exit 2 from `dependency-lint.py` | `codegen check-boundaries` | An observed dependency breaks the architecture model; each violation is also printed as a located stderr line | FAIL. Fix the dependency. Never add an allow or exclusion that permits a forbidden pair |
+| `dependency-lint: dependency_facts.py collect exited 1` | `tools/validation/dependency_facts.py` | Collection refused or failed; the preceding `dependency_facts:` line names the cause | FAIL for a refusal about the candidate (for example an uninventoried resolution or a planted override); BLOCKED for a missing tool or unprovisioned cache |
+| `repository validation failed: repository tree is stale; run --write-tree` | `validate_repository.py` | The tree inventory is stale | FAIL. Run `just update-tree` (see the regeneration runbook) |
+| `repository validation failed: broken documentation link: …` | `validate_repository.py` | A Markdown link points at a missing file | FAIL |
+| Doctor `shell` or tool checks BLOCKED | `doctor.py` | Not in the pinned shell, or tools not provisioned | BLOCKED. See [troubleshooting](/developer/troubleshooting) |
+
+Escalate anything else to the integrator with the exact revision, host, command and sanitized message; [troubleshooting](/developer/troubleshooting) names the owner and recovery for each prerequisite failure.
+
+## 6. Slow or overloaded hosts
+
+- Run the aggregate on a quiet host with free disk ([agent handoff](/developer/agent-handoff), operational note).
+- `//tests/conformance/vs001:service_driver` bounds each frontend call at 120 seconds (`FRONTEND_TIMEOUT` in [`service_driver_test.py`](https://github.com/Mindclade-org/mindclade-internal-monorepo/blob/main/tests/conformance/vs001/service_driver_test.py)). Only its Bazel `timeout = "eternal"` bounds the whole test, so disk pressure or parallel load can make it slow, or fail with a host error.
+- `//services/foundation_echo:process_tests` is tagged `exclusive` (Bazel runs it alone) and sized `large`. It drives the real Echo binary with real deadlines: 2000 ms request and 5000 ms shutdown.
+- Example: the last B4 branch aggregate at `1c61741` failed one `service_driver` subcase under near-full disk and parallel load. The likely cause was ENOSPC in the frontend action; since PR #17 that reports as exit 74. It was a host failure, not a verdict.
+- Do not run two aggregates in the same checkout at once. Both write `target/foundation-verification/` and overwrite each other's receipt.
+
+## 7. Disk space and the Nix store
+
+- Cold provisioning can need large downloads and storage for the Nix store and the Bazel, Cargo and frontend caches. No fixed figure is claimed ([start here](/developer/start-here)).
+- Check free space on the checkout's filesystem and on the store before a long run, for example with `df -h .` and `df -h /nix/store`. Bazel's output location is shown by `nix develop --no-write-lock-file -c bazel info output_base`.
+- A full disk usually shows up as exit 74 `frontend-action-host`, or as another host `OSError` in a Bazel action or test log. Record it as BLOCKED.
+- Reclaiming space (Nix garbage collection, clearing Bazel or Cargo caches) is an operator decision. It can force a cold re-provision, which needs approved network or cache access. Never delete locks, generated outputs, other attempts' receipts or concurrent work to make room.
+- Every pinned tool must resolve under `/nix/store/`. Doctor fails a tool that resolves elsewhere; do not substitute host or Homebrew tools.
+- Generated-output publication needs a local filesystem with advisory locks and directory sync, not a network mount ([toolchain authority](/architecture/toolchain)).
+
+## Read next
+
+- [Troubleshooting](/developer/troubleshooting) for owners and recovery.
+- [Regenerate generated outputs](/runbooks/regenerate-generated-outputs) when `verify-generated` or `verify-tree` reports drift.
+- [Run Foundation Echo](/runbooks/run-foundation-echo) and the [codebase map](/developer/codebase-map).

@@ -1,0 +1,159 @@
+---
+title: "G3 Accepted-Policy Revision: Proposal"
+sidebarTitle: "G3 Policy Proposal"
+description: "Proposal for the G3 accepted-policy revision that replaces boundary_checker_status 'pending' with 'evaluator-bound', pending Rob's adoption in O3 after P1b passes."
+---
+
+This document records the proposed revision to `.agents/policies/supervised.v1.json` that would change `boundary_checker_status` from `"pending"` to `"evaluator-bound"` and add a `boundary_evaluator` object. It is proposal only, not adopted active policy.
+
+<Warning>
+  This revision is not adopted and is not active policy. `.agents/policies/supervised.v1.json` still says `boundary_checker_status: "pending"`, so code-class admission stays BLOCKED. Rob adopts this revision in O3, after the Enterprise migration, by merging the separate policy PR described in [G3 criteria](/superpowers/specs/2026-09-24-g3-criteria) §6. That merge commit then becomes the accepted policy revision the operator selects. The PR is held until P1b passes (§9 R3). This document changes nothing under `.agents/`, grants no admission and authorizes no execution.
+</Warning>
+
+**Authority:** [G3 criteria](/superpowers/specs/2026-09-24-g3-criteria) §4.5, §6, §9 (R1–R3) and §10; [B4 criteria](/superpowers/specs/2026-09-24-b4-criteria) §4.3, §7.5 and §13 J; Rob's decision of 2026-09-26 to record the proposed revision as a document rather than active policy.
+
+**Observed tree:** `78a02b4` on `claude/g3-trusted-boundaries` (the G3 source and tests merged with the K1 and B4 final heads). Every digest below was computed from the files committed at that revision and must be recomputed at adoption. No digest here is invented, and no unobserved value is filled in: those say "BLOCKED — not run".
+
+## 1. The three changes the policy PR makes
+
+The parent opens the PR from main after the G3 code PR merges and P1b passes. It makes exactly these changes (G3 §6, P-3):
+
+### Change 1: `.agents/policies/supervised.v1.json`
+
+`boundary_checker_status` changes from `"pending"` to `"evaluator-bound"`, and a `boundary_evaluator` object is added (below). Every other field stays byte-identical. `allowed_governance_paths` is not extended (D2).
+
+### Change 2: `.agents/policies/supervised.md`
+
+This sentence:
+
+> Code-class admission remains BLOCKED until the independent B4 boundary checker is implemented; candidate-supplied receipts cannot bypass it.
+
+becomes:
+
+> Code admission requires the accepted `boundary_evaluator` binding, an O3-adopted evaluator and sandbox, and a matrix B4 pass whose trusted-host facts that evaluator regenerated, and whose other-host facts are regenerated or CI-attested, as the result's `hosts` provenance records; candidate receipts cannot bypass this.
+
+### Change 3: shipped-policy pins
+
+The shipped-policy pins in `scripts/test_governance_admission.py` move to the proposed values. One more assertion in the same file also pins today's policy and must change with it: `BoundaryModuleTests.test_g3_19_governance_path_ceiling_and_shipped_policy_are_unchanged` asserts `boundary_checker_status == "pending"` and no `boundary_evaluator`. The change stays inside the three permitted paths. Both are reserved tests, so the edit needs a fresh test review.
+
+### Proposed policy fields
+
+```json
+"boundary_checker_status": "evaluator-bound",
+"boundary_evaluator": {
+  "config_sha256": "BLOCKED — not run: SHA-256 of the operator-held config in §2, assembled at adoption",
+  "configurations": [
+    "bazel.aarch64-darwin", "bazel.x86_64-linux",
+    "cargo.aarch64-darwin", "cargo.x86_64-linux",
+    "typescript.aarch64-darwin", "typescript.x86_64-linux"
+  ],
+  "facts_schema": "DependencyFacts@v1",
+  "model_path": "docs/architecture/model/architecture.yaml",
+  "report_schema": "BoundaryReport@v1",
+  "required_scope": "matrix"
+}
+```
+
+| Field | Value | Where it comes from |
+| --- | --- | --- |
+| `config_sha256` | BLOCKED — not run | SHA-256 of the exact config bytes in §2. It covers the Codegen binary and the sandbox, so a `sandbox: null` config can never be adopted. |
+| `configurations` | the six IDs above, sorted | B4 §4.3 frozen matrix (D3) |
+| `required_scope` | `matrix` | only matrix reports are qualification-eligible (B4 §3) |
+| `model_path` | `docs/architecture/model/architecture.yaml` | the model Codegen reads; Python only hashes it |
+| `facts_schema` | `DependencyFacts@v1` | B4 §4.2 |
+| `report_schema` | `BoundaryReport@v1` | B4 §4.1 |
+
+Admission accepts exactly this key set. It rejects `implemented`, `accepted`, `pass`, `PASS`, `evaluator-bound` without this object, `pending` with it, an unknown key, five or seven configurations, unsorted configurations and a non-matrix scope.
+
+## 2. The operator-held evaluator config (never committed)
+
+`config_sha256` is the digest of an operator-held `boundary-evaluator.json` at the root of the trusted evaluator directory. The parent assembles it from identities it observes on merged main: the Codegen binary it built, the collector blobs, the Nix runtimes, and the sandbox profile accepted after P1b. The config bytes are attached to the PR description and are not committed. Its key set is exact, and every path is relative to the evaluator root.
+
+| Key | Proposed value | Status |
+| --- | --- | --- |
+| `schema` | `mindclade.boundary-evaluator.v1` | fixed |
+| `host` | `aarch64-darwin` | interim trusted runner is the Mac (R2) |
+| `configurations` | the six IDs in §1 | fixed |
+| `codegen` | `{path: "bin/codegen", sha256}` | BLOCKED — not run: the parent-built Codegen from merged main |
+| `collectors.dependency_facts.py` | `{path: "collectors/dependency_facts.py", sha256: "0a7ace4a6864d4c15c853d482f660f130634f1881714e458725be4f9ae083d98"}` | recompute at adoption |
+| `collectors.dependency_facts.bzl` | `{path: "collectors/dependency_facts.bzl", sha256: "0a20f6df12d386aa7fc7cf81246c7305c51d4eb9cd92a04583e42abe1e4525a1"}` | recompute at adoption |
+| `collectors.typescript_facts.mjs` | `{path: "collectors/typescript_facts.mjs", sha256: "476bb350874ffffda240ee1a0057c5d5b2ab1843999bc5c78d7a5527685677c8"}` | recompute at adoption |
+| `runtimes` | `python`, `node`, `typescript`, `cargo`, `rustc`, `bazel`, `git`, each `{path, sha256}`; `bazel` is the unwrapped client (below) | BLOCKED — not run: the Nix runtimes realized for the trusted runner |
+| `ts_options_sha256` | the `typescript-options` collector digest | BLOCKED — not run: read from the trusted run's own facts |
+| `provisioned` | `{cargo_home: "provisioned/cargo-home", repository_cache: "provisioned/repository-cache"}` | the operator's network-on step fills them (B4 R4) |
+| `work_root` | `work` | disposable step directories |
+| `sandbox` | `{profile, sha256}` | BLOCKED — not run: the profile accepted after P1b |
+| `limits.step_timeout_seconds` | `7200` | proposed; equals B4 `dependency-lint.py`'s backend timeout |
+| `limits.max_stdout_bytes` | `65536` | proposed; collect prints six lines, check prints one |
+| `limits.max_processes` | none yet | BLOCKED — not run: P1b measures what the trusted collection needs |
+
+`runtimes.bazel` must be the unwrapped Bazel client: the package's versioned `bazel-9.1.1-<os>-<arch>` (for example `bazel-9.1.1-darwin-arm64`, a Nix PATH wrapper that execs the client binary in the same store path) or a `bazel-real`. It must never be the package's `bazel` launcher or the repository's flake wrapper. The nixpkgs launcher defaults `BAZEL_WRAPPER` to the workspace's `tools/bazel` and execs it when that file is executable, and it picks the client version from the workspace's `.bazelversion`. The flake wrapper only unsets the `BAZEL_WRAPPER` and `USE_BAZEL_VERSION` environment variables and then runs the launcher, so the launcher still falls back to `tools/bazel` and a candidate's `tools/bazel` would run on the trusted path. Admission also BLOCKS a code candidate whose `tools/bazel` or `.bazelversion` differs from base, but that is defense in depth, not a substitute for pinning the unwrapped client. The flake wrapper also passes `--server_javabase=<pinned JDK>`. P1b must confirm whether the unwrapped client needs it, and if so supply it as a reviewed fixed flag, not by routing through the launcher.
+
+## 3. Digests of related files as they stand (recompute at adoption)
+
+None of these is a policy field. They are recorded so the reviewer can compare them with the adoption-time values.
+
+| Path | SHA-256 at `78a02b4` | Git blob | Role |
+| --- | --- | --- | --- |
+| `.agents/policies/supervised.v1.json` | `950a1b1691ae2007c83a1229b4888feb7e23311a45923a4081955827af46f2dd` | `5e10e6d8` | today's accepted `pending` policy |
+| `docs/architecture/model/architecture.yaml` | `a22824268233fcf5e293771d1f92e0b548b35c0ced150c39f04a7849d2633f3b` | `a498d030` | per-candidate `expected.model.digest`, checked against the blob at base |
+| `docs/architecture/architecture-source-profile.md` | `eb8dc752bd08958a14a0e0db9ce6c0f91c0755be15f5b6749182a9bb0c0af47e` | `66142fbd` | must be unchanged between base and candidate (D4) |
+| `tools/validation/dependency_facts.py` | `0a7ace4a6864d4c15c853d482f660f130634f1881714e458725be4f9ae083d98` | `96e5a60b` | pinned collector; the candidate's copy must equal it |
+| `tools/build/dependency_facts.bzl` | `0a20f6df12d386aa7fc7cf81246c7305c51d4eb9cd92a04583e42abe1e4525a1` | `440afaaf` | pinned collector (the aspect) |
+| `tools/validation/typescript_facts.mjs` | `476bb350874ffffda240ee1a0057c5d5b2ab1843999bc5c78d7a5527685677c8` | `ea2e1510` | pinned collector |
+| `tools/validation/typescript_loader.cjs` | `52eb58b682d13962f728b8b652955ca2335a1122d97b6cffc82e29c3486b62b6` | `b7c99efd` | collector helper; not a config pin today, so P1b must bind it |
+| `tools/build/frontend_action.py` | `4b123f652f6e4fbabac600eee9de87dd181b562c74dee1cc5cd1e651e76dde41` | `07e67a22` | collector helper; not a config pin today, so P1b must bind it (G3 §10) |
+| `.bazelrc` | `b8cc70e6b98fe89f7858ade0eebf0249a11cd6925e8315fc942cbab558aa615d` | `48ea78d4` | must be unchanged between base and candidate (O3 ruling) |
+| `.bazelversion` | `96f2d117ed62796d8a062a610126aadfb22670965abef8de40d239292726d370` | `ead00e5d` | must be unchanged between base and candidate (the launcher reads it) |
+| `tools/bazel` | absent | absent | must be identical to base, here absent (the launcher execs it) |
+
+The `dependency_facts.py` and `typescript_facts.mjs` digests changed between the earlier observation (`3312dfd`) and `78a02b4`, when the B4 final heads were merged. They and the helper digests may change again before adoption.
+
+## 4. How G3's code reads this revision once adopted
+
+1. **Selection.** The operator passes the policy PR's merge commit as `--policy-revision`. `policy-ancestry` requires it to be an ancestor of base, which is why adoption is a merge and not a branch.
+2. **Validation.** Admission reads `.agents/policies/supervised.v1.json` only at that revision through its Git reader and records `policy_sha256`. `_validate_policy` accepts the bound shape. The audit's `policy` check uses the same validator; `supervised-readiness` stays BLOCKED.
+3. **Pre-checks.** For a code-class packet whose earlier checks all pass, admission requires the model and source profile to be identical at base and candidate (D4; FAIL otherwise), and `.bazelrc`, `.bazelversion` and `tools/bazel` to be identical in presence, mode and bytes (BLOCKED otherwise, with no runner call). Governance packets never reach this step.
+4. **Inputs.** Admission passes a copy of `boundary_evaluator` to `boundary_inputs`, which returns `(expected, tools)`. An O3-adopted implementation builds `expected` from the independent O3 anchor record and calls `load_trusted_boundary_tools(<evaluator root>, boundary_evaluator, runner=<P1b runner>, attested_facts=<O3 CI-facts reader>)`. The loader requires `sha256(<root>/boundary-evaluator.json) == config_sha256`, checks the config's exact keys and configurations against this binding, and hashes every pinned file.
+5. **Cross-checks.** `tools` must be a `TrustedBoundaryTools` whose `config_sha256` equals the policy's `config_sha256`; `expected.candidate` must equal `--candidate`; `expected.model.path` must equal `model_path`; `expected.model.digest` must equal the digest of the model blob at base; `required_configurations` must equal `configurations`; `scope` must equal `required_scope`. Any mismatch is FAIL.
+6. **Verification.** `verify_boundaries` regenerates the trusted host's facts, merges them with the CI-attested Linux facts, and takes Codegen's decision. On PASS, `bindings.boundary` records the report identity, including `evaluator_config_sha256` (equal to `config_sha256`) and the `hosts` provenance.
+
+Adopting the policy alone does not enable code admission. Today `boundary_inputs`, the runner and the CI-facts reader are production defaults that raise BLOCKED, and the CLI has no flag or environment variable that can supply them. Wiring the adopted readers is a separate, reviewed O3 change. With this revision as the accepted policy and production defaults, a code packet is BLOCKED with an O3 detail (P-1).
+
+## 5. Assertions the policy PR must meet (G3 §6)
+
+- **P-1.** Under the merged G3 code, the proposal validates, and a code packet evaluated with it and production defaults is BLOCKED (`O3`), never PASS.
+- **P-2.** While the PR is open, the `pending` policy stays valid and still gives BLOCKED for code (G3-12, G3-19).
+- **P-3.** The PR's CI passes, and its diff against main touches exactly the three paths in §1.
+- **P-4.** No agent merges it. Rob merges it in O3 after the Enterprise transfer, and any later value refresh needs a new review.
+
+## 6. Decisions recorded with this proposal
+
+- **R1 (Rob, 2026-09-24).** A code candidate that edits the architecture model FAILs admission (D4). Model changes go first, as their own reviewed, Rob-approved change.
+- **R2 (Rob, 2026-09-24).** Interim trust uses the Mac as the trusted runner with CI-attested Linux facts, accepted explicitly at O3 adoption. CI attests only Linux facts because CI runs only on Linux. CI-attested facts come from a candidate-branch `workflow_dispatch` run, so they show consistency, not independent regeneration. The target is an operator-controlled `x86_64-linux` runner (`provenance: "regenerated"`).
+- **R3 (Rob, 2026-09-24).** The policy PR is held until P1b passes.
+- **D2 O3 follow-up.** Neither `allowed_governance_paths` nor `admission.GOVERNANCE_PATHS` includes `scripts/test_governance_binding.py`. This proposal does not change that, because adding the path to the policy alone would exceed the ceiling and invalidate the policy. The fix is a coordinated, separately reviewed change to both.
+- **Proposal form (Rob, 2026-09-26).** The revision is recorded here as a document, not as active policy.
+
+## 7. Open items before adoption
+
+- **P1b.** B4's `--hermetic` collection must collect the candidate at `cwd`, load its helpers from the evaluator root, resolve tools from the pinned runtimes and use the provisioned caches. B4 today rejects `--hermetic`. P1b also has to confirm how the collector learns the provisioned repository cache (no B4 flag carries it), and whether Cargo needs a writable `CARGO_HOME` for its package-cache lock while the sandbox allows writes only to the step directory. The pinned `runtimes.bazel` must be the unwrapped client (§2), and the rest of the P1b contract is in [governance tools](/developer/governance-tools#p1b-and-b4-dependencies).
+- **Helper pins.** `frontend_action.py` and `typescript_loader.cjs` need a reviewed binding, either a config-schema pin or another mechanism.
+- **O3 anchors and readers.** The independent anchor record, the production `boundary_inputs`, and custody for the CI facts archive.
+- **Artifact envelope.** The CI facts archive is decoded under G1's ZIP rules (no data descriptors, extra fields or ZIP64). O3 should confirm that a real `boundary-facts-<run_id>-<run_attempt>` download meets them.
+
+## 8. Owner decision (2026-09-26): adoption with the governance-path fix
+
+Rob decided this in chat on 2026-09-26, after the pre-migration closeout, by answering explicit option questions (Rob, 2026-09-26, chat). The [agent handoff](/developer/agent-handoff#owner-decisions-recorded-2026-09-26-after-the-closeout) records it as D-7. This section adds to the proposal above and rewrites none of it.
+
+- **Decision.** After P1b's hermetic collection passes, O3 adopts this proposal together with adding `scripts/test_governance_binding.py` to the governance paths, both `admission.GOVERNANCE_PATHS` and the policy, in one reviewed change.
+- **What it supersedes.** For that one path only, it supersedes §1 item 1's "`allowed_governance_paths` is not extended", §6 D2's "This proposal does not change that" and §5 P-3's limit of exactly the three paths in §1. `admission.GOVERNANCE_PATHS` is defined in `tools/engineering/admission.py`, so the combined change also edits that file. Its review fixes the exact diff.
+- **Unchanged.** The proposal is still not adopted, and code admission stays BLOCKED until O3. R3 (held until P1b passes), P-1, P-2 and P-4 stand, and every digest still has to be recomputed at adoption.
+
+## 9. Owner decision (2026-09-26): target repository renamed
+
+Rob renamed the transferred repository to `Mindclade-org/mindclade-internal-monorepo` (repository ID `1382446493` unchanged) and, as a one-time owner exception to adopting policy changes only in O3, the accepted policy's `target_repository` now names it. The accepted policy's SHA-256 is therefore `c6fabf8d58415a53c2928d26521a9ec40911ad2ca0a27f47bde2599dca3dba7a`, not the `950a1b16…` in §2. The O3 revision is made against the policy with the new target; every other field and every assertion in §5 is unchanged.
+
+## 10. Owner decision (2026-09-26): dedicated App added before adoption
+
+The accepted policy now also carries `dedicated_app: {id: 5090624, slug: "mindclade-monorepo-engineer"}` (decision D-17), so its SHA-256 is `0c26d30535bce9c497ea8a4c34037abbb80c7bbbff33e376306c620ce6a9f666` (superseding the §9 value). The O3 revision this proposal describes is made against that policy and keeps `dedicated_app` unchanged.

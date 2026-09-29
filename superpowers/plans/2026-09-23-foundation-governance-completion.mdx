@@ -1,0 +1,187 @@
+---
+title: "Exact Engineering Evidence and Admission Implementation Plan"
+sidebarTitle: "Foundation Governance"
+description: "Plan (2026-09-23) for G1-G3 governance tasks: binding exact PR/tested-merge/queue/main identities and admitting code only through independently regenerated B4 evidence and separately accepted authority."
+---
+
+This page is the governance completion plan for Mindclade engineers and reviewers. It covers exact engineering evidence and admission implementation for source gates G1, G2, and G3.
+
+<Warning>
+  This plan grants no operational admission by itself. Written criteria review precedes implementation. The parent owns all process execution, tests, Git integration, and remote work.
+</Warning>
+
+## Goal
+
+Observe exact PR/tested-merge/queue/main identities and admit code only through independently regenerated B4 evidence and separately accepted authority.
+
+## Architecture
+
+Extend the existing non-semantic audit/admission tools. Preserve GovernanceReport@v1. Fixed authenticated read-only GitHub observations corroborate trusted runner evidence. Candidate metadata never establishes its own evaluator, policy, approval or boundary pass.
+
+## Tech Stack
+
+Python standard library, GitHub CLI read-only REST/fixed GraphQL, pinned GitHub Actions workflow, existing Codegen B4 interface.
+
+## Spec
+
+- [Master plan: V1 Integration Readiness](/superpowers/plans/2026-09-23-v1-integration-readiness)
+- [Work packet](../../developer/work-packet-v1.md)
+- [Governance tools](../../developer/governance-tools.md)
+- [Operator runbook](../../operations/github-governance.md)
+- [B4 in composition plan](/superpowers/plans/2026-09-23-vs001-b-composition)
+
+## Global Constraints
+
+- WorkPacket@v1 and GovernanceReport@v1 are non-semantic records, not capabilities, locks or grants.
+- Bind admission, reviews and evidence to the actual packet, specification, policy, source/base and candidate. Changed inputs invalidate dependent evidence and require refreshed admission, checks and review.
+- The parent owns all process execution, tests, Git integration and remote work.
+- Keep report top-level fields `schema`, `scope`, `bindings`, `checks`, `status`, `limitations`. Statuses only PASS/FAIL/BLOCKED. Put additional observation identities inside bindings.
+- Preserve bounded documents, strict duplicate/unknown input rejection, sanitized errors, fixed endpoints, timeouts and fixture isolation. No arbitrary command, GraphQL query or mutation CLI.
+- Source tests may prove checker behavior. Overall accepted readiness stays BLOCKED until O1-O4. A candidate cannot remove that condition to pass its own check.
+
+## Review Focus
+
+1. PR source SHA and checked-out synthetic merge SHA differ legitimately, while wrong parents/base/source must fail (G1).
+2. Successful same-SHA runs on the wrong event/branch, older attempts, wrong App, skipped/cancelled checks and omitted PR association must not pass (G1).
+3. Queue membership is ephemeral; wrong member/base or a later fabricated snapshot cannot establish accepted queue evidence (G2).
+4. Candidate-edited workflow/verifier/receipt/trust inputs must never authenticate the candidate (G1/G3/O3).
+5. Missing B4 configuration/facts, stale source/model/locks or a changed policy status flag cannot admit code (G3).
+
+## Task G1: Bind source head, tested commit and actual CI execution
+
+**Files:** Modify `tools/engineering/github_audit.py`, `scripts/test_governance_github.py`, `.github/workflows/foundation.yaml`, `scripts/verify_foundation.py`, `scripts/test_verify_foundation.py`, `scripts/test_ci_policy.py`, `scripts/evidence_bundle.py`, `scripts/test_evidence_bundle.py`, `docs/developer/governance-tools.md`.
+
+Create focused `tools/engineering/github_binding.py` and `scripts/capture_workflow_binding.py` with standard-library tests under `scripts/test_governance_binding.py`. The parent integrates shared CI/receipt files sequentially. Existing review-thread behavior and accepted policy remain unchanged in this task.
+
+**Existing interface:** `github_audit.main(argv=None, *, request=None, git=None, now=None, graphql=None)`. Existing fixture request is `request(method, endpoint)` and must retain isolation. Existing report and evidence schemas remain readable for their original source-only scope.
+
+**New interfaces:**
+
+```python
+def verify_run_binding(expected: dict, observed: dict) -> dict
+```
+
+Returns normalized bindings or raises `Unknown`/`Violation`. Move these exception definitions into the low-level binding module and re-export them from the audit. Dependency direction is audit -> binding, with no circular import. Load the trusted sibling by resolved file path, following the existing admission import safeguards.
+
+`expected` has exact fields: `repository_id`, `repository`, `stage`, `pr_number`, `base_sha`, `source_head_sha`, `tested_sha`, `run_id`, `run_attempt`, `workflow_path`, `workflow_digest`, `verifier_digest`, `required_checks`. `stage` is `pr|queue|main`. Queue support is completed in G2.
+
+`observed` is constructed only by the trusted transport adapter from repository/PR/run/workflow/job/check/commit/artifact observations and the independently accepted workflow/verifier identities. Never pass arbitrary caller JSON as an authenticated observation.
+
+`capture_workflow_binding.py` writes an additive `workflow-binding.json` receipt with `schema: mindclade.workflow-binding.v1`, repository ID/name, event, run ID/attempt, workflow path/ref, source head/base, checked-out tested SHA, and for merge groups the event head/base/ref. It reads Git HEAD and the minimum allowlisted event fields. It never archives the raw event/environment. The receipt is transport data until authenticated/corroborated.
+
+- [ ] **Step 1:** Add independent fixture `bound_pr_case()` in `scripts/test_governance_binding.py`: fixed distinct 40-hex base `a*40`, source head `b*40`, tested merge `c*40`. Observed commit parents exactly base/head. Matching repository/run/attempt/check producer. Accepted workflow/verifier digests supplied separately. Returns `(expected, observed)` with all fields above plus primary observation objects. Freeze this fixture before implementation. Add:
+
+```python
+def test_pr_source_head_and_tested_merge_are_distinct(self):
+    expected, observed = bound_pr_case()
+    result = verify_run_binding(expected, observed)
+    self.assertEqual(result["pr_head_sha"], "b" * 40)
+    self.assertEqual(result["tested_sha"], "c" * 40)
+    self.assertNotEqual(result["pr_head_sha"], result["tested_sha"])
+
+def test_substituted_merge_parent_fails(self):
+    expected, observed = bound_pr_case()
+    observed["tested_commit"]["parents"][1]["sha"] = "d" * 40
+    with self.assertRaises(Violation):
+        verify_run_binding(expected, observed)
+```
+
+- [ ] **Step 2:** Parent runs `python3 -B -m unittest discover -s scripts -p test_governance_binding.py`, retains relevant RED. Add cases for empty/missing run PR associations, head/base changes between reads, failed/newer rerun, check-suite/job mismatch, wrong repository ID/private audience, wrong event/branch/App/workflow, absent artifact, malformed/duplicate receipt fields and candidate-edited verifier/workflow digest. Unavailable association is BLOCKED, not assumed valid. Supported explicit contradiction is FAIL.
+- [ ] **Step 3:** Implement fixed transport adapters for PR, workflow run/attempt jobs, required check-runs, tested Git commit/parents, current PR merge ref where applicable, named run artifact inventory and bounded artifact retrieval. Authenticate the actual API host, repository ID, run ID/attempt and artifact identity before reading receipt contents. ZIP parsing rejects traversal, symlinks, duplicates, extra entries and expansion limits. Reuse existing archive validation conventions rather than unsafe extraction. Compare an API-provided artifact digest when available and record independently retained downloaded bytes/digest.
+- [ ] **Step 4:** Join the observations with explicit stage rules:
+
+```python
+if stage == "pr":
+    require(run_event == "pull_request", "wrong event")
+    require(observed_pr_head == source_head, "stale source")
+    require(observed_pr_base == base, "stale base")
+    require(tested_parents == [base, source_head], "wrong tested merge")
+elif stage == "main":
+    require(run_event == "push" and run_branch == "main", "wrong main run")
+    require(observed_main == tested_sha == merged_pr_commit, "wrong resulting main")
+else:
+    raise Unknown("Queue binding is not implemented until G2")
+```
+
+Define local `require(condition: bool, detail: str) -> None` to raise `Violation(detail)` when false. It never catches unavailable data into success. These names are local normalized values produced by the adapter, not new CLI claims.
+
+For PR, Actions `head_sha` may be the source head while checkout is the synthetic merge; check API and trusted receipt fields according to their documented meanings. Corroborate the PR relationship through authenticated run/commit/ref observations. If GitHub omits required membership data and no supported independent correlation exists, BLOCKED is correct.
+
+For squash/queue main, do not require source-head ancestry as if every merge were a two-parent merge. Validate the actual merged PR/result and previously retained tested tree relationship for the supported merge method. Unsupported methods remain blocked.
+
+- [ ] **Step 5:** Add sanitized CI receipt capture using a separately reviewed immutable workflow/verifier revision. Require the trusted observer to compare actual workflow and receipt-producer bytes against independently accepted digests before accepting their claims. Candidate-local hashes or a matching artifact filename alone cannot establish what executed. Before O3 adoption, fixture/source checks can pass but trusted execution binding stays BLOCKED. Preserve source-only CI functionality and original receipts.
+- [ ] **Step 6:** Parent runs governance/receipt/CI-policy focused tests, then pinned aggregate. Review the exact diff and source inventory. Commit `feat(governance): bind tested PR commits`; record this as unadopted source until O3. Do not open a live probe PR merely to fabricate an acceptance pass.
+
+## Task G2: Retain and validate an exact one-change merge group
+
+**Files:** Extend G1 binding/audit helpers and `scripts/test_governance_binding.py`, `scripts/test_governance_github.py`, `docs/developer/governance-tools.md`. `.github/workflows/foundation.yaml` already has `merge_group` and needs only reviewed binding-capture wiring. No ruleset or App changes from a worker.
+
+**Interfaces:** New `observe_queue(variables: dict) -> dict` executes one fixed read-only GraphQL query. Use supported fields on `MergeQueueEntry`: `id`, `position`, `state`, `baseCommit { oid }`, `headCommit { oid }`, `pullRequest { fullDatabaseId number headRefOid baseRefOid }`, `enqueuedAt`, `enqueuer { login }`, and the associated queue's complete entry connection. Repository/PR identity uses G1/F1a strict types and privacy checks. Use full pagination and totals. No deprecated `baseOid`/`headOid` fields.
+
+`verify_queue_binding(expected: dict, observations: dict) -> dict` consumes exact operator-selected PR/run and a retained authenticated queue snapshot, producing `queue_entry_id`, `queue_base_sha`, `queue_head_sha`, `queue_pr_head_sha`, `queue_run_id`, `queue_run_attempt`, `queue_snapshot_digest` and observed timestamp within report bindings.
+
+- [ ] **Step 1:** Define independent `one_entry_queue_case()` fixture in the binding test module with repository ID 1382446493, PR 17, position 1, one complete queue entry, explicit distinct base/source/queue SHA, a `merge_group` run and matching required check producer/attempt. Add:
+
+```python
+def test_queue_wrong_member_and_base_fail(self):
+    for key, wrong in (("number", 18), ("base_sha", "d" * 40)):
+        expected, observed = one_entry_queue_case()
+        observed["member"][key] = wrong
+        with self.assertRaises(Violation):
+            verify_queue_binding(expected, observed)
+```
+
+Also add a valid positive control and a case where queue data is null/deleted: it must raise Unknown, not reconstruct a passing queue from successful main CI.
+
+- [ ] **Step 2:** Parent runs the binding test command and retains RED. Add two-entry group, position mismatch, partial pagination, changed queue base, source-head substitution, missing head commit, wrong enqueuer, pending/cancelled/skipped checks, wrong workflow event and wrong run attempt cases. Changed queue membership invalidates dependent evidence even if source head is unchanged.
+- [ ] **Step 3:** Implement bounded fixed GraphQL queue observation with repository and PR rereads before/after. Capture the authenticated membership while it exists in a parent-owned, exclusive-create evidence file; bind its digest to the attempt and policy/packet. A later arbitrary saved JSON document cannot substitute for operator provenance. Validate `merge_group` event base/head/ref against the actual queue entry/run/commit observations and trusted runner receipt. Reuse G1 stage/producer checks, not the PR-event fallback.
+- [ ] **Step 4:** Retain the explicit one-change rule: complete entry count equals 1, selected PR/head matches that entry, and the admitted base/head match the required run. Queue configuration alone is not membership evidence. Unknown API schema, inaccessible fields or disappeared state without retained trusted evidence stays BLOCKED.
+- [ ] **Step 5:** Parent runs governance tests and pinned aggregate; fresh source review precedes `feat(governance): observe exact merge groups`. Live queue proof is performed only after O2 and O3.
+
+## Task G3: Consume independently regenerated B4 without a policy flag bypass
+
+**Dependencies:** Implemented and reviewed B4; G1/G2 for later connected acceptance.<br />**Files:** Modify `tools/engineering/admission.py`, audit/binding adapters, `scripts/test_governance_admission.py`, `scripts/test_governance_binding.py`, `docs/developer/work-packet-v1.md`, `docs/developer/governance-tools.md`. Propose a separate accepted-policy revision in `.agents/policies/supervised.v1.json`; no in-candidate adoption.
+
+**Interfaces:** `verify_boundaries(candidate_root: Path, expected: dict, trusted_tools: TrustedBoundaryTools) -> dict`. `TrustedBoundaryTools` is a configuration loaded from an operator-controlled accepted evaluator root, with exact compiler/collector/runtime digests and declared Cargo/Bazel/TypeScript configurations. It is never populated from the candidate packet. `expected` binds candidate, source inventory, locks, architecture/model, graph and required configurations. The trusted parent adapter independently regenerates facts and invokes Codegen's B4 decision, compares all bindings and requires complete coverage. It returns the verified report identity, not a capability. No new semantic checker in Python.
+
+- [ ] **Step 1:** Add independent fixture `boundary_admission_case()` containing admitted candidate/model/lock/configuration anchors and a trusted-runner fixture that regenerates a report. Define a separate candidate-supplied report to demonstrate it is ignored. Add:
+
+```python
+def test_candidate_pass_receipt_cannot_replace_missing_configuration(self):
+    candidate, expected, tools = boundary_admission_case()
+    tools.observed_configurations = ["cargo:default", "bazel:linux"]
+    candidate.write_candidate_receipt({"status": "PASS"})
+    with self.assertRaises(Blocked):
+        verify_boundaries(candidate.root, expected, tools)
+```
+
+`candidate` and `tools` are test fixtures defined in this module with owned temporary directories and an injected runner. They perform no real dispatch. `expected` includes the omitted TypeScript configuration, making the failure independently specified.
+
+- [ ] **Step 2:** Parent observes RED through `python3 -B -m unittest discover -s scripts -p test_governance_admission.py`. Add forbidden-edge positive/negative controls, stale source/locks/model, wrong compiler/collector digest, omitted test/build edges, failed collector, unknown activated component and external trust-file substitution.
+- [ ] **Step 3:** Implement a trusted adapter to B4's actual fact collection/check command. Do not execute packet-provided `argv`. Acceptance commands remain data. Enforce the existing candidate/path/ownership checks before access and use only operator-approved tools/environment. Execute candidate build scripts/compiler plugins only in the separately accepted sandbox with no ambient credentials, no network during checks, bounded processes/time/output and writes restricted to owned disposable outputs. Tool hashes alone do not isolate hostile candidate code; missing isolation is BLOCKED. Dependency provisioning occurs before the check under a distinct operator-owned step and retained locks. Cache reuse requires exact validated bindings; candidate-supplied cache entries do not authenticate evidence.
+- [ ] **Step 4:** Propose explicit accepted-policy bindings for required B4 evaluator/model/configuration identity. Maintain the old pending policy as BLOCKED. A candidate changing its own policy file or setting a status word cannot authorize itself. Separate review/Rob adoption in O3 is required before code admission can pass in operation.
+- [ ] **Step 5:** Parent runs admission/binding tests, actual B4 on the candidate and pinned aggregate. Fresh review precedes `feat(governance): consume independently verified boundaries`. Retain the distinction between source behavior fixtures and actual trusted-policy/code-lane acceptance.
+
+## Completion evidence
+
+Retain the exact reviewed source, fixture execution receipts, trusted evaluator identity after adoption, API/runner/commit/artifact observations, failed cases, queue snapshot provenance and resulting-main evidence. A missing trust root or external entitlement can block operational acceptance while these source tasks remain reviewable and useful.
+
+## Related
+
+<CardGroup cols={2}>
+  <Card title="V1 Integration Readiness" icon="clipboard-list" href="/superpowers/plans/2026-09-23-v1-integration-readiness">
+    Master plan covering DX1-B4, G1-G3, O1-O4, and remaining C/D durability and assurance work.
+  </Card>
+
+  <Card title="VS-001 B Composition" icon="puzzle" href="/superpowers/plans/2026-09-23-vs001-b-composition">
+    B4 executable architecture and dependency enforcement implementation details.
+  </Card>
+
+  <Card title="Pre-Migration Completion" icon="code-branch" href="/superpowers/plans/2026-09-24-pre-migration-foundation-completion">
+    Execution plan for merging branches and closing remaining gates before migration.
+  </Card>
+
+  <Card title="Work Packet V1" icon="envelope" href="/developer/work-packet-v1">
+    Canonical work packet format used for governance admission.
+  </Card>
+</CardGroup>

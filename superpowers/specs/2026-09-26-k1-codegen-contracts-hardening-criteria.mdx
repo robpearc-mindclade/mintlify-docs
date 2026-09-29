@@ -1,0 +1,227 @@
+---
+title: "K1 Codegen and Contracts Hardening Criteria (2026-09-26)"
+sidebarTitle: "K1 Codegen Hardening"
+description: "Codegen and contracts hardening criteria covering publication safety, emitter correctness, compatibility evidence, and the clippy gate for production readiness."
+---
+
+This page defines the K1 codegen and contracts hardening criteria frozen by the parent on 2026-09-26. Rob asked in chat to "ensure codegen is fully implemented and production grade and matches specs", "as well as contracts", and to "optimize and fix all". The criteria come from two independent read-only audits of `main` `72b762d`:
+
+- `outputs/foundation-closeout/audits/codegen-audit-2026-09-26.md`
+- `outputs/foundation-closeout/audits/contracts-audit-2026-09-26.md`
+
+These audits are the independent analysis for this gate. A fresh whole-candidate reviewer checks the result. The gate grants no admission, acceptance, or qualification.
+
+## Summary
+
+| Gate ID | Date | Status |
+| --- | --- | --- |
+| K1 | 2026-09-26 | Frozen by parent |
+
+## Rules
+
+- **RED before GREEN, per item, in separate contexts.** The test author writes a test that fails on `72b762d` for the stated reason. A separate implementer makes it pass.
+- **No weakened assertions.** A test that pins the old wrong behaviour may change only in the fix that replaces it, and the commit must name the change. This covers the two tests that assert `--check` passes with a stray file.
+- **Generated outputs** change only through Codegen regeneration, which the parent runs. Any emitter change that alters bytes is regenerated and reviewed.
+- **Out of scope:**
+  - Contract semantics that need a Rob decision: I1 (transport statuses), I2 (`Admission.capability`), I4 (the stale `contracts/typespec/main.tsp`). They are added as amendments only after Rob decides.
+  - `codegen/src/architecture.rs` parser changes, which belong to B4 Stage 2. The Bazel-wildcard divergence (`architecture.rs:554`) is handed to B4.
+  - H1-owned files, which are in open PR #19: `tools/build/frontend_action.py`, `scripts/verify_foundation.py`, and the governance tools.
+  - `.github/**`, `.agents/policies/**`, CODEOWNERS, and locks.
+- **Allowed dependencies:** no new crate or npm package.
+
+## Track A: Publication and input safety
+
+**Owned:** `codegen/src/{publication,projection,main,frontend,diagnostic}.rs` and their tests.
+
+**K1-01 (A-2):**
+
+- `--check` and `verify` walk each output root with `lstat` and FAIL with `output-unowned` on any file or directory outside the catalog. The allowed exceptions are the catalog files, their parent directories, `.publication.lock`, and `.publication/`.
+- Publish still preserves these files.
+- RED: after a publish, add `generated/vs001/public/extra.txt`, a `rust/rogue.rs`, and an empty directory. Each must make `--check` return `Err` with the snapshot unchanged. Flip the two tests that assert the opposite (`vs001_projection.rs:625-646`, `projection.rs:194-212`) and name that in the commit.
+
+**K1-02 (unbounded reads):**
+
+- The `--input` file, both compatibility inputs, and `read_bound` sources (TypeSpec and generator inputs) are opened with `O_NOFOLLOW`/`O_NONBLOCK` where applicable, required to be regular files, and read with a cap (reuse the `read_service_source` checks).
+- RED: a FIFO gives exit 1 with a `source-type` diagnostic within 1 s; a file one byte over the cap gives `input-limit`.
+
+**K1-03 (lock):**
+
+- The publication lock is created by linking a pre-written marker into place, so it is atomic.
+- After locking, `fstat` must match `lstat`. A lock that was replaced or removed while held FAILs rather than letting a second writer in.
+- RED: simulate a mismatched identity after locking.
+
+**K1-04 (recovery):** When the target manifest is already on disk, recovery requires no pending removals, so a restored file is never deleted again. RED: the `ManifestReplaced` restore scenario.
+
+**K1-05 (receipt):**
+
+- The receipt temp name is unique beyond the PID.
+- The receipt directory is fsynced.
+- A receipt write failure after a successful commit is reported as a distinct host failure, not an input verdict. RED as in the audit.
+
+**K1-06 (output):** A closed stdout never panics (no `println!` panic, no exit 101). RED: run with stdout closed and expect a clean exit code.
+
+**K1-07 (diagnostic integrity):**
+
+- Paths from input are escaped in diagnostics, so control characters and newlines cannot forge lines.
+- `serde` errors map to located, coded diagnostics without echoing arbitrary input text.
+- RED: a path containing `\n` produces exactly one diagnostic line.
+
+## Track B: Emitters, compatibility and test strength
+
+**Owned:** `codegen/src/{emit/**,target_ir,compatibility,pipeline,descriptor}.rs`, `codegen/src/emit/typescript_runtime.rs`, the frontend `src/index.mjs` (diagnostics only), and their tests.
+
+**K1-10 (adapter name collisions):**
+
+- The HTTP adapter emitter never publishes Rust that fails to compile because of name collisions.
+- Either the runtime items are imported under an alias and the capability is called through its trait, or the names `Request`, `Handler`, `RequestScope`, `Arc`, `<Prefix>HttpAdapter`, and any method names that shadow `Arc`/trait methods are reserved with a located `target-name` diagnostic before publication.
+- RED: an input whose body model is `Request`, and an operation named `clone`, each expecting `target-name` or a compiling adapter.
+
+**K1-11 (compatibility scale):**
+
+- The compatibility traversal uses an explicit worklist, with no recursion per model.
+- Referenced-model sets are precomputed.
+- RED: a 20k-model reference chain run on a thread with a `256 KiB` stack, and a 20k-field fan-out that completes under 2 s.
+
+**K1-12 (contracts I3, compatibility evidence):**
+
+- An additional report compares the foundation fixture, renamed into `Mindclade.Public`, against the current input. It itemizes the real breaking changes: `max_length`, `max_items`, the `requestId` pattern, and the new response alternatives.
+- The report is checked in or regenerated through the existing compatibility tooling (parent step).
+- RED: a compatibility test asserting those items.
+
+**K1-13 (weak negatives):**
+
+- Every negative test asserts its exact diagnostic code: the `rejected()` helper in `service_binding.rs`, `declarations.rs:86-102`, and the B2a Step 5 negatives.
+- Codes never asserted today get a test each: `invalid-enum`, `invalid-discriminator`, `invalid-variant`, `http-visibility`, `unresolved-reference`, `duplicate-operation`.
+- One test feeds raw `SemanticInput` bytes with duplicate keys.
+
+**K1-14 (B3a partials):**
+
+- The bijection codes `descriptor-source`, `descriptor-inventory`, and `descriptor-digest` are asserted.
+- The 1 MiB+1 read test asserts its exact code, so deleting the `take(LIMIT+1)` fails.
+- The owner-root and owner-role branches (`descriptor.rs:348-349`) are isolated by their own fixtures.
+- The Bazel-wildcard item is handed to B4.
+
+**K1-15 (B3b-18 and TypeScript parity):**
+
+- The 127/128 nesting boundary and the adapter's 413 branch are exercised.
+- The TypeScript `timestamp()` check and scalar-order key sorting are tested.
+- The TypeScript runtime is brought to Rust parity: BOM handling, `.length` versus iteration, and a bounded response body read.
+- Any generated-byte change is regenerated by the parent.
+
+**K1-16 (lexical):**
+
+- Leading-zero ports are rejected.
+- `parse_route` rejects `..`, `//`, and adjacent parameters.
+- `debugger` is a reserved name.
+- README table cells are escaped.
+- Each has a RED case.
+
+**K1-17 (YAML flow nesting):** A deep flow-nesting input fails with `yaml-limit` before buffering megabytes. RED: a 1 MiB run of `[` fails within a bounded time and memory. If saphyr cannot bound this, add a pre-scan depth guard.
+
+## Parent
+
+**K1-20:** A clippy gate. Add `cargo clippy --workspace --all-targets --locked -- -D warnings` (or the minimal agreed lint set) to `verify-fast`, fix or allow-list the findings, and record the lint policy. If the finding count is large, first land a documented baseline allow-list; no silent `allow(clippy::all)`.
+
+**K1-21:** Regenerate after emitter changes; B2b-20 criteria amendment (supersession note for the `.gitignore` change); record the cross-host digests for the protocol products (B2b-22..24) from the next Mac and Linux runs.
+
+## Amendment 1 (2026-09-26): Rob's contract decisions and parent rulings
+
+Rob decided these on 2026-09-26 in chat, via AskUserQuestion.
+
+**K1-30 (I1): Declare a transport-rejection profile.**
+
+- The public contract declares every status that the service and RuntimeKit can emit: the transport statuses 400, 404, 405, 411, 413, 415, 417, 431, 500, 501, and 505, as a documented transport-rejection profile with their body shape (empty unless the contract says otherwise).
+- OpenAPI, README, and MCP output are regenerated through Codegen.
+- The generated TypeScript client classifies declared transport statuses without calling them protocol errors.
+- RED: a raw-socket conformance test that every observed status is declared in the published OpenAPI.
+
+**K1-31 (I2): Capability on Admission.**
+
+- `Admission` gains `capability: CapabilityReference` before the B1 baseline is accepted, so the admission key is `(tenant, environment, capability, requestId)`.
+- The DTO, graph, and generated products are regenerated.
+- The compatibility report is refreshed.
+- RED: a `dto.rs` test requiring the field.
+
+**K1-32 (I4): Retire the stale contract file.**
+
+- `contracts/typespec/main.tsp` is retired through a reviewed scaffold/manifest transition to a historical location. `scripts/validate_bootstrap.py` currently requires the file and is updated in the same transition, with the parent owning that script's change.
+- A validator requires every `contracts/**/*.tsp` to be a declared compile source or explicitly excluded.
+- RED: the validator fails on the current tree.
+
+**Parent rulings on the test authors' questions:**
+
+- **K1-01 empty directories.** Empty directories are tolerated: they carry no bytes and cannot become build inputs. Publication deliberately keeps directories it has emptied. Any unowned file or symlink fails. The empty-directory negative case is dropped. The existing publication tests that leave `unowned.txt` in place pin the old behaviour, so they change in the K1-01 fix commit, which names them.
+- **K1-02 caps.** The `--input` and compatibility-input caps are 1 MiB, the same as `read_service_source`. An over-cap TypeSpec source may report `input-limit` or `source-size`.
+- **Expected outcomes:**
+  - K1-04: the publish fails and leaves the tree unchanged.
+  - K1-05: a `receipt-*` code, with the commit intact.
+  - K1-06: exit 0 or 1, never 101.
+- **Items that cannot be made RED:** Atomic lock creation (K1-03) and the receipt directory fsync (K1-05) cannot be made RED without production hooks. The implementer adds them, and the whole-candidate reviewer inspects them. The K1-03 test's 300 ms sleep is replaced by a checkpoint if the implementer adds a test hook.
+- **Unreachable branches:** The adapter's own 413 branch and the 127/128 nesting boundary are unreachable, so they are recorded as untestable by construction rather than forced.
+- **K1-07 and K1-13 overlap.** If K1-07 changes the `invalid-input` code for `serde` errors, the K1-13 raw-`SemanticInput` test is updated in the same commit.
+
+## Deferred (recorded; not K1)
+
+- B4: architecture parser, wildcard, and boundaries.
+- C1-C5 and D1-D4 Codegen work.
+- Contract minors M2-M5, routed to the C and D criteria.
+- M6 (`@doc`), which has no gate.
+
+## Checks the parent runs
+
+- Focused RED and GREEN per item.
+- `nix develop --no-write-lock-file -c just verify` on the Mac.
+- Linux `linux-foundation` CI.
+- A fresh whole-candidate review.
+
+## K1-21 record
+
+**B2b-20 amendment.** Recorded as [Section 11 of the B2b criteria](/superpowers/specs/2026-09-24-b2b-criteria#11-amendment-1-2026-09-26-b2b-20-superseded-for-entry-13-k1-21) on 2026-09-26.
+
+**Compatibility evidence (K1-12, K1-31).** [K1 compatibility reports](/architecture/reviews/2026-09-26-k1-compatibility-reports), including the new compatibility policy digest.
+
+**Cross-host protocol product digests (B2b-22..24).** SHA-256 of each file of the live `VS001CompositionProducts@v1` catalog under `generated/vs001/`: the 12 protocol outputs of B2b Section 7 (including the B2b-24 Proto, OpenAPI, MCP, and API-docs products under `public/`), `service/http.rs`, and `manifest.json`. Each output digest equals its `manifest.json` entry.
+
+- **Mac (`aarch64-darwin`, Apple Silicon, macOS 15.3):** read from the generated tree regenerated over the combined K1 + B4 sources at merge `1823747` (the B4 architecture model changes `graph.json`, `service/descriptor.json`, and `manifest.json`).
+- **Linux (`x86_64-linux`):** pending `linux-foundation` CI on the K1 PR.
+- `manifest.json` embeds the generator fingerprint and embedded sources, so any generator-input change alters it; the table records the digests at `1823747`.
+- Linux equality is established by `verify-generated`, which regenerates on the Linux host and compares exact bytes with the checked-in files.
+
+| File | Mac SHA-256 | Linux SHA-256 |
+| --- | --- | --- |
+| `graph.json` | `0519e3e60884116331d912f48238e61c0778e6e8e957bafb79ef84f7f8fe2080` | pending |
+| `public/README.md` | `321c29bab76e3592f727baa10c801edb27fb77d3385a3102e36a8d25808a1872` | pending |
+| `public/client.ts` | `9b776ed4522ec55723cedf077b088de0734e35134c01cb37d7e2a0d328e8d21a` | pending |
+| `public/echo.proto` | `c0ba12267126f1cff385c7ee565f04c568eb789c612afa5a3e0f55ba237a8c49` | pending |
+| `public/mcp.json` | `fa8fc160ce9954a1e84f70711ec577a295bacb1bca80541e6b6314296fc4561a` | pending |
+| `public/openapi.json` | `045f13a3afa9e24d9dcb61cb330f11092fd56ceeaf6085d06b5a17f5b530d81f` | pending |
+| `rust/internal.rs` | `1d6e2b4a2deb711ead49a5367f4229f8de9bddc78c865477b2f0291c0c66d355` | pending |
+| `rust/mod.rs` | `acac6995ac2edb946bff822031658f55fab2d3adbc1b64a71ead8d764aca5ad8` | pending |
+| `rust/public.rs` | `d6bffe37120a93aeb44d35823c94f9425220e07c676834a286cd6782f2cc7f64` | pending |
+| `rust/wire.rs` | `5f867fe253ec37fd2c493a234b4c55ba113beb21df43fe0aa8d3becd65b1712d` | pending |
+| `service/config.rs` | `4f4c06d6550057184c8235c5d7a88b3e9b15cc366781de8b2894e52199c0c14e` | pending |
+| `service/descriptor.json` | `673458a233c40b4101a9c0c114f4273bb40f03d40c905886e1054aeb505ec3b2` | pending |
+| `service/http.rs` | `7d96b6a753d3edefb6a6e7b204fab05fcd39aac8f21638ee6dc432d69fe98427` | pending |
+| `manifest.json` (at `1823747`) | `f18f065284c5306fcfde2e2d71ac4e972a3e9c6765a1cb903993dad8ea60779d` | pending |
+
+## Technical clarification (2026-09-27): K1-11 / D-14
+
+D-14 is the previously recorded owner decision to make the fan-out bound independent of machine load in the next hardening stage. This paragraph clarifies its test implementation; it is not a new Rob approval or a claim of qualification. The 20,000-field fan-out comparison now has a test-only counted-work budget of `16 * 20_000 + 64` payload field slots returned by `Node::fields()`, with graph construction and sealing outside the budget. That bound permits a constant number of full field passes while rejecting per-edge referenced-model rescans and per-field lookup rescans through the accessor. The public fan-out test retains semantic report and graph digest checks without a two-second wall-clock assertion. The 20,000-model chain's 256 KiB stack check is unchanged.
+
+The budget measures payload accessor work, not arbitrary CPU operations. A rescan over a previously hoisted slice or direct payload access can evade this counter; the parent therefore checks representative regression mutations and reviews the traversal separately.
+
+## Related
+
+<CardGroup cols={2}>
+  <Card title="H1 Foundation Hardening" icon="shield" href="/superpowers/specs/2026-09-26-h1-hardening-criteria">
+    Foundation hardening criteria with Stage 1 rules and ordering relative to K1.
+  </Card>
+
+  <Card title="DOC1 Engineering Docs" icon="book-open" href="/superpowers/specs/2026-09-26-doc1-engineering-docs-criteria">
+    Documentation criteria that reference K1 status discipline and source-exact rules.
+  </Card>
+
+  <Card title="K1 Compatibility Reports" icon="file-lines" href="/architecture/reviews/2026-09-26-k1-compatibility-reports">
+    Compatibility evidence and cross-host protocol product digest records.
+  </Card>
+</CardGroup>

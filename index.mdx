@@ -1,0 +1,57 @@
+---
+title: "Mindclade documentation"
+description: "Index for Mindclade developers, architecture reviewers, agents and operators to learn the design and perform authorized tasks."
+sidebarTitle: "Overview"
+---
+
+For developers, architecture reviewers, agents and operators. This index explains where to learn the design and where to perform an authorized task. The platform foundation remains partial; documentation does not establish implementation, operational admission or qualification.
+
+<CardGroup cols={2}>
+  <Card title="Developer start here" icon="code" href="/developer/start-here">
+    Access, pinned prerequisites, commands and troubleshooting for working on the repository.
+  </Card>
+
+  <Card title="Architecture foundations" icon="layer-group" href="/architecture/foundations/overview">
+    The full target architecture, organized by responsibility.
+  </Card>
+
+  <Card title="System design" icon="sitemap" href="/architecture/system-design">
+    A single-page design explanation of the platform.
+  </Card>
+
+  <Card title="Runbooks" icon="book-open" href="/runbooks/overview">
+    Procedures for local verification, regenerating outputs and running Foundation Echo.
+  </Card>
+</CardGroup>
+
+## Understand the system
+
+| Need | Read |
+| --- | --- |
+| The full target architecture, organized by responsibility | [Foundations reading guide](/architecture/foundations/overview) |
+| A single-page design explanation | [System design](/architecture/system-design) |
+| The agreed layered image, editable diagram and text equivalent | [Platform diagram](/architecture/platform-diagram) |
+| Design decisions and their precedence | [Master blueprint](/architecture/master-blueprint), [architecture index](/architecture/overview), [AGENTS.md](https://github.com/Mindclade-org/mindclade-internal-monorepo/blob/main/AGENTS.md) |
+| How the implemented components connect | [Codebase map](/developer/codebase-map) |
+| The public VS-001 Echo API and how to call it | [VS-001 Echo API reference](/api/vs001-echo) |
+| Every repository file and planned path | [Complete repository tree](/architecture/repository-tree) |
+| Traceability to the supplied 20-section blueprint | [Coverage map](/architecture/foundations/blueprint-coverage) |
+| Actual implementation maturity | [Maturity metadata](https://github.com/Mindclade-org/mindclade-internal-monorepo/blob/main/docs/architecture/maturity.yaml) and [current task register](/developer/agent-handoff#current-task-register) |
+
+## Work on the repository
+
+Begin at [start here](/developer/start-here) for access, pinned prerequisites, commands and troubleshooting. Recover the current scope through the [agent handoff](/developer/agent-handoff); Claude uses the same authority through [its entry guide](/developer/claude-handoff). The [provider-neutral workflow](https://github.com/Mindclade-org/mindclade-internal-monorepo/blob/main/.agents/workflows/foundation-development.md) separates criteria, implementation, review and integration. A reading guide or prompt grants no permission to execute a pending task. Runbooks cover [local verification](/runbooks/local-verification), [regenerating generated outputs](/runbooks/regenerate-generated-outputs) and [running Foundation Echo](/runbooks/run-foundation-echo); the [runbooks index](/runbooks/overview) also routes to the operator runbook and troubleshooting. Each gate's criteria and their status are indexed in [gate criteria](/superpowers/specs/overview).
+
+Detailed procedures live in [supervised development](/developer/supervised-development), the [engineering packet contract](/developer/work-packet-v1) and [governance tool interfaces](/developer/governance-tools). Follow the [master readiness plan](/superpowers/plans/2026-09-23-v1-integration-readiness) for dependency order; these references do not duplicate its open task list.
+
+## Operate and evaluate
+
+The [GitHub governance runbook](/operations/github-governance) owns protected operation and the aftermath of Rob's manual Enterprise migration. [Governance status](/architecture/engineering/governance-status) records observed blockers. The [delivery and operations foundation](/architecture/foundations/delivery-and-operations) explains future platform operations and the evidence needed before deployment. No production deployment procedure is established by the planned infrastructure.
+
+## Interpret records correctly
+
+Accepted [ADRs](/architecture/adr/adr-000-mindclade-vnext-architecture-constitution) remain normative. The [original supplied blueprint](/architecture/sources/original-greenfield-blueprint) and dated reviews retain historical observations; active explanations reconcile them with accepted decisions. Files explicitly marked as blueprint scaffold stubs, including reserved generated architecture views, are planned placeholders. They are neither usable configurations nor Codegen-emitted artifacts.
+
+Each document type (component README, runbook, API reference, guide, handoff, agent prompt or evaluation, and new criteria, reviews and ADRs) follows one template, listed in [document types and templates](https://github.com/Mindclade-org/mindclade-internal-monorepo/blob/main/.agents/workflows/architecture-docs.md#document-types-and-templates). `just verify-tree` checks every Markdown anchor, the required sections of component, runbook and API pages, and the preamble of agent prompts and evaluations.
+
+This index replaces only its own original stub through the reviewed scaffold manifest transition. Read next: [foundations](/architecture/foundations/overview) for the design, or [start here](/developer/start-here) for contribution.

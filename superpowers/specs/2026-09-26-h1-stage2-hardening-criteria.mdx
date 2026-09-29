@@ -1,0 +1,948 @@
+---
+title: "H1 Foundation Hardening, Stage 2 Criteria"
+sidebarTitle: "H1 Stage 2"
+description: "Frozen acceptance criteria for H1 Stage 2 hardening covering manifest validators, network sandboxing, compile_fail guards, idle-permit tests, and regeneration rules."
+---
+
+This page contains the frozen acceptance criteria for H1 Foundation Hardening, Stage 2. It defines the deferred items from Stage 1 plus new findings from the B3b review and scaffold audit. This gate grants no admission, acceptance, or qualificationThis page contains the frozen acceptance criteria for H1 Foundation Hardening, Stage 2. It defines the deferred items from Stage 1 plus new findings from the B3b review and scaffold audit. This gate grants no admission, acceptance, or qualification.
+
+<Warning>
+  Frozen by the parent on 2026-09-26 and amended the same day after an independent criteria review. Rob decided R-1 to R-3 on 2026-09-26. Implementation base is `main` after B4 Stage 2, K1, and DOC1 merge. Re-check every cited line on that base before RED.
+</Warning>
+
+## Status
+
+| Attribute | Value |
+| --- | --- |
+| Status | Frozen 2026-09-26, amended same day after independent criteria review |
+| Base | `main` `efb48e8` (H1 Stage 1 merged via PRs #19 and #20) |
+| Base for re-check | `main` after B4 Stage 2, K1 and DOC1 merge |
+
+## Scope
+
+The items Stage 1 deferred until B3b merged: A-9, A-15, A-16, A-17's `git` probe and A-23; the B3b review's idle-permit finding; the Echo `compile_fail` probe; scaffold findings F1, F2, and F5; and N-4 and N-5. A-2 moved to K1-01.
+
+## ID mapping
+
+<Warning>
+  Frozen by the parent on 2026-09-26 and amended the same day after an independent criteria review. Rob decided R-1 to R-3 on 2026-09-26. Implementation base is `main` after B4 Stage 2, K1, and DOC1 merge. Re-check every cited line on that base before RED.
+</Warning>
+
+## Status
+
+| Attribute | Value |
+| --- | --- |
+| Status | Frozen 2026-09-26, amended same day after independent criteria review |
+| Base | `main` `efb48e8` (H1 Stage 1 merged via PRs #19 and #20) |
+| Base for re-check | `main` after B4 Stage 2, K1 and DOC1 merge |
+
+## Scope
+
+The items Stage 1 deferred until B3b merged: A-9, A-15, A-16, A-17's `git` probe and A-23; the B3b review's idle-permit finding; the Echo `compile_fail` probe; scaffold findings F1, F2, and F5; and N-4 and N-5. A-2 moved to K1-01.
+
+## ID mapping
+
+Stage 1 Amendment 4 already uses H1-31 to H1-33, so Stage 2 items are numbered `H1S2-NN`:Stage 1 Amendment 4 already uses H1-31 to H1-33, so Stage 2 items are numbered `H1S2-NN`:
+
+| Old | New | Item |
+| --- | --- | --- |
+| H1-22 | H1S2-10 | network denial |
+| H1-31 | dropped | unowned files (superseded by K1-01) |
+| H1-32 | H1S2-01 | journal stage-name guard |
+| H1-33 | H1S2-03 | CRLF guard on `allow` |
+| H1-34 | H1S2-04 | mutation count and generation guards |
+| H1-35 | H1S2-11 | uncached host probes |
+| H1-36 | H1S2-05 | large transfers inside one binary |
+| H1-37 | H1S2-02 | the receipt's `git` probe |
+| H1-38 | H1S2-12 | unused `serde_json` |
+| H1-39 | H1S2-06 | Echo `compile_fail` controls |
+| H1-40 | H1S2-07 | B3b-24 idle-permit test |
+| H1-41 | H1S2-14 | real code beside stubs |
+| H1-42 | H1S2-15 | unreviewed source in stub directories |
+| H1-43 | H1S2-16 | BLOCKED rule for executable stubs |
+| H1-44 | H1S2-17 | flakes on a fresh clone |
+| H1-45 | H1S2-18 | direnv docs |
+| H1-46 | H1S2-08 | vacuous struct-literal negative |
+| H1-47 | H1S2-13 | regeneration |
+| H1-48 | H1S2-09 | unbounded `cargo metadata` |
+
+## Rules
+
+| Old | New | Item |
+| --- | --- | --- |
+| H1-22 | H1S2-10 | network denial |
+| H1-31 | dropped | unowned files (superseded by K1-01) |
+| H1-32 | H1S2-01 | journal stage-name guard |
+| H1-33 | H1S2-03 | CRLF guard on `allow` |
+| H1-34 | H1S2-04 | mutation count and generation guards |
+| H1-35 | H1S2-11 | uncached host probes |
+| H1-36 | H1S2-05 | large transfers inside one binary |
+| H1-37 | H1S2-02 | the receipt's `git` probe |
+| H1-38 | H1S2-12 | unused `serde_json` |
+| H1-39 | H1S2-06 | Echo `compile_fail` controls |
+| H1-40 | H1S2-07 | B3b-24 idle-permit test |
+| H1-41 | H1S2-14 | real code beside stubs |
+| H1-42 | H1S2-15 | unreviewed source in stub directories |
+| H1-43 | H1S2-16 | BLOCKED rule for executable stubs |
+| H1-44 | H1S2-17 | flakes on a fresh clone |
+| H1-45 | H1S2-18 | direnv docs |
+| H1-46 | H1S2-08 | vacuous struct-literal negative |
+| H1-47 | H1S2-13 | regeneration |
+| H1-48 | H1S2-09 | unbounded `cargo metadata` |
+
+## Rules
+
+Stage 1 rules apply unchanged: RED then GREEN; PASS/FAIL/BLOCKED only, and a host failure is never a verdict; no weakened assertion; a pinned test changes only together with its fix, and the commit names itStage 1 rules apply unchanged: RED then GREEN; PASS/FAIL/BLOCKED only, and a host failure is never a verdict; no weakened assertion; a pinned test changes only together with its fix, and the commit names it.
+
+**Mutation RED.** Some guards exist but no test exercises them. For those, RED is a recorded scratch mutation that removes the guard and makes the new test fail. The mutation is never committed. Log it at `.superpowers/sdd/…/h1s2-<NN>-mutation.log`.
+
+**Harness timeouts (B3b criteria section 5).** An expired bounded wait fails with a message that starts `harness timeout:`. It never passes and never reuses product assertion text.
+
+**No new Bazel test targets.** B4 owns `verify_foundation.py`, which requires exact `TEST_TARGETS` equality. New cases go into existing targets or into `scripts/test_*.py`, which `verify-fast` discovers. A scratch target that is never committed may serve as evidence.
+
+**Mutation RED.** Some guards exist but no test exercises them. For those, RED is a recorded scratch mutation that removes the guard and makes the new test fail. The mutation is never committed. Log it at `.superpowers/sdd/…/h1s2-<NN>-mutation.log`.
+
+**Harness timeouts (B3b criteria section 5).** An expired bounded wait fails with a message that starts `harness timeout:`. It never passes and never reuses product assertion text.
+
+**No new Bazel test targets.** B4 owns `verify_foundation.py`, which requires exact `TEST_TARGETS` equality. New cases go into existing targets or into `scripts/test_*.py`, which `verify-fast` discovers. A scratch target that is never committed may serve as evidence.
+
+**Limits and budget (foundation workflow step 2)Limits and budget (foundation workflow step 2).**
+
+- Workers edit only their owned paths and return edits plus a report. They run no Git write, build, or network command; the parent runs every check.
+- Network: only the fetches that the pinned `nix develop`, `bazel`, and `cargo --locked` commands already make. No new crate, npm package, or lock change.
+- Budget: one test-author pass and one implementer pass per item, then at most one fix round per review. Anything more, or a path outside the item's owner, stops that item and returns it to the parent.
+
+- Workers edit only their owned paths and return edits plus a report. They run no Git write, build, or network command; the parent runs every check.
+- Network: only the fetches that the pinned `nix develop`, `bazel`, and `cargo --locked` commands already make. No new crate, npm package, or lock change.
+- Budget: one test-author pass and one implementer pass per item, then at most one fix round per review. Anything more, or a path outside the item's owner, stops that item and returns it to the parent.
+
+**Parent-owned:** `.bazelrc`, every `BUILD.bazel`, `tools/build/toolchain_test.py`, `blueprint-scaffold.json`, docs, `generated/**` (Codegen only), and `REPOSITORY_TREE.md` (`--write-tree` only)**Parent-owned:** `.bazelrc`, every `BUILD.bazel`, `tools/build/toolchain_test.py`, `blueprint-scaffold.json`, docs, `generated/**` (Codegen only), and `REPOSITORY_TREE.md` (`--write-tree` only).
+
+**Excluded:**
+
+- `.github/**` and `.agents/policies/**`.
+- Everything B4 Stage 2 owns: `tools/validation/**`, `REPO.bazel`, `codegen/src/{boundaries,architecture,main,generator,lib}.rs`, `codegen/tests/{foundation.rs,cases/boundaries.rs,fixtures/**}`, `scripts/{verify_foundation,test_ci_policy,validate_generator_inputs,generate_foundation,generate_vs001}.py`, `justfile`, `repository-layout.json`, and `maturity.yaml`.
+- Until each gate merges, the K1 and DOC1 paths listed under "Contact points with K1 and DOC1".
+
+**Excluded:**
+
+- `.github/**` and `.agents/policies/**`.
+- Everything B4 Stage 2 owns: `tools/validation/**`, `REPO.bazel`, `codegen/src/{boundaries,architecture,main,generator,lib}.rs`, `codegen/tests/{foundation.rs,cases/boundaries.rs,fixtures/**}`, `scripts/{verify_foundation,test_ci_policy,validate_generator_inputs,generate_foundation,generate_vs001}.py`, `justfile`, `repository-layout.json`, and `maturity.yaml`.
+- Until each gate merges, the K1 and DOC1 paths listed under "Contact points with K1 and DOC1".
+
+## Contact points with B4 Stage 2B4 Stage 2
+
+**BUILD files.** The parent applies both stages' BUILD changes serially. B4 edits the root, `codegen/`, `tools/build/`, and its fixture packages. H1 edits `platform/runtimekit/` and `services/foundation_echo/`, plus `tests/conformance/vs001/` only if H1S2-10 requires it (K1 also edits that BUILD file)**BUILD files.** The parent applies both stages' BUILD changes serially. B4 edits the root, `codegen/`, `tools/build/`, and its fixture packages. H1 edits `platform/runtimekit/` and `services/foundation_echo/`, plus `tests/conformance/vs001/` only if H1S2-10 requires it (K1 also edits that BUILD file).
+
+**`blueprint-scaffold.json`.** B4 makes four wrapper transitions in it, DOC1 and K1-32 make their own, and H1S2-14/15 add a record. W6 lands after B4, DOC1, and K1 merg**`blueprint-scaffold.json`.** B4 makes four wrapper transitions in it, DOC1 and K1-32 make their own, and H1S2-14/15 add a record. W6 lands after B4, DOC1, and K1 merge.
+
+**Generator sources.** `.bazelrc`, `publication.rs`, and `projection.rs` are generator sources (`generator.rs:21,59,61`). B4 and K1 also edit generator sources. Each gate regenerates once after its own last generator-input edit; H1S2-13 is Stage 2's.
+
+**`main.rs`.** B4 and K1 both claim `codegen/src/main.rs` (K1-02 and K1-06 edit it); the parent serialises them. H1 Stage 2 never edits it.
+
+## Contact points with K1 and DOC1
+
+**Generator sources.** `.bazelrc`, `publication.rs`, and `projection.rs` are generator sources (`generator.rs:21,59,61`). B4 and K1 also edit generator sources. Each gate regenerates once after its own last generator-input edit; H1S2-13 is Stage 2's.
+
+**`main.rs`.** B4 and K1 both claim `codegen/src/main.rs` (K1-02 and K1-06 edit it); the parent serialises them. H1 Stage 2 never edits it.
+
+## Contact points with K1 and DOC1
+
+**K1** (`claude/codegen-hardening`, base `72b762d`) owns:**K1** (`claude/codegen-hardening`, base `72b762d`) owns:
+
+- `codegen/src/{publication,projection,main,frontend,diagnostic,target_ir,compatibility,pipeline,descriptor,yaml,graph}.rs` and `codegen/src/emit/**codegen/src/{publication,projection,main,frontend,diagnostic,target_ir,compatibility,pipeline,descriptor,yaml,graph}.rs` and `codegen/src/emit/**`
+- `codegen/tests/cases/{projection,publication,vs001_projection}.rscodegen/tests/cases/{projection,publication,vs001_projection}.rs`
+- `tests/conformance/vs001/{client.test.mjs,protocol_*,service_http/**,tests/dto.rs,service_driver_test.py}tests/conformance/vs001/{client.test.mjs,protocol_*,service_http/**,tests/dto.rs,service_driver_test.py}`
+- `contracts/typespec/**`, `scripts/validate_bootstrap.py`, and `scripts/validate_contract_sources.pycontracts/typespec/**`, `scripts/validate_bootstrap.py`, and `scripts/validate_contract_sources.py`
+
+**DOC1** (`claude/engineering-docs`, head `f3d4405`) edits:**DOC1** (`claude/engineering-docs`, head `f3d4405`) edits:
+
+- `docs/developer/start-here.mddocs/developer/start-here.md`
+- `docs/architecture/model/blueprint-scaffold.json`, where it activates `codegen/README.md` and `contracts/README.mddocs/architecture/model/blueprint-scaffold.json`, where it activates `codegen/README.md` and `contracts/README.md`
+- 17 pages: `{codegen,contracts,contracts/fixtures,contracts/registries,core,platform/runtimekit,platform/testkit,services/foundation_echo,tests/conformance/vs001,tools/build}/README.md`, `docs/README.md`, `docs/api/vs001-echo.md`, `docs/developer/codebase-map.md`, `docs/runbooks/{local-verification,regenerate-generated-outputs,run-foundation-echo}.md`, and `docs/superpowers/specs/2026-09-26-doc1-engineering-docs-criteria.md`17 pages: `{codegen,contracts,contracts/fixtures,contracts/registries,core,platform/runtimekit,platform/testkit,services/foundation_echo,tests/conformance/vs001,tools/build}/README.md`, `docs/README.md`, `docs/api/vs001-echo.md`, `docs/developer/codebase-map.md`, `docs/runbooks/{local-verification,regenerate-generated-outputs,run-foundation-echo}.md`, and `docs/superpowers/specs/2026-09-26-doc1-engineering-docs-criteria.md`
+
+**Order:**
+
+- W4 edits K1-owned files. It starts after K1 merges and builds on K1's code. It is H1 Stage 2 work, not a K1 amendment.
+- H1S2-10's possible fix in `service_driver_test.py` waits for K1, because K1-14 edits that file.
+- H1S2-17 edits `start-here.md` after DOC1 merges.
+- W6 starts only after B4, DOC1, and K1 merge. DOC1 activates two READMEs and adds files inside the stub directories `docs/api/` and `docs/runbooks/`. K1-32 retires `contracts/typespec/main.tsp` through a scaffold transition.
+
+**Order:**
+
+- W4 edits K1-owned files. It starts after K1 merges and builds on K1's code. It is H1 Stage 2 work, not a K1 amendment.
+- H1S2-10's possible fix in `service_driver_test.py` waits for K1, because K1-14 edits that file.
+- H1S2-17 edits `start-here.md` after DOC1 merges.
+- W6 starts only after B4, DOC1, and K1 merge. DOC1 activates two READMEs and adds files inside the stub directories `docs/api/` and `docs/runbooks/`. K1-32 retires `contracts/typespec/main.tsp` through a scaffold transition.
+
+**DOC1 text that Stage 2 changes.** `platform/runtimekit/README.md:147` (on `f3d4405`) repeats the `exclusive` claim that H1S2-05 corrects. The parent corrects it together with the BUILD comment**DOC1 text that Stage 2 changes.** `platform/runtimekit/README.md:147` (on `f3d4405`) repeats the `exclusive` claim that H1S2-05 corrects. The parent corrects it together with the BUILD comment.
+
+## W4: Codegen publication (after K1 merges)
+
+## W4: Codegen publication (after K1 merges)
+
+**Implementer:** the `git` probe in `write_receipt` (`codegen/src/projection.rs:689-703`). **Test author:** `codegen/tests/cases/projection.rs` and the tests module of `codegen/src/publication.rs`. The test author goes first, and the two never edit the same region at once**Implementer:** the `git` probe in `write_receipt` (`codegen/src/projection.rs:689-703`). **Test author:** `codegen/tests/cases/projection.rs` and the tests module of `codegen/src/publication.rs`. The test author goes first, and the two never edit the same region at once.
+
+### H1-31 (A-2) is dropped: K1-01 supersedes it
+
+- K1-01 makes `--check` and `verify` walk each output root with lstat and fail `output-unowned`. Its fix is `c099d44` on `claude/codegen-hardening`.
+- K1-01 also changes the tests that H1-31 named as pinning a passing check with unowned bytes: `codegen/tests/cases/projection.rs:194,212`, `vs001_projection.rs:632,646`, and the `unowned.txt` cases in `codegen/tests/cases/publication.rs` (`stale_fixture`, `:508-512`).
+- K1's parent ruling tolerates empty directories, which publication deliberately keeps. H1-31 would have failed them.
+- H1-31's drift-location half is in neither gate; see Deferred.
+
+### H1S2-01 (A-9): the journal stage-name guard
+
+### H1-31 (A-2) is dropped: K1-01 supersedes it
+
+- K1-01 makes `--check` and `verify` walk each output root with lstat and fail `output-unowned`. Its fix is `c099d44` on `claude/codegen-hardening`.
+- K1-01 also changes the tests that H1-31 named as pinning a passing check with unowned bytes: `codegen/tests/cases/projection.rs:194,212`, `vs001_projection.rs:632,646`, and the `unowned.txt` cases in `codegen/tests/cases/publication.rs` (`stale_fixture`, `:508-512`).
+- K1's parent ruling tolerates empty directories, which publication deliberately keeps. H1-31 would have failed them.
+- H1-31's drift-location half is in neither gate; see Deferred.
+
+### H1S2-01 (A-9): the journal stage-name guard
+
+**Facts:Facts:**
+
+- `decode_journal` (`codegen/src/publication.rs:939`) splits the stage at `:944` and checks it at `:947-951decode_journal` (`codegen/src/publication.rs:939`) splits the stage at `:944` and checks it at `:947-951`.
+- Its only stage negative (`:1069`) keeps the old digest, so the digest check (`:946`) rejects it firstIts only stage negative (`:1069`) keeps the old digest, so the digest check (`:946`) rejects it first.
+- K1 changes only this function's diagnostics; the stage check is unchangedK1 changes only this function's diagnostics; the stage check is unchanged.
+
+**Criterion:** recompute the digest over the mutated transaction; each of these stages must then fail `publication-journal`: `../unowned`, `stage-1`, `stage-1-2-3`, `stage-a-0`, `stage--0`, `Stage-1-0`**Criterion:** recompute the digest over the mutated transaction; each of these stages must then fail `publication-journal`: `../unowned`, `stage-1`, `stage-1-2-3`, `stage-a-0`, `stage--0`, `Stage-1-0`.
+
+**Positive:** `stage-7-3` decodes.
+
+**Positive:** `stage-7-3` decodes.
+
+**RED:** mutation. With `:947-951` removed, the new cases decod**RED:** mutation. With `:947-951` removed, the new cases decode.
+
+**Check:** `//codegen:unit_tests`.
+
+### H1S2-02 (A-17): the receipt's `git` probe
+
+**Facts:**
+
+- `write_receipt` takes `executing_commit` (`codegen/src/projection.rs:708`) from `git rev-parse HEAD` (`:689-703`). The probe has no timeout, and it scrubs only `GIT_DIR` and `GIT_WORK_TREE`.
+- K1 (`c099d44`) leaves the probe unchanged.
+- A receipt failure after publish belongs to K1-05: an `Err` with a `receipt-*` code, with the commit kept. This item adds no receipt semantics and does not re-test K1-05.
+
+**Check:** `//codegen:unit_tests`.
+
+### H1S2-02 (A-17): the receipt's `git` probe
+
+**Facts:**
+
+- `write_receipt` takes `executing_commit` (`codegen/src/projection.rs:708`) from `git rev-parse HEAD` (`:689-703`). The probe has no timeout, and it scrubs only `GIT_DIR` and `GIT_WORK_TREE`.
+- K1 (`c099d44`) leaves the probe unchanged.
+- A receipt failure after publish belongs to K1-05: an `Err` with a `receipt-*` code, with the commit kept. This item adds no receipt semantics and does not re-test K1-05.
+
+**Criterion:** `git` runs with every `GIT_*` variable removed and a bound of at most 10 s (killed on expiry). A failure or timeout gives `executing_commit: null`, never a failed generation. `--check` still writes no receipt**Criterion:** `git` runs with every `GIT_*` variable removed and a bound of at most 10 s (killed on expiry). A failure or timeout gives `executing_commit: null`, never a failed generation. `--check` still writes no receipt.
+
+**Positive:** a normal run records a 40-hex commit.
+
+**Positive:** a normal run records a 40-hex commit.
+
+**RED:** with `GIT_COMMON_DIR=/nonexistent` the commit is `null` today; it must be the real `HEAD`. A fake `git` on `PATH` that sleeps 60 s blocks the CLI today; it must finish within the bound**RED:** with `GIT_COMMON_DIR=/nonexistent` the commit is `null` today; it must be the real `HEAD`. A fake `git` on `PATH` that sleeps 60 s blocks the CLI today; it must finish within the bound.
+
+**Check:** `//codegen:tests`.
+
+## W5: RuntimeKit, VS-001 and Echo tests
+
+**Test author** (not the B3b implementer). Owned:
+
+- `platform/runtimekit/src/http.rs` (tests module only) and `platform/runtimekit/tests/support.rs`
+- For H1S2-05, the large-route call sites in `platform/runtimekit/tests/{transport,shutdown}.rs` (`transport.rs:581,600,661` and `shutdown.rs:163`)
+- `tests/conformance/vs001/service_config/{mutate.py,process_mutations.py,service_config.rs,forgery.rs}`
+- `services/foundation_echo/src/lib.rs` (doc comment `:9-42` only) and `services/foundation_echo/tests/process.test.mjs`
+- For H1S2-09, `platform/runtimekit/tests/dependencies.rs` and `services/foundation_echo/tests/composition.rs`
+- New files `scripts/test_{service_config_mutations,compile_fail_pairs}.py`
+
+### H1S2-03 (A-9): the CRLF guard on `allow`
+
+**Facts:** the guard is `http.rs:367-369` (`valid && is_allow_value`, defined at `:349-354`). The only test, `:727-729`, pairs `"A\r\nB"` with status 1000, so `valid` alone already suppresses the header.
+
+**Check:** `//codegen:tests`.
+
+## W5: RuntimeKit, VS-001 and Echo tests
+
+**Test author** (not the B3b implementer). Owned:
+
+- `platform/runtimekit/src/http.rs` (tests module only) and `platform/runtimekit/tests/support.rs`
+- For H1S2-05, the large-route call sites in `platform/runtimekit/tests/{transport,shutdown}.rs` (`transport.rs:581,600,661` and `shutdown.rs:163`)
+- `tests/conformance/vs001/service_config/{mutate.py,process_mutations.py,service_config.rs,forgery.rs}`
+- `services/foundation_echo/src/lib.rs` (doc comment `:9-42` only) and `services/foundation_echo/tests/process.test.mjs`
+- For H1S2-09, `platform/runtimekit/tests/dependencies.rs` and `services/foundation_echo/tests/composition.rs`
+- New files `scripts/test_{service_config_mutations,compile_fail_pairs}.py`
+
+### H1S2-03 (A-9): the CRLF guard on `allow`
+
+**Facts:** the guard is `http.rs:367-369` (`valid && is_allow_value`, defined at `:349-354`). The only test, `:727-729`, pairs `"A\r\nB"` with status 1000, so `valid` alone already suppresses the header.
+
+**Criterion:** at status 405, each of `"A\r\nB"`, `"POST\n"`, `"POST\r"`, `""` and `"GET\0"` gives status 405, no `allow` header and `content-length: 0`**Criterion:** at status 405, each of `"A\r\nB"`, `"POST\n"`, `"POST\r"`, `""` and `"GET\0"` gives status 405, no `allow` header and `content-length: 0`.
+
+**Positive:** `"GET, POST"` gives the exact header bytes**Positive:** `"GET, POST"` gives the exact header bytes.
+
+**RED:** mutation. With the filter reduced to `valid`, the new cases fail.
+
+**RED:** mutation. With the filter reduced to `valid`, the new cases fail.
+
+**Check:** `//platform/runtimekit:unit_tes`**`Check:`**` //platform/runtimekit:unit_tests`.
+
+### H1S2-04 (A-9): the mutation count and generation guards
+
+### H1S2-04 (A-9): the mutation count and generation guards
+
+**Facts:Facts:**
+
+- `service_config.rs:307` asserts `cases.len() == 28` over the hand-written list at `:158-303`, not over the output of `mutate.py:34-64service_config.rs:307` asserts `cases.len() == 28` over the hand-written list at `:158-303`, not over the output of `mutate.py:34-64`.
+- `only()` (`mutate.py:22-26`) and the no-op guards (`mutate.py:76-77`, `process_mutations.py:26-28`) already exit and name the culprit, but no test exercises them`only()` (`mutate.py:22-26`) and the no-op guards (`mutate.py:76-77`, `process_mutations.py:26-28`) already exit and name the culprit, but no test exercises them.
+- Echo's `PROBES` (`services/foundation_echo/BUILD.bazel:124-130`) duplicates `process_mutations.py:17,25`. A sixth selection is dropped silently, as an undeclared genrule outputEcho's `PROBES` (`services/foundation_echo/BUILD.bazel:124-130`) duplicates `process_mutations.py:17,25`. A sixth selection is dropped silently, as an undeclared genrule output.
+
+**Criterion:**
+
+- `mutate.py` emits a sorted `pub const NAMES: &[&str]`. `service_config.rs` asserts that `mutation_cases()` names exactly `NAMES`; this replaces 28, and the commit names it.
+- `process_mutations.py` takes `--names`; the parent passes `",".join(PROBES)`, and the script fails unless the names equal its selection.
+- `scripts/test_service_config_mutations.py` feeds synthetic text: an anchor matched 0 or 2 times, or a no-op, exits and names the culprit.
+
+**RED:**
+
+- `NAMES`: a scratch 29th case in `mutate.py` leaves `service_config_rust` passing on the base.
+- `--names`: a scratch sixth `SELECTED` entry (`process_mutations.py:17`), with `PROBES` unchanged, builds on the base and its file is dropped silently. After the fix, the genrule fails and names it.
+- Guards: mutation. With the count check (`mutate.py:24-25`) or either no-op check removed, the new unit test fails.
+
+**Check:** `//tests/conformance/vs001:service_config_rust`, `//services/foundation_echo:process_tests`, and the new unit test.
+
+**Criterion:**
+
+- `mutate.py` emits a sorted `pub const NAMES: &[&str]`. `service_config.rs` asserts that `mutation_cases()` names exactly `NAMES`; this replaces 28, and the commit names it.
+- `process_mutations.py` takes `--names`; the parent passes `",".join(PROBES)`, and the script fails unless the names equal its selection.
+- `scripts/test_service_config_mutations.py` feeds synthetic text: an anchor matched 0 or 2 times, or a no-op, exits and names the culprit.
+
+**RED:**
+
+- `NAMES`: a scratch 29th case in `mutate.py` leaves `service_config_rust` passing on the base.
+- `--names`: a scratch sixth `SELECTED` entry (`process_mutations.py:17`), with `PROBES` unchanged, builds on the base and its file is dropped silently. After the fix, the genrule fails and names it.
+- Guards: mutation. With the count check (`mutate.py:24-25`) or either no-op check removed, the new unit test fails.
+
+**Check:** `//tests/conformance/vs001:service_config_rust`, `//services/foundation_echo:process_tests`, and the new unit test.
+
+### H1S2-05 (A-15): large transfers inside one binaryH1S2-05 (A-15): large transfers inside one binary
+
+**Facts:**
+
+- `platform/runtimekit/BUILD.bazel:55-62` credits `exclusive` with preventing ENOBUFS, but `exclusive` only serializes Bazel targets.
+- libtest still runs a binary's 8, 16 and 32 MiB responses in parallel. The routes are `/big`, `/disconnect` and `/stall` (`support.rs:279-285,310-320`), requested at `transport.rs:581,600,661` and `shutdown.rs:163`. Cargo ignores the tag.
+- ENOBUFS then becomes a `write_failed` FAIL: a host failure reported as a verdict.
+
+**Criterion:** under both Cargo and Bazel, no two responses of size `BIG` or larger are in flight at once within one binary. A shared guard in `support.rs` enforces this: the handler refuses a large route unless the guard is held, failing with `large transfer without the serial guard`. The parent corrects the BUILD comment and DOC1's `platform/runtimekit/README.md:147`.
+
+**RED:** a case that requests the BIG route without the guard expects the refusal; the base serves it.
+
+**Check:** `bazel test //platform/runtimekit:{transport,shutdown,overrun}_tests --runs_per_test=10` on a quiet Mac, and `cargo test -p mindclade-runtimekit`.
+
+### H1S2-06: Echo `compile_fail` controls (the H1-13 pattern)
+
+**Facts:**
+
+- `lib.rs` has four negatives without a control: `:11-15` E0624, `:17-23` E0451, `:29-31` E0599 and `:33-42` E0061.
+- The parent's probe found that rustdoc 1.96.1 ignores the codes, and that each block, compiled standalone, fails today with exactly its code. So the B3b-21/23 evidence is valid but unguarded.
+
+**Criterion:**
+
+- Each negative gets an adjacent sibling that compiles and differs only in the forbidden element.
+  - E0624: the same `id` and `digest`, and `None::<mindclade_foundation_echo::AdmissionContext>` in place of `::new`.
+  - E0451: the type named, with no struct literal.
+  - E0599: `AdmissionMode::Test`.
+  - E0061: the call without the trailing `true`, with the `Err` discarded.
+- **Adjacent** means the plain block comes first, with only doc prose (no other code block) between it and the negative. This is the layout at the H1-13 sites.
+- `scripts/test_compile_fail_pairs.py` requires every ````compile_fail,E\d{4}` block in a tracked `.rs` file to have an adjacent plain block whose diff against it is one contiguous hunk.
+
+**RED:** on the base, the pairing test lists exactly these four sites. The H1-13 sites must pass; otherwise stop.
+
+**Positive:** the parent re-probes each negative's standalone code.
+
+**Check:** `//services/foundation_echo:composition_compile_fail`, `cargo test -p mindclade-foundation-echo --doc`, and the new unit test.
+
+### H1S2-07: the B3b-24 idle-permit test (`process.test.mjs:369-406`)
+
+**Facts:**
+
+- (a) The slow-host pre-check (`:386-390`) calls `assert.fail("harness timing: …")`, which is outside the section 5 family.
+- (b) The pre-check sees only the stderr received so far, so a deadline that is logged but unread still passes it.
+- (c) `isIdleTerminal` (`:386-387`) accepts `deadline`, and `:403` accepts reason `header` for either event. A header deadline can therefore free the permit and the case still passes.
+- With `idle[0].socket.destroy()` (`:391`) deleted, the base still passes, after about 2 s.
+
+**Criterion:** after the reply, wait (bounded) for `completed` on conn 9. Record each stderr line's arrival on the test's monotonic clock (`performance.now()`). Then judge the complete, ordered stderr list, where `X` is conn 1 `disconnect`/`header`, `A` is conn 9 `accepted`, and `D` is any conn 1-8 `deadline`:
+
+- PASS only if `X` exists, `A` follows `X`, and no `D` precedes `A`.
+- A `D` before `X`, or no `X` and a `D` before `A`, fails with `harness timeout: an idle header deadline preceded the permit-release step`.
+- `X` with no earlier `D`, but `A` missing or after a `D`: let `D1` be the first `D` after `X`.
+  - If `D1` arrived at least 500 ms after `X`, this is a product failure: `closing an idle connection did not release its permit`.
+  - If it arrived sooner, the host was too slow to judge: `harness timeout: an idle header deadline arrived within 500 ms of the permit-release step`.
+- The async pre-check goes, or remains only as an early `harness timeout:` exit. There are no retries and no wider windows.
+
+**RED:**
+
+- With the destroy removed, the case passes today.
+- With a 2200 ms delay before the ninth write, it reports `harness timing:` or passes.
+- Both must fail with `harness timeout:`.
+- A parent scratch RuntimeKit mutation, in which a disconnect frees no permit, must give the product message.
+
+**Check:** `//services/foundation_echo:process_tests --runs_per_test=10` on a quiet Mac, then Linux CI.
+
+### H1S2-08 (B3b deferred Minor): a vacuous struct-literal negative
+
+**Facts:** `tests/conformance/vs001/service_config/forgery.rs:47-50` (`ServiceConfig {}`) also fails on missing fields (E0063). It would stay green if the fields in `platform/runtimekit/src/config.rs:47-59` became public.
+
+**Criterion:** use a negative that fails only on privacy. Either a functional record update, `fn forge(c: ServiceConfig) -> ServiceConfig { ServiceConfig { ..c } }`, or a literal naming all eleven fields.
+
+**RED:** a scratch probe with public fields shows that `{}` still fails while the new form compiles. With private fields, the new form fails with E0451.
+
+**Check:** `//tests/conformance/vs001:service_config_compile_fail`.
+
+### H1S2-09 (B3b): unbounded `cargo metadata`
+
+**Facts:**
+
+- `platform/runtimekit/tests/dependencies.rs:45-61` and `services/foundation_echo/tests/composition.rs:626-642` call `.output()` with no bound. Under Cargo they can block on the package-cache lock.
+- Only Cargo runs them: under Bazel, `under_bazel()` (`dependencies.rs:12`, `composition.rs:44-46`) selects the genquery route instead.
+
+**Criterion:** a 60 s bound; on expiry, kill the child and panic with `harness timeout: cargo metadata`.
+
+**RED:** a bounded observation. Run each built test binary directly, with `CARGO` set to a script that sleeps 300 s, under an outer 120 s observer bound. On the base the observer kills it with no test result. After the fix, it fails within the 60 s bound with `harness timeout: cargo metadata`.
+
+**Check:** `cargo test -p mindclade-runtimekit --test dependencies` and `cargo test -p mindclade-foundation-echo --test composition`.
+
+## Parent: build configuration
+
+### H1S2-10 (A-16): network denial
+
+**Paths:** `.bazelrc`, a pin in `tools/build/toolchain_test.py`, and BUILD tags only where proven necessary.
+
+**Criterion:** add `build --sandbox_default_allow_network=false`; `test` inherits it.
+
+**Socket users on `efb48e8`:**
+
+- Loopback TCP in `//platform/runtimekit`: `std_socket_probes` on 127.0.0.1 and ::1 (`std_socket_probes.rs:21-26,170-177`), `config_tests` (`tests/config.rs:163-180`) and `{transport,shutdown,overrun}_tests` (`tests/support.rs`).
+- Loopback TCP elsewhere: `//tests/conformance/vs001:service_http_rust` (`tests/conformance/vs001/service_http/service_http.rs:143`), and in `//services/foundation_echo`, `composition_in_process` (`composition.rs:217-218`), `supervisor_unit_tests` (which runs the real supervisor, `lib.rs:427-440`) and `process_tests` (Node `net` plus the binary).
+- An AF_UNIX bind in `//tests/conformance/vs001:service_driver` (`service_driver_test.py:656-663`). This is the likeliest macOS denial. Nothing else opens a socket; the client tests inject `fetch` (`client.test.mjs:28`).
+
+**Tags:**
+
+- `requires-network` goes only on a target whose log, with the flag set, shows EPERM or EACCES at `socket`, `bind`, or `connect` on some host. That log is the RED.
+- The expected set is empty, because both sandboxes keep loopback.
+- A service_driver AF_UNIX denial may instead be fixed in the test by moving the socket path. The test author owns that fix, after K1 merges; the parent rules on it.
+
+**Evidence:**
+
+- Record `testResult.executionInfo.strategy` from the aggregate's BEP file for each socket target: `darwin-sandbox` on the Mac and `linux-sandbox` on Linux.
+- Positive proof of denial: on each host, a scratch (never committed) test connects to `192.0.2.1:9` (TEST-NET-1) with the flag set. It must fail at `connect` within 5 s with a denial error: EPERM or EACCES, or ENETUNREACH inside the Linux sandbox's network namespace. Record the log beside the strategy.
+- Linux (R-2): if Linux shows another strategy, or its probe connects, the denial claim is BLOCKED on Linux with a note naming what was observed. No `.github` change is made. Every target must still pass there with the flag set.
+
+**Pin:**
+
+- `toolchain_test.py` asserts the exact `.bazelrc` line, and asserts that an exact-tag query for `requires-network` returns the recorded allowlist.
+- The query runs with its own bound of at most 300 s, not `run_tool`'s 30 s (`toolchain_test.py:14`). `TimeoutExpired` fails with `harness timeout: bazel query`. This is a host failure, which the parent reports as BLOCKED; it is never a pass or a verdict on the pin.
+
+**RED:** the pin fails on the base.
+
+**Stop:**
+
+- a target needs non-loopback network;
+- a failure that no tag fixes;
+- on the Mac, `processwrapper-sandbox` or `local`, or a scratch probe that connects: denial is not enforced there.
+
+**Check:** the pin, `just verify` on the Mac and Linux CI, all with the flag set.
+
+### H1S2-11 (A-15): uncached host probes
+
+**Facts:** `std_socket_probes.rs:3-4` claims evidence "on the host that runs them". But the target (`platform/runtimekit/BUILD.bazel:26-33`) is cacheable, and `validate_execution` (`verify_foundation.py:127-141`) accepts a cached PASSED.
+
+**Criterion:** tag the target `external`, and pin the tag in `toolchain_test.py` with an exact-tag query, bounded as in H1S2-10.
+
+**RED:** run `bazel test //platform/runtimekit:std_socket_probes --lockfile_mode=error` twice. On the base, the second run prints `(cached) PASSED`; after the fix it executes the probes.
+
+### H1S2-12 (A-23): unused `serde_json`
+
+**Facts:** `platform/runtimekit/BUILD.bazel:58-83` gives `@crates//:serde_json` to `shutdown_tests` and `overrun_tests`, but only `transport.rs:876` uses it.
+
+**Criterion:** only `transport_tests` keeps it. The package-wide Cargo dev-dependency stays.
+
+**RED:** `bazel query 'labels(deps, //platform/runtimekit:shutdown_tests)'` lists it today. Afterwards it is absent for `shutdown_tests` and `overrun_tests`, present for `transport_tests`, and all three targets pass.
+
+**B4:** this only narrows the edges B4 observes. Confirm that B4 has no unused-allowlist diagnostic.
+
+**Not taken:** A-23's dead `github_audit.get_git` (`tools/engineering/github_audit.py:362` on `efb48e8`; only `test_governance_github.py:1345` uses it) stays recorded, because W1 is closed.
+
+### H1S2-13: regeneration
+
+Stage 2's generator-input edits are `.bazelrc` (H1S2-10), `codegen/src/publication.rs` (H1S2-01, tests module), and `codegen/src/projection.rs` (H1S2-02). All three are in `GENERATOR_INPUTS` (`generator.rs:21,59,61`), which embeds whole files.
+
+After the last of them, run `just generate-foundation` and `just generate-vs001` once. Only the generator fingerprint in the two manifests may change. Then run `just update-tree`.
+
+## W6: scaffold validators (after B4, DOC1 and K1 merge)
+
+**Implementer:** `scripts/validate_{scaffold,repository}.py`. **Test author:** `scripts/test_validate_{scaffold,repository}.py`. **Parent:** the manifest record.
+
+Both checks skip the policy-bound prefixes `.github/**` and `.agents/policies/**` explicitly, and print one line naming them (R-1 ruling). The record implies no owner attestation there; the governance tools already cover them.
+
+### H1S2-14 (F1): real code beside stubs, with no activation record
+
+**Facts:**
+
+- `platform/runtimekit` holds 14 real files beside 8 stub directories (`config/`, `lifecycle/`, `shutdown/`, `telemetry/`, …).
+- `platform/testkit` holds 7 real files beside 7 stub directories (`fake_clock/`, `fake_identity/`, …).
+- `validate_scaffold.py:117-129` checks only listed paths, markers and hashes. `activated_files` (`:111-122`) covers named blueprint files only.
+- The only record is prose, in `repository-layout.json` `platform.activation`.
+- The same pattern appears under `.agents`, `contracts/typespec`, `core`, `tools/build`, and `tools/engineering`.
+
+**Criterion:**
+
+- `blueprint-scaffold.json` gains `activated_sources: [{path, gate, reason, realises?}]` (R-1). `validate_scaffold` checks that `path` is a safe prefix, `gate` is an existing spec document, `realises` names approved stub directories of the same component, and each prefix holds at least one Git-visible file that is not a stub.
+- Rule: let `P` be a blueprint directory whose blueprint subdirectories are all stub directories. Every Git-visible file under `P` that is outside those stub directories and not manifest-listed must be under a prefix.
+- Definitions:
+  - `P`'s **blueprint subdirectories** are its direct children listed in the manifest's `directories` or `extensions`.
+  - A **stub directory** is one whose `.gitkeep` is in `stub_files`.
+  - On `efb48e8` this reading gives exactly 7 roots: `.agents`, `contracts/typespec`, `core`, `platform/runtimekit`, `platform/testkit`, `tools/build`, and `tools/engineering`. Counting any directory that holds a stub file would add `docs/architecture`, whose `generated/` and `model/` hold file stubs.
+
+**RED:** in the temporary-repo tests, `platform/runtimekit/src/x.rs` without a record passes today and must fail.
+
+**Positive:** it passes once recorded. A stale record, or a `realises` entry naming a directory that is not a stub, fails.
+
+### H1S2-15 (F2): the unreviewed-source guard covers only `scaffolded` roots
+
+**Facts:**
+
+- `validate_repository.py:108-113` checks `children <= approved_stubs` only when the root's state is `scaffolded`, so in a `present` root any file may land inside a stub directory.
+- On `efb48e8`, 13 stub directories already hold unrecorded files: `.agents/{evals,policies,prompts,roles,skills,workflows}`, `.github/workflows`, `codegen/frontend/typespec`, `contracts/fixtures`, `docs/architecture/engineering`, `docs/developer`, `docs/operations`, and `tests/conformance`. Two of them, `.agents/policies` and `.github/workflows`, are skipped.
+- DOC1 adds `docs/api` and `docs/runbooks`.
+
+**Criterion:** whatever the root's state, every Git-visible path inside a stub directory `X/`, other than the stub itself, must be under a prefix. Otherwise the check fails with `planned stub directory has unreviewed source: X`.
+
+**RED:** `services/api_gateway/src/main.rs` passes today and must fail. `src/` there is a stub directory, and `services` is `present`.
+
+**Bootstrap:**
+
+- The record lists exactly what the checks report on the W6 base (B4, DOC1, and K1 merged), minus the skipped prefixes.
+- On `efb48e8` plus DOC1 that is 20 prefixes: 13 directories from this item (the 11 unskipped above, plus `docs/api` and `docs/runbooks`) and the 7 roots from H1S2-14. The B4 and K1-32 transitions may change the list.
+- Each entry cites an existing gate. If no gate can be cited, stop.
+
+### H1S2-16 (F5): the BLOCKED rule for executable stubs
+
+The audit's "convention only" is partly wrong.
+
+**Facts:**
+
+- `test_validate_scaffold.py:190-205` already runs every `.py` and `.sh` stub and asserts exit 2 plus `BLOCKED:` in stderr.
+- Its gaps: it selects by suffix only, matches stderr as a substring, and never checks stdout. `validate_scaffold.py` (which `just verify-scaffold` runs) never checks the behaviour at all.
+- On `efb48e8`, all 42 executable stubs equal one of two templates (`.py`, `.sh`) byte for byte, with their own path filled in (verified). No reseal is needed.
+- Exit 2 is documented at `docs/architecture/reviews/2026-09-22-original-blueprint-alignment.md:117`.
+
+**Criterion:**
+
+- `validate` treats a stub as executable if its suffix is `.py` or `.sh`, its first line is a `#!`, or any exec bit is set.
+- The two templates are constants in `validate_scaffold.py`, equal to the 42 current stubs. An executable stub must equal its interpreter's template, with its own path filled in. Any other interpreter fails with `unsupported executable stub`.
+- The test asserts the exact stderr line `BLOCKED: <path> is an unimplemented blueprint stub.\n`, empty stdout and exit 2.
+
+**RED:** two stubs pass today and must fail: an extensionless `#!/bin/sh` stub that has the marker but exits 0, and a `.mjs` stub whose first line is `#!/usr/bin/env node` (with `unsupported executable stub`).
+
+**Check:** `python3 -m unittest scripts/test_validate_scaffold.py scripts/test_validate_repository.py`, then `just verify-scaffold verify-tree`.
+
+## Parent: DX docs (after DOC1 merges)
+
+### H1S2-17 (N-5): flakes on a fresh clone
+
+**Facts:** without flakes enabled, `nix develop` fails before doctor runs; DX2 needed `NIX_CONFIG="experimental-features = nix-command flakes"`. No doc says so, and only CI sets it (`foundation.yaml:32`). `nixConfig` cannot help, because Nix reads it only once flakes are on.
+
+**Criterion:**
+
+- `start-here.md` (after `nix --version`) and a new `troubleshooting.md` row say that `nix-command` and `flakes` must be enabled.
+- They give two routes. The operator enables both in `nix.conf` (agents never change daemon config), or the command itself is prefixed with `nix --extra-experimental-features 'nix-command flakes' develop --no-write-lock-file -c …`.
+- The literal commands that `test_doctor.py:408` requires stay (the test spans `:403-409`).
+
+**RED:** `test_doctor.py`'s entry-document test gains the new substrings and fails today.
+
+### H1S2-18 (N-4): direnv, as opt-in docs only
+
+**Criterion:** document an untracked `.envrc` (`use flake . --no-write-lock-file`) with a `.git/info/exclude` entry; without the entry, the file trips root-file drift and doctor's dirty check. Also document the GC-root alternative, `nix develop --no-write-lock-file --profile .direnv/dev -c true`. No repository file is added.
+
+No RED: this is docs only, like H1-23. Check: `just verify-tree`.
+
+## Also found on main (from B3b)
+
+- `forgery.rs:47-50`: a vacuous negative. Handled by H1S2-08.
+- `mutate.py:22-26,76-77`: untested guards. `PROBES` in `BUILD.bazel:124-130` duplicates `process_mutations.py:17`. Both are handled by H1S2-04.
+- `dependencies.rs:45-61` and `composition.rs:626-642`: unbounded `cargo metadata`. Handled by H1S2-09.
+- `platform/runtimekit/src/lifecycle.rs:613-621`: the shutdown join can block on an accept thread that has cleared `accept_running` but is stuck in `admit` on a stalled telemetry sink. This is B3b's deferred Minor. It is a production change, and Rob did not take it (R-3).
+- `services/foundation_echo/tests/process.rs:20-23`: `.status()` has no bound of its own. `size = "large"` (900 s) bounds it, with Bazel's distinct TIMEOUT status. No action.
+
+## Stop conditions
+
+- A RED does not fail on the base for its stated reason. Re-audit the item; do not reword it.
+- A B4, K1, or DOC1 merge changes a cited fact, such as the `git` probe or the stage check. Re-audit the item on the implementation base.
+- The per-item stops:
+  - H1S2-10 (above);
+  - H1S2-06, a negative that no longer fails with its code (this invalidates the B3b-21/23 evidence);
+  - H1S2-13, any diff beyond the generator fingerprint;
+  - H1S2-14/15, a prefix with no citable gate, or a flagged path with no owner.
+- H1S2-07: on a quiet host, `X` precedes every `D` but `A` never follows. Report this as a B3b product regression; never widen the check.
+
+## Rob decisions (DECIDED 2026-09-26, chat, AskUserQuestion)
+
+- **R-1 (H1S2-14/15): decided.**
+  - Extend `mindclade.blueprint-scaffold.v1` in place with `activated_sources` and `realises`. This is the "reviewed manifest transition" that ADR-015 requires; the precedent is B4 R2, which also extended a schema in place.
+  - Keep the six overlapping stubs (`runtimekit/{config,lifecycle,shutdown,telemetry}` and `testkit/{fake_clock,fake_identity}`) and record them under `realises`, because the blueprint digest binds those directories.
+  - Parent ruling: the bootstrap excludes the policy-bound prefixes `.github/**` and `.agents/policies/**`. No owner attestation is implied, and the governance tools already cover them. The check skips them explicitly and says so.
+- **R-2 (H1S2-10): decided.** Record the network denial as Mac-only. Linux is BLOCKED for that claim, with a note; there is no `.github` change.
+- **R-3: decided, not taken.** The `lifecycle.rs:613-621` join stays recorded.
+
+## Deferred (unchanged)
+
+- A-13, A-14, and the Bazel CI runner and cache: owner decisions. N-7 (CI Nix cache): policy-bound.
+- N-6 is closed by H1-27 (`legacy_path_syntax = True`).
+- N-8 (`gitMinimal`) would edit `flake.nix`, force a regeneration and lose the macOS keychain helper.
+- An aggregate-level BLOCKED for harness timeouts would need a section 5 amendment and a B4-owned change. Not proposed.
+- The drift-location half of the dropped H1-31: `verify` reports every drift at `manifest.json` (`codegen/src/publication.rs:363-369`), and `codegen/tests/cases/projection.rs:357-360` pins that. K1-01 does not change it (`c099d44`). It needs a parent ruling: a K1 amendment or a later H1 item.
+
+## Checks the parent runs
+
+- The focused RED and GREEN run for each item, with mutation logs, and the H1S2-10 sandbox-strategy record and scratch denial probes.
+- `--runs_per_test=10` for `process_tests` and the RuntimeKit socket targets, on a quiet Mac.
+- `nix develop --no-write-lock-file -c just verify` on the Mac, and Linux `linux-foundation` via `workflow_dispatch` on the candidate SHA.
+- A fresh whole-candidate review.
+
+## Parent rulings on revision 2 (2026-09-26)
+
+- **H1S2-13 generator inputs.** The author's correction stands: `.bazelrc`, `codegen/src/publication.rs`, and `codegen/src/projection.rs` are all generator inputs (`generator.rs:59,61`). Any H1S2 change to them is followed by `just generate-foundation`, `just generate-vs001`, and `just update-tree`, run by the parent.
+- **H1S2-19 (new, from the H1-31 remainder).** Output drift is still reported at `manifest.json` (`publication.rs:363-369`) rather than at the drifted file. Fix: report each drifted catalog path at its own location, and keep the manifest-level summary. RED: an edit to one owned file must yield a diagnostic located at that file. `codegen/tests/cases/projection.rs:357-360` pins the old location and changes with the fix, named in the commit. It runs after K1 merges (W4 rules).
+- **H1S2-04 `--names` RED.** The author's reading stands: a sixth `SELECTED` entry with `PROBES` unchanged is the silent case. The RED step confirms it on the base before GREEN; if the base does not fail as stated, stop and re-audit.
+- **Numbers.** Accepted, with one constraint: the `bazel query` bound must be at least 5 s below any enclosing timeout. `run_tool` imposes 30 s, so under it the bound is 25 s. A timeout reports `harness timeout: bazel query` (BLOCKED).
+- **R-2.** The conditional reading stands: Linux is recorded normally if `linux-sandbox` is in use and the scratch probe is denied; otherwise it is BLOCKED with a note. This is what Rob's answer covers.
+- **H1S2-07.** Every order other than X, then D after the margin, fails with a named message `unexpected event order: <sequence>`. Only an order that clears the margin rule is a product verdict; any other is a `harness timeout:`.
+- **H1S2-07 amendment (2026-09-26, review fix pass; strengthening).** An order in which `A` precedes every `X` and every `D` is a product verdict, not an `unexpected event order`: it fails with `the ninth connection was admitted while every permit was held`. RuntimeKit records a connection's terminal event before it releases that permit (`http.rs:442-447`, `finish`), records `accepted` only after taking a permit (`lifecycle.rs:459`), and writes stderr synchronously (`telemetry.rs:291`), so no host delay can produce that order. The judge checks it straight after the PASS case, so an `A`-first order gets this verdict whatever follows. Pinned-test change named for this amendment: the synthetic cases `[A, X]` and `[A]` move from `unexpected event order` to this message, and `[A, D, X]` and `[]` are added. RED: a scratch RuntimeKit with one permit more than `max_in_flight` reported `harness timeout: unexpected event order: A@3ms X@3ms` before the amendment and this message after it.
+- **H1S2-19 paths and check (parent ruling, 2026-09-26, closeout dispatch audit).** Implementer: `verify` in `codegen/src/publication.rs` (non-test code only). Test author: `codegen/tests/cases/projection.rs` (the drift pin, `:369` on the closeout base) and the tests module of `codegen/src/publication.rs`, which the H1S2-01 test author also edits, never at the same time. Each drifted or missing catalog entry fails `output-drift` located at its own output name, in catalog order, and the existing `output-drift` summary at `manifest.json` stays. `codegen/src/main.rs` is not edited. Check: `//codegen:tests` and `//codegen:unit_tests`, then the H1S2-13 regeneration.
+
+## Integration clarification (2026-09-27): existing source accounting
+
+For the W6 bootstrap, `gate` identifies the reviewed authority for the manifest transition. It does not retroactively approve the original source. W6 itself governs retrospective records for `.agents` and its non-policy source directories, `docs/architecture/engineering`, and `docs/operations`. Those files already existed on main `411fbacf436c24484e1d27ad48fc5240af801c17`; the parent checked their Git lineage before adding the records. In particular, the prompts and skill discovery README originate in `668fd40`, `d72dc98`, and `0375c7f`; the supervised roles, engineering documents and operator runbook originate in `ea6114c`. This is inventory accounting under H1S2-14/15 and R-1, not a claim that W6 previously approved their implementation.
+
+All original stub entries and hashes remain intact, including the six `realises` markers. Policy-bound prefixes remain excluded. New files still require ordinary path ownership, review and evidence; an inventory prefix does not authorize future work. No implementation-maturity or connected acceptance status changes through these records.
+
+**Facts:**
+
+- `platform/runtimekit/BUILD.bazel:55-62` credits `exclusive` with preventing ENOBUFS, but `exclusive` only serializes Bazel targets.
+- libtest still runs a binary's 8, 16 and 32 MiB responses in parallel. The routes are `/big`, `/disconnect` and `/stall` (`support.rs:279-285,310-320`), requested at `transport.rs:581,600,661` and `shutdown.rs:163`. Cargo ignores the tag.
+- ENOBUFS then becomes a `write_failed` FAIL: a host failure reported as a verdict.
+
+**Criterion:** under both Cargo and Bazel, no two responses of size `BIG` or larger are in flight at once within one binary. A shared guard in `support.rs` enforces this: the handler refuses a large route unless the guard is held, failing with `large transfer without the serial guard`. The parent corrects the BUILD comment and DOC1's `platform/runtimekit/README.md:147`.
+
+**RED:** a case that requests the BIG route without the guard expects the refusal; the base serves it.
+
+**Check:** `bazel test //platform/runtimekit:{transport,shutdown,overrun}_tests --runs_per_test=10` on a quiet Mac, and `cargo test -p mindclade-runtimekit`.
+
+### H1S2-06: Echo `compile_fail` controls (the H1-13 pattern)
+
+**Facts:**
+
+- `lib.rs` has four negatives without a control: `:11-15` E0624, `:17-23` E0451, `:29-31` E0599 and `:33-42` E0061.
+- The parent's probe found that rustdoc 1.96.1 ignores the codes, and that each block, compiled standalone, fails today with exactly its code. So the B3b-21/23 evidence is valid but unguarded.
+
+**Criterion:**
+
+- Each negative gets an adjacent sibling that compiles and differs only in the forbidden element.
+  - E0624: the same `id` and `digest`, and `None::<mindclade_foundation_echo::AdmissionContext>` in place of `::new`.
+  - E0451: the type named, with no struct literal.
+  - E0599: `AdmissionMode::Test`.
+  - E0061: the call without the trailing `true`, with the `Err` discarded.
+- **Adjacent** means the plain block comes first, with only doc prose (no other code block) between it and the negative. This is the layout at the H1-13 sites.
+- `scripts/test_compile_fail_pairs.py` requires every ````compile_fail,E\d{4}` block in a tracked `.rs` file to have an adjacent plain block whose diff against it is one contiguous hunk.
+
+**RED:** on the base, the pairing test lists exactly these four sites. The H1-13 sites must pass; otherwise stop.
+
+**Positive:** the parent re-probes each negative's standalone code.
+
+**Check:** `//services/foundation_echo:composition_compile_fail`, `cargo test -p mindclade-foundation-echo --doc`, and the new unit test.
+
+### H1S2-07: the B3b-24 idle-permit test (`process.test.mjs:369-406`)
+
+**Facts:**
+
+- (a) The slow-host pre-check (`:386-390`) calls `assert.fail("harness timing: …")`, which is outside the section 5 family.
+- (b) The pre-check sees only the stderr received so far, so a deadline that is logged but unread still passes it.
+- (c) `isIdleTerminal` (`:386-387`) accepts `deadline`, and `:403` accepts reason `header` for either event. A header deadline can therefore free the permit and the case still passes.
+- With `idle[0].socket.destroy()` (`:391`) deleted, the base still passes, after about 2 s.
+
+**Criterion:** after the reply, wait (bounded) for `completed` on conn 9. Record each stderr line's arrival on the test's monotonic clock (`performance.now()`). Then judge the complete, ordered stderr list, where `X` is conn 1 `disconnect`/`header`, `A` is conn 9 `accepted`, and `D` is any conn 1-8 `deadline`:
+
+- PASS only if `X` exists, `A` follows `X`, and no `D` precedes `A`.
+- A `D` before `X`, or no `X` and a `D` before `A`, fails with `harness timeout: an idle header deadline preceded the permit-release step`.
+- `X` with no earlier `D`, but `A` missing or after a `D`: let `D1` be the first `D` after `X`.
+  - If `D1` arrived at least 500 ms after `X`, this is a product failure: `closing an idle connection did not release its permit`.
+  - If it arrived sooner, the host was too slow to judge: `harness timeout: an idle header deadline arrived within 500 ms of the permit-release step`.
+- The async pre-check goes, or remains only as an early `harness timeout:` exit. There are no retries and no wider windows.
+
+**RED:**
+
+- With the destroy removed, the case passes today.
+- With a 2200 ms delay before the ninth write, it reports `harness timing:` or passes.
+- Both must fail with `harness timeout:`.
+- A parent scratch RuntimeKit mutation, in which a disconnect frees no permit, must give the product message.
+
+**Check:** `//services/foundation_echo:process_tests --runs_per_test=10` on a quiet Mac, then Linux CI.
+
+### H1S2-08 (B3b deferred Minor): a vacuous struct-literal negative
+
+**Facts:** `tests/conformance/vs001/service_config/forgery.rs:47-50` (`ServiceConfig {}`) also fails on missing fields (E0063). It would stay green if the fields in `platform/runtimekit/src/config.rs:47-59` became public.
+
+**Criterion:** use a negative that fails only on privacy. Either a functional record update, `fn forge(c: ServiceConfig) -> ServiceConfig { ServiceConfig { ..c } }`, or a literal naming all eleven fields.
+
+**RED:** a scratch probe with public fields shows that `{}` still fails while the new form compiles. With private fields, the new form fails with E0451.
+
+**Check:** `//tests/conformance/vs001:service_config_compile_fail`.
+
+### H1S2-09 (B3b): unbounded `cargo metadata`
+
+**Facts:**
+
+- `platform/runtimekit/tests/dependencies.rs:45-61` and `services/foundation_echo/tests/composition.rs:626-642` call `.output()` with no bound. Under Cargo they can block on the package-cache lock.
+- Only Cargo runs them: under Bazel, `under_bazel()` (`dependencies.rs:12`, `composition.rs:44-46`) selects the genquery route instead.
+
+**Criterion:** a 60 s bound; on expiry, kill the child and panic with `harness timeout: cargo metadata`.
+
+**RED:** a bounded observation. Run each built test binary directly, with `CARGO` set to a script that sleeps 300 s, under an outer 120 s observer bound. On the base the observer kills it with no test result. After the fix, it fails within the 60 s bound with `harness timeout: cargo metadata`.
+
+**Check:** `cargo test -p mindclade-runtimekit --test dependencies` and `cargo test -p mindclade-foundation-echo --test composition`.
+
+## Parent: build configuration
+
+### H1S2-10 (A-16): network denial
+
+**Paths:** `.bazelrc`, a pin in `tools/build/toolchain_test.py`, and BUILD tags only where proven necessary.
+
+**Criterion:** add `build --sandbox_default_allow_network=false`; `test` inherits it.
+
+**Socket users on `efb48e8`:**
+
+- Loopback TCP in `//platform/runtimekit`: `std_socket_probes` on 127.0.0.1 and ::1 (`std_socket_probes.rs:21-26,170-177`), `config_tests` (`tests/config.rs:163-180`) and `{transport,shutdown,overrun}_tests` (`tests/support.rs`).
+- Loopback TCP elsewhere: `//tests/conformance/vs001:service_http_rust` (`tests/conformance/vs001/service_http/service_http.rs:143`), and in `//services/foundation_echo`, `composition_in_process` (`composition.rs:217-218`), `supervisor_unit_tests` (which runs the real supervisor, `lib.rs:427-440`) and `process_tests` (Node `net` plus the binary).
+- An AF_UNIX bind in `//tests/conformance/vs001:service_driver` (`service_driver_test.py:656-663`). This is the likeliest macOS denial. Nothing else opens a socket; the client tests inject `fetch` (`client.test.mjs:28`).
+
+**Tags:**
+
+- `requires-network` goes only on a target whose log, with the flag set, shows EPERM or EACCES at `socket`, `bind`, or `connect` on some host. That log is the RED.
+- The expected set is empty, because both sandboxes keep loopback.
+- A service_driver AF_UNIX denial may instead be fixed in the test by moving the socket path. The test author owns that fix, after K1 merges; the parent rules on it.
+
+**Evidence:**
+
+- Record `testResult.executionInfo.strategy` from the aggregate's BEP file for each socket target: `darwin-sandbox` on the Mac and `linux-sandbox` on Linux.
+- Positive proof of denial: on each host, a scratch (never committed) test connects to `192.0.2.1:9` (TEST-NET-1) with the flag set. It must fail at `connect` within 5 s with a denial error: EPERM or EACCES, or ENETUNREACH inside the Linux sandbox's network namespace. Record the log beside the strategy.
+- Linux (R-2): if Linux shows another strategy, or its probe connects, the denial claim is BLOCKED on Linux with a note naming what was observed. No `.github` change is made. Every target must still pass there with the flag set.
+
+**Pin:**
+
+- `toolchain_test.py` asserts the exact `.bazelrc` line, and asserts that an exact-tag query for `requires-network` returns the recorded allowlist.
+- The query runs with its own bound of at most 300 s, not `run_tool`'s 30 s (`toolchain_test.py:14`). `TimeoutExpired` fails with `harness timeout: bazel query`. This is a host failure, which the parent reports as BLOCKED; it is never a pass or a verdict on the pin.
+
+**RED:** the pin fails on the base.
+
+**Stop:**
+
+- a target needs non-loopback network;
+- a failure that no tag fixes;
+- on the Mac, `processwrapper-sandbox` or `local`, or a scratch probe that connects: denial is not enforced there.
+
+**Check:** the pin, `just verify` on the Mac and Linux CI, all with the flag set.
+
+### H1S2-11 (A-15): uncached host probes
+
+**Facts:** `std_socket_probes.rs:3-4` claims evidence "on the host that runs them". But the target (`platform/runtimekit/BUILD.bazel:26-33`) is cacheable, and `validate_execution` (`verify_foundation.py:127-141`) accepts a cached PASSED.
+
+**Criterion:** tag the target `external`, and pin the tag in `toolchain_test.py` with an exact-tag query, bounded as in H1S2-10.
+
+**RED:** run `bazel test //platform/runtimekit:std_socket_probes --lockfile_mode=error` twice. On the base, the second run prints `(cached) PASSED`; after the fix it executes the probes.
+
+### H1S2-12 (A-23): unused `serde_json`
+
+**Facts:** `platform/runtimekit/BUILD.bazel:58-83` gives `@crates//:serde_json` to `shutdown_tests` and `overrun_tests`, but only `transport.rs:876` uses it.
+
+**Criterion:** only `transport_tests` keeps it. The package-wide Cargo dev-dependency stays.
+
+**RED:** `bazel query 'labels(deps, //platform/runtimekit:shutdown_tests)'` lists it today. Afterwards it is absent for `shutdown_tests` and `overrun_tests`, present for `transport_tests`, and all three targets pass.
+
+**B4:** this only narrows the edges B4 observes. Confirm that B4 has no unused-allowlist diagnostic.
+
+**Not taken:** A-23's dead `github_audit.get_git` (`tools/engineering/github_audit.py:362` on `efb48e8`; only `test_governance_github.py:1345` uses it) stays recorded, because W1 is closed.
+
+### H1S2-13: regeneration
+
+Stage 2's generator-input edits are `.bazelrc` (H1S2-10), `codegen/src/publication.rs` (H1S2-01, tests module), and `codegen/src/projection.rs` (H1S2-02). All three are in `GENERATOR_INPUTS` (`generator.rs:21,59,61`), which embeds whole files.
+
+After the last of them, run `just generate-foundation` and `just generate-vs001` once. Only the generator fingerprint in the two manifests may change. Then run `just update-tree`.
+
+## W6: scaffold validators (after B4, DOC1 and K1 merge)
+
+**Implementer:** `scripts/validate_{scaffold,repository}.py`. **Test author:** `scripts/test_validate_{scaffold,repository}.py`. **Parent:** the manifest record.
+
+Both checks skip the policy-bound prefixes `.github/**` and `.agents/policies/**` explicitly, and print one line naming them (R-1 ruling). The record implies no owner attestation there; the governance tools already cover them.
+
+### H1S2-14 (F1): real code beside stubs, with no activation record
+
+**Facts:**
+
+- `platform/runtimekit` holds 14 real files beside 8 stub directories (`config/`, `lifecycle/`, `shutdown/`, `telemetry/`, …).
+- `platform/testkit` holds 7 real files beside 7 stub directories (`fake_clock/`, `fake_identity/`, …).
+- `validate_scaffold.py:117-129` checks only listed paths, markers and hashes. `activated_files` (`:111-122`) covers named blueprint files only.
+- The only record is prose, in `repository-layout.json` `platform.activation`.
+- The same pattern appears under `.agents`, `contracts/typespec`, `core`, `tools/build`, and `tools/engineering`.
+
+**Criterion:**
+
+- `blueprint-scaffold.json` gains `activated_sources: [{path, gate, reason, realises?}]` (R-1). `validate_scaffold` checks that `path` is a safe prefix, `gate` is an existing spec document, `realises` names approved stub directories of the same component, and each prefix holds at least one Git-visible file that is not a stub.
+- Rule: let `P` be a blueprint directory whose blueprint subdirectories are all stub directories. Every Git-visible file under `P` that is outside those stub directories and not manifest-listed must be under a prefix.
+- Definitions:
+  - `P`'s **blueprint subdirectories** are its direct children listed in the manifest's `directories` or `extensions`.
+  - A **stub directory** is one whose `.gitkeep` is in `stub_files`.
+  - On `efb48e8` this reading gives exactly 7 roots: `.agents`, `contracts/typespec`, `core`, `platform/runtimekit`, `platform/testkit`, `tools/build`, and `tools/engineering`. Counting any directory that holds a stub file would add `docs/architecture`, whose `generated/` and `model/` hold file stubs.
+
+**RED:** in the temporary-repo tests, `platform/runtimekit/src/x.rs` without a record passes today and must fail.
+
+**Positive:** it passes once recorded. A stale record, or a `realises` entry naming a directory that is not a stub, fails.
+
+### H1S2-15 (F2): the unreviewed-source guard covers only `scaffolded` roots
+
+**Facts:**
+
+- `validate_repository.py:108-113` checks `children <= approved_stubs` only when the root's state is `scaffolded`, so in a `present` root any file may land inside a stub directory.
+- On `efb48e8`, 13 stub directories already hold unrecorded files: `.agents/{evals,policies,prompts,roles,skills,workflows}`, `.github/workflows`, `codegen/frontend/typespec`, `contracts/fixtures`, `docs/architecture/engineering`, `docs/developer`, `docs/operations`, and `tests/conformance`. Two of them, `.agents/policies` and `.github/workflows`, are skipped.
+- DOC1 adds `docs/api` and `docs/runbooks`.
+
+**Criterion:** whatever the root's state, every Git-visible path inside a stub directory `X/`, other than the stub itself, must be under a prefix. Otherwise the check fails with `planned stub directory has unreviewed source: X`.
+
+**RED:** `services/api_gateway/src/main.rs` passes today and must fail. `src/` there is a stub directory, and `services` is `present`.
+
+**Bootstrap:**
+
+- The record lists exactly what the checks report on the W6 base (B4, DOC1, and K1 merged), minus the skipped prefixes.
+- On `efb48e8` plus DOC1 that is 20 prefixes: 13 directories from this item (the 11 unskipped above, plus `docs/api` and `docs/runbooks`) and the 7 roots from H1S2-14. The B4 and K1-32 transitions may change the list.
+- Each entry cites an existing gate. If no gate can be cited, stop.
+
+### H1S2-16 (F5): the BLOCKED rule for executable stubs
+
+The audit's "convention only" is partly wrong.
+
+**Facts:**
+
+- `test_validate_scaffold.py:190-205` already runs every `.py` and `.sh` stub and asserts exit 2 plus `BLOCKED:` in stderr.
+- Its gaps: it selects by suffix only, matches stderr as a substring, and never checks stdout. `validate_scaffold.py` (which `just verify-scaffold` runs) never checks the behaviour at all.
+- On `efb48e8`, all 42 executable stubs equal one of two templates (`.py`, `.sh`) byte for byte, with their own path filled in (verified). No reseal is needed.
+- Exit 2 is documented at `docs/architecture/reviews/2026-09-22-original-blueprint-alignment.md:117`.
+
+**Criterion:**
+
+- `validate` treats a stub as executable if its suffix is `.py` or `.sh`, its first line is a `#!`, or any exec bit is set.
+- The two templates are constants in `validate_scaffold.py`, equal to the 42 current stubs. An executable stub must equal its interpreter's template, with its own path filled in. Any other interpreter fails with `unsupported executable stub`.
+- The test asserts the exact stderr line `BLOCKED: <path> is an unimplemented blueprint stub.\n`, empty stdout and exit 2.
+
+**RED:** two stubs pass today and must fail: an extensionless `#!/bin/sh` stub that has the marker but exits 0, and a `.mjs` stub whose first line is `#!/usr/bin/env node` (with `unsupported executable stub`).
+
+**Check:** `python3 -m unittest scripts/test_validate_scaffold.py scripts/test_validate_repository.py`, then `just verify-scaffold verify-tree`.
+
+## Parent: DX docs (after DOC1 merges)
+
+### H1S2-17 (N-5): flakes on a fresh clone
+
+**Facts:** without flakes enabled, `nix develop` fails before doctor runs; DX2 needed `NIX_CONFIG="experimental-features = nix-command flakes"`. No doc says so, and only CI sets it (`foundation.yaml:32`). `nixConfig` cannot help, because Nix reads it only once flakes are on.
+
+**Criterion:**
+
+- `start-here.md` (after `nix --version`) and a new `troubleshooting.md` row say that `nix-command` and `flakes` must be enabled.
+- They give two routes. The operator enables both in `nix.conf` (agents never change daemon config), or the command itself is prefixed with `nix --extra-experimental-features 'nix-command flakes' develop --no-write-lock-file -c …`.
+- The literal commands that `test_doctor.py:408` requires stay (the test spans `:403-409`).
+
+**RED:** `test_doctor.py`'s entry-document test gains the new substrings and fails today.
+
+### H1S2-18 (N-4): direnv, as opt-in docs only
+
+**Criterion:** document an untracked `.envrc` (`use flake . --no-write-lock-file`) with a `.git/info/exclude` entry; without the entry, the file trips root-file drift and doctor's dirty check. Also document the GC-root alternative, `nix develop --no-write-lock-file --profile .direnv/dev -c true`. No repository file is added.
+
+No RED: this is docs only, like H1-23. Check: `just verify-tree`.
+
+## Also found on main (from B3b)
+
+- `forgery.rs:47-50`: a vacuous negative. Handled by H1S2-08.
+- `mutate.py:22-26,76-77`: untested guards. `PROBES` in `BUILD.bazel:124-130` duplicates `process_mutations.py:17`. Both are handled by H1S2-04.
+- `dependencies.rs:45-61` and `composition.rs:626-642`: unbounded `cargo metadata`. Handled by H1S2-09.
+- `platform/runtimekit/src/lifecycle.rs:613-621`: the shutdown join can block on an accept thread that has cleared `accept_running` but is stuck in `admit` on a stalled telemetry sink. This is B3b's deferred Minor. It is a production change, and Rob did not take it (R-3).
+- `services/foundation_echo/tests/process.rs:20-23`: `.status()` has no bound of its own. `size = "large"` (900 s) bounds it, with Bazel's distinct TIMEOUT status. No action.
+
+## Stop conditions
+
+- A RED does not fail on the base for its stated reason. Re-audit the item; do not reword it.
+- A B4, K1, or DOC1 merge changes a cited fact, such as the `git` probe or the stage check. Re-audit the item on the implementation base.
+- The per-item stops:
+  - H1S2-10 (above);
+  - H1S2-06, a negative that no longer fails with its code (this invalidates the B3b-21/23 evidence);
+  - H1S2-13, any diff beyond the generator fingerprint;
+  - H1S2-14/15, a prefix with no citable gate, or a flagged path with no owner.
+- H1S2-07: on a quiet host, `X` precedes every `D` but `A` never follows. Report this as a B3b product regression; never widen the check.
+
+## Rob decisions (DECIDED 2026-09-26, chat, AskUserQuestion)
+
+- **R-1 (H1S2-14/15): decided.**
+  - Extend `mindclade.blueprint-scaffold.v1` in place with `activated_sources` and `realises`. This is the "reviewed manifest transition" that ADR-015 requires; the precedent is B4 R2, which also extended a schema in place.
+  - Keep the six overlapping stubs (`runtimekit/{config,lifecycle,shutdown,telemetry}` and `testkit/{fake_clock,fake_identity}`) and record them under `realises`, because the blueprint digest binds those directories.
+  - Parent ruling: the bootstrap excludes the policy-bound prefixes `.github/**` and `.agents/policies/**`. No owner attestation is implied, and the governance tools already cover them. The check skips them explicitly and says so.
+- **R-2 (H1S2-10): decided.** Record the network denial as Mac-only. Linux is BLOCKED for that claim, with a note; there is no `.github` change.
+- **R-3: decided, not taken.** The `lifecycle.rs:613-621` join stays recorded.
+
+## Deferred (unchanged)
+
+- A-13, A-14, and the Bazel CI runner and cache: owner decisions. N-7 (CI Nix cache): policy-bound.
+- N-6 is closed by H1-27 (`legacy_path_syntax = True`).
+- N-8 (`gitMinimal`) would edit `flake.nix`, force a regeneration and lose the macOS keychain helper.
+- An aggregate-level BLOCKED for harness timeouts would need a section 5 amendment and a B4-owned change. Not proposed.
+- The drift-location half of the dropped H1-31: `verify` reports every drift at `manifest.json` (`codegen/src/publication.rs:363-369`), and `codegen/tests/cases/projection.rs:357-360` pins that. K1-01 does not change it (`c099d44`). It needs a parent ruling: a K1 amendment or a later H1 item.
+
+## Checks the parent runs
+
+- The focused RED and GREEN run for each item, with mutation logs, and the H1S2-10 sandbox-strategy record and scratch denial probes.
+- `--runs_per_test=10` for `process_tests` and the RuntimeKit socket targets, on a quiet Mac.
+- `nix develop --no-write-lock-file -c just verify` on the Mac, and Linux `linux-foundation` via `workflow_dispatch` on the candidate SHA.
+- A fresh whole-candidate review.
+
+## Parent rulings on revision 2 (2026-09-26)
+
+- **H1S2-13 generator inputs.** The author's correction stands: `.bazelrc`, `codegen/src/publication.rs`, and `codegen/src/projection.rs` are all generator inputs (`generator.rs:59,61`). Any H1S2 change to them is followed by `just generate-foundation`, `just generate-vs001`, and `just update-tree`, run by the parent.
+- **H1S2-19 (new, from the H1-31 remainder).** Output drift is still reported at `manifest.json` (`publication.rs:363-369`) rather than at the drifted file. Fix: report each drifted catalog path at its own location, and keep the manifest-level summary. RED: an edit to one owned file must yield a diagnostic located at that file. `codegen/tests/cases/projection.rs:357-360` pins the old location and changes with the fix, named in the commit. It runs after K1 merges (W4 rules).
+- **H1S2-04 `--names` RED.** The author's reading stands: a sixth `SELECTED` entry with `PROBES` unchanged is the silent case. The RED step confirms it on the base before GREEN; if the base does not fail as stated, stop and re-audit.
+- **Numbers.** Accepted, with one constraint: the `bazel query` bound must be at least 5 s below any enclosing timeout. `run_tool` imposes 30 s, so under it the bound is 25 s. A timeout reports `harness timeout: bazel query` (BLOCKED).
+- **R-2.** The conditional reading stands: Linux is recorded normally if `linux-sandbox` is in use and the scratch probe is denied; otherwise it is BLOCKED with a note. This is what Rob's answer covers.
+- **H1S2-07.** Every order other than X, then D after the margin, fails with a named message `unexpected event order: <sequence>`. Only an order that clears the margin rule is a product verdict; any other is a `harness timeout:`.
+- **H1S2-07 amendment (2026-09-26, review fix pass; strengthening).** An order in which `A` precedes every `X` and every `D` is a product verdict, not an `unexpected event order`: it fails with `the ninth connection was admitted while every permit was held`. RuntimeKit records a connection's terminal event before it releases that permit (`http.rs:442-447`, `finish`), records `accepted` only after taking a permit (`lifecycle.rs:459`), and writes stderr synchronously (`telemetry.rs:291`), so no host delay can produce that order. The judge checks it straight after the PASS case, so an `A`-first order gets this verdict whatever follows. Pinned-test change named for this amendment: the synthetic cases `[A, X]` and `[A]` move from `unexpected event order` to this message, and `[A, D, X]` and `[]` are added. RED: a scratch RuntimeKit with one permit more than `max_in_flight` reported `harness timeout: unexpected event order: A@3ms X@3ms` before the amendment and this message after it.
+- **H1S2-19 paths and check (parent ruling, 2026-09-26, closeout dispatch audit).** Implementer: `verify` in `codegen/src/publication.rs` (non-test code only). Test author: `codegen/tests/cases/projection.rs` (the drift pin, `:369` on the closeout base) and the tests module of `codegen/src/publication.rs`, which the H1S2-01 test author also edits, never at the same time. Each drifted or missing catalog entry fails `output-drift` located at its own output name, in catalog order, and the existing `output-drift` summary at `manifest.json` stays. `codegen/src/main.rs` is not edited. Check: `//codegen:tests` and `//codegen:unit_tests`, then the H1S2-13 regeneration.
+
+## Integration clarification (2026-09-27): existing source accounting
+
+For the W6 bootstrap, `gate` identifies the reviewed authority for the manifest transition. It does not retroactively approve the original source. W6 itself governs retrospective records for `.agents` and its non-policy source directories, `docs/architecture/engineering`, and `docs/operations`. Those files already existed on main `411fbacf436c24484e1d27ad48fc5240af801c17`; the parent checked their Git lineage before adding the records. In particular, the prompts and skill discovery README originate in `668fd40`, `d72dc98`, and `0375c7f`; the supervised roles, engineering documents and operator runbook originate in `ea6114c`. This is inventory accounting under H1S2-14/15 and R-1, not a claim that W6 previously approved their implementation.
+
+All original stub entries and hashes remain intact, including the six `realises` markers. Policy-bound prefixes remain excluded. New files still require ordinary path ownership, review and evidence; an inventory prefix does not authorize future work. No implementation-maturity or connected acceptance status changes through these records.
+
+## Related
+
+<CardGroup cols={2}>
+  <Card title="Governance ToolsGovernance Tools" icon="gavel" href="/developer/governance-tools">
+    Tools referenced throughout H1 for validation and enforcementTools referenced throughout H1 for validation and enforcement.
+  </Card>
+
+  <Card title="Runbooks OverviewRunbooks Overview" icon="book-open" href="/runbooks/overview">
+    Operational runbooks for local verification and regenerationOperational runbooks for local verification and regeneration.
+  </Card>
+
+  <Card title="Architecture ReviewArchitecture Reviews" icon="clipboard-check" href="/architecture/reviews/2026-09-22-original-blueprint-alignment">
+    Original blueprint alignment review that documented the scaffold conventionOriginal blueprint alignment review that documented the scaffold conventions.
+  </Card>
+
+  <Card title="K1 Codegen HardeningK1 Codegen Hardening" icon="code" href="/superpowers/specs/2026-09-26-k1-codegen-contracts-hardening-criteria">
+    The K1 criteria that H1S2 defers to and coordinates withThe K1 criteria that H1S2 defers to and coordinates with.
+  </Card>
+</CardGroup>

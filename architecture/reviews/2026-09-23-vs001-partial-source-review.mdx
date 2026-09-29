@@ -1,0 +1,34 @@
+---
+title: "VS-001 Partial Source Review"
+sidebarTitle: "VS-001 Partial Review"
+description: "Fresh agent source review of implemented A1-A3 and documentation at baseline bef879d, with no findings reported and observed Apple Silicon/Linux verification."
+---
+
+Date: 2026-09-23. Scope: implemented A1-A3 and documentation only. Base: `bef879d2d5d9e72cc36fec82ec8e17e0ffa1b976`. Reviewed head: `85a366140928c13254cc15d82aefff444577043e`. Fresh read-only reviewer: Archimedes, agent `01a0cdad-c4a1-7ea2-8d62-bbc57b1a5868`. This agent review is separate from implementation, not independent formal acceptance, protected review or scientific/release assurance.
+
+## Findings
+
+No Critical, Important or Minor source findings were reported. No review fix pass was needed. The reviewer found the implementation ready for the requested source-only integration, limited to A1-A3.
+
+The reviewer inspected journal/catalog validation before publication mutation, manifest-last publication and read-only interruption rejection; directional transitive compatibility with recursion and strict response handling; and receipt/run-attempt binding, non-passing CI outcomes, traversal/symlink/hash checks and externally pinned bundle identity. It did not run tests or alter files.
+
+## Decisions on review limits
+
+These are explicit limits, not silently dismissed findings:
+
+| Behavior set aside | Integration decision | Cost if wrong |
+| --- | --- | --- |
+| B1-D4 and v2 compatibility | Remain unstarted in the TODO; partial integration does not claim them | Additional implementation and qualification still required before a usable durable slice |
+| Power loss, network filesystems and hostile concurrent filesystem mutation | Accept documented local managed-writer/quiescent-export scope | No guarantee outside that filesystem threat model; users must not rely on it there |
+| Receipt authenticity, evaluator correctness and unpinned wholesale replacement | Transport integrity only; externally recorded expected digest is required for retrieval identity | An internally consistent bundle is not authenticated evidence without an external trust binding |
+| Shared archive, protected review and independent qualification | Keep external gates blocked; merge under the user's scoped source-only instruction | No qualified claim or protected approval path is established by this merge |
+| Fresh execution of final candidate and current CI state | Parent independently reran the clean reviewed candidate on Mac and inspected Linux result | Any later source change invalidates those revision-scoped results |
+| Third-party action internals | SHA pins/runtime declarations and workflow policy reviewed; upstream security audit not claimed | Residual third-party supply-chain risk remains |
+
+## Observed verification
+
+Clean Apple Silicon aggregate passed at reviewed head `85a3661`: 95 Python checks, 67 Rust tests, five doctests and five cached Bazel targets, with action inspection, unchanged locks and exact generated-output verification. [Linux run 35845041103](https://github.com/robpearc-mindclade/mindclade-vnext/actions/runs/35845041103), attempt 1, passed at that exact full SHA. Original receipts were downloaded and the canonical graph and manifest compared byte-for-byte with the local checkout.
+
+The implementation source is unchanged from `b6f3f33`; the reviewed head adds three documentation files/updates. Subsequent closeout edits record this review, the [source-only integration scope](https://github.com/Mindclade-org/mindclade-internal-monorepo/blob/main/CONTRIBUTING.md), and the [remaining work and evidence identities](/architecture/vs001-todo). They do not claim their later commit SHA was the earlier independently inspected candidate.
+
+Full VS-001 review remains due after B1-D4. No accepted policy decision, shared archive approval, release, deployment, biological validation or production claim is supplied by this review or the passing source checks.

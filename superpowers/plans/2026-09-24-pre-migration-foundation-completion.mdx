@@ -1,0 +1,294 @@
+---
+title: "Pre-Migration Foundation Completion Plan: Mainline Gates B2b–G3 and DX2"
+sidebarTitle: "Pre-Migration Completion"
+description: "Master plan for integrating PR #11, completing gates B2b, G2, B3b, B4, G3, and DX2, reconciling status docs, and producing a GHE Cloud transfer runbook before migration."
+---
+
+This page is the master plan for putting all branch and worktree work on `main`, then completing the pre-migration source gates B2b, G2, B3b, B4, G3, and the local DX2 rehearsal. After that, reconcile every status document and publish a final handoff plus a GHE Cloud transfer runbook, so Rob can transfer the repo to `Mindclade-org` and run O1-O4.
+
+<Note title="Approved by Rob on 2026-09-24">
+  This plan was approved by Rob on 2026-09-24 in a supervised Claude session and copied verbatim. `$R`/`$C` paths are the owner's workstation locations at approval time, not checkout requirements. Current status belongs in the [agent handoff](/developer/agent-handoff).
+</Note>
+
+## Summary
+
+| Attribute | Value |
+| --- | --- |
+| Goal | Put all branch/worktree work on `main`, then complete the pre-migration source gates B2b, G2, B3b, B4, G3 and the local DX2 rehearsal. After that, reconcile every status doc and publish a final handoff plus a GHE Cloud transfer runbook, so Rob can transfer the repo to `Mindclade-org` and run O1-O4. |
+| Architecture | This plan orders and gates work that is already specified in the repo's own plans. It does not restate their steps. Each gate becomes one reviewed PR from its own clean worktree, with Mac `just verify`, Linux `linux-foundation` CI and an owner-exception merge. The gate specs with step-level detail are [foundation compiler completion](/superpowers/plans/2026-09-23-foundation-compiler-completion) (B2b, B3b, B4), [foundation governance completion](/superpowers/plans/2026-09-23-foundation-governance-completion) (G2, G3) and [foundation developer readiness](/superpowers/plans/2026-09-23-foundation-developer-readiness) (DX2). Ordering follows [v1-integration-readiness](/superpowers/plans/2026-09-23-v1-integration-readiness) section "Dependency order". B2b/B3b are corrected by [foundation next steps](/developer/foundation-next-steps) (arrives with PR #11). |
+| Tech stack | Nix 2.35.1, Bazel 9.1.1, Rust 1.96.1, TypeSpec 1.16.0, Node 22.23.2, pnpm 12.3.4, Python 3.12.14. Canonical check: `nix develop --no-write-lock-file -c just verify`. |
+| Context | Rob wants the repo foundation finalized per its docs, with all branch and worktree work on `main` and a final handoff, before he transfers it to GitHub Enterprise. |
+
+## Scope and non-goals
+
+**In scope:**
+
+- Integrating PR #11 and reconciling the baseline (Task 0).
+- Gates B2b, G2, B3b, B4, G3, and DX2 (Tasks 1-6).
+- Final handoff and GHE Cloud transfer runbook (Task 7).
+- Per-gate worktrees, criteria freeze, RED/GREEN cycles, whole-candidate review, and owner-exception merges.
+- Reconciliation of all status docs, README, maturity, roadmap, and handoff registers.
+
+**Out of scope:**
+
+- Actual GHE Cloud transfer and O1-O4 execution (Rob performs these after Task 7).
+- Code changes outside the specified gate paths.
+- Any change to pinned tool versions or committed lock baselines without Rob approval.
+
+## Global constraints
+
+- Authority order is set by `AGENTS.md:5-15`. Stop and fix any authority conflict rather than coding around it.
+- Statuses are only PASS, FAIL or BLOCKED. Required unexecuted checks are `BLOCKED — not run`.
+- Never edit generated outputs by hand. Regenerate with `just generate-foundation` / `just generate-vs001`, then `just update-tree`.
+- No candidate edits to accepted policy (`.agents/policies/supervised.v1.json`). G3's policy revision is a **separate PR left open** for O3 adoption after migration.
+- Update SemanticInput@v1 and MindcladeGraph@v1 in place, with no v2 schemas. No `tch-rs` or Triton.
+- New third-party dependencies and lock changes need Rob's approval at the gate's criteria checkpoint. The parent alone edits `Cargo.lock`, `MODULE.bazel.lock`, `flake.nix`/`flake.lock` and `pnpm-lock.yaml`.
+- Git hygiene:
+  - Stage explicit paths only; no `git add -A`.
+  - No force-push, reset or squash.
+  - Merge with `gh pr merge N --merge`, matching PRs #1-#10.
+  - Delete only branches that are ancestors of `main`.
+- Each merge needs a **dated one-time owner exception** (CONTRIBUTING.md:54-98), approved by Rob in chat. Record it in the merge commit body and a PR comment, then consolidate it into CONTRIBUTING in the next docs PR. A doc cannot name its own final commit (`agent-handoff.md:94-98`).
+- Do the gate work in fresh worktrees only (`superpowers:using-git-worktrees`), as siblings of `$R` named `mindclade-vnext-<gate>`. The `$R` checkout carries untracked session `receipts/` dirs that Rob chose to keep, and these would make `candidate_tree_clean=false`.
+- Name branches `claude/<gate-slug>`. Linux CI runs through the `pull_request` trigger.
+
+## Review focus
+
+These are failure modes that no gate's own tests exercise. Each one gets its test or check in the task named.
+
+1. **The post-transfer governance path is untested.** An audit run with `--repository Mindclade-org/mindclade-vnext` must pass, and a case-mismatched org must fail with a clear diagnostic. Add both tests in Task 2 (G2).
+2. **Artifact download may break on GitHub's 302 redirect.** Downloads use `api.github.com` and refuse redirects (`github_audit.py:659-675`), while GitHub normally redirects artifact zips. Task 2 must prove with a fixture whether this reports BLOCKED. If it does, fix it to follow only a same-origin/`*.actions.githubusercontent.com` redirect, with tests for a disallowed host.
+3. **Status docs can drift from `main` after each merge.** Every gate PR updates the handoff register, maturity and README for its own gate. Task 7 runs a repo-wide sweep for superseded SHAs and PR numbers.
+4. **The clean-tree claim can be contaminated.** Run all `just verify` receipts in clean worktrees. Before each claim, check that `git status --porcelain` is empty.
+5. **Toolchain additions can break one host only.** Examples are protoc in B2b and the transport crate in B3b. Both Apple Silicon (local) and Linux (CI) must pass before any merge. A single-host pass is BLOCKED, not PASS.
+
+## Work breakdown
+
+### Execution model: per-gate cycle (applies to Tasks 1-6)
+
+For each gate, run `.agents/workflows/foundation-development.md` steps 1-7 as follows:
+
+- [ ] **Recover:** fetch, confirm `main` = `origin/main`, and create the worktree and branch from `main`.
+- [ ] **Freeze:** the parent writes `docs/superpowers/specs/<YYYY-MM-DD of freeze>-<gate>-criteria.md`. It holds criterion IDs, owned and excluded paths, proposed interfaces copied from the gate spec, negative cases, the checks, stop conditions and any new dependencies.
+- [ ] **Criteria review:** a fresh subagent that did not write the criteria reviews them against the gate spec and Review Focus. The parent fixes the findings.
+- [ ] **Rob checkpoint A:** approve the frozen criteria and any new dependencies. Wait for the reply.
+- [ ] **RED:** a fresh implementer subagent writes the failing tests. The parent runs the focused command and keeps a _behavioral_ failure. A missing tool does not count as RED.
+- [ ] **GREEN:** the implementer makes the narrow change. The parent runs focused tests and Bazel targets, then regenerates outputs, runs `just update-tree` and runs `nix develop --no-write-lock-file -c just verify`.
+- [ ] **Task review:** a fresh reviewer subagent reviews the actual diff and receipts against the frozen criteria. Fixes invalidate affected evidence; rerun it.
+- [ ] **Docs:** update `docs/developer/agent-handoff.md` (register row and checkpoint), `docs/architecture/maturity.yaml`, README status and `VS001_TODO.md` for this gate only.
+- [ ] **Whole-candidate review:** a fresh reviewer covers the full branch diff.
+- [ ] **Integrate:** commit using the gate spec's expected subject, push, open the PR from the `.github/PULL_REQUEST_TEMPLATE.md` sections, and wait for `linux-foundation` to pass.
+- [ ] **Rob checkpoint B:** approve the one-time merge exception. Then merge with `--merge`, confirm `main` CI passes, and check local, tracking and remote `main` parity.
+- [ ] **Close:** remove the worktree and delete the merged branch. Keep the receipts in the worktree's evidence directory, and copy them to `$R/.superpowers/sdd/2026-09-24-<gate>/` before removing the worktree.
+
+### Task 0: Integrate PR #11 and reconcile the baseline
+
+**Files:** PR #11 as-is. A new docs PR `claude/foundation-status-reconcile` touches:
+
+- README.md, CONTRIBUTING.md
+- docs/architecture/{bootstrap-status.md, implementation-roadmap.md, maturity.yaml}
+- docs/developer/{agent-handoff.md, vs001-handoff.md, claude-handoff.md}
+- .agents/evals/development-handoff.md
+- docs/architecture/reviews/2026-09-23-vs001-service-compilation.md
+- new `docs/superpowers/specs/2026-09-23-b2b-protocol-draft/`
+- new `docs/superpowers/plans/2026-09-24-pre-migration-foundation-completion.md` (a copy of this plan)
+- [ ] **0.1 Verify PR #11 fresh.** In the existing PR #11 worktree, check `git status --porcelain` is empty, then run `nix develop --no-write-lock-file -c just verify` (Apple Silicon). Dispatch one fresh whole-candidate reviewer subagent on `git diff 2b9aa12..06d0e10`, excluding fixtures. Blocking findings stop the merge and go back to Rob.
+- [ ] **0.2 Merge PR #11.** Post a PR comment recording the exception: "One-time owner exception, 2026-09-24: Rob authorized merging PR #11 without branch protection/second reviewer; source-only; grants no acceptance." Then run `gh pr merge 11 --merge` with the same text in the body. Verify that the merge commit's tree equals `06d0e10^{tree}`, that `main` CI passes, and that local, tracking and remote `main` match.
+- [ ] **0.3 Back up, then clean up.**
+      - Write `git bundle create …/foundation-closeout/post-pr11-all-refs.bundle --all` and verify it with `git bundle verify`, plus a restore into a temporary mirror checked with `git fsck --strict`.
+      - Check that each of these is an ancestor of `main`, then delete the remote branches `codex/architecture-foundation-docs`, `codex/foundation-review-hardening`, `codex/vs001-real-vertical` and `codex/vs001-service-compilation`.
+      - Remove the PR #11 worktree with `git worktree remove`, which refuses if the worktree is dirty.
+      - Record the result in `…/foundation-closeout/cleanup-2026-09-24.json`.
+- [ ] **0.4 Reconciliation docs PR.** Work in a clean worktree off the new `main`, then:
+      - Replace "current checkpoint `a0d6d41` / run 35869828746" (README.md:126-132, bootstrap-status.md:40-45, maturity.yaml:92-97) with the PR #11 merge SHA and its main CI run.
+      - Add PRs #10 and #11 to the checkpoint table (`agent-handoff.md:84-96`) and close the "separate PR" note at `:189-191`.
+      - Fix `maturity.yaml:139` (descriptor compilation is now implemented for B3a) and `.agents/evals/development-handoff.md:11` ("B3a checkpoint; B2b next").
+      - Bring the roadmap in line with B2a/B3a (`implementation-roadmap.md:21,105`) and bootstrap-status.md:57-58.
+      - Fix the service-compilation review:
+        - Its `:70` Linux CI entry becomes PASS with runs 35949172031/35949211866 on `06d0e10`.
+        - Keep both local-run evidence hashes (`2239223…` and `6fed488…`), labelled by time.
+      - Replace "working candidate" wording with merged wording (claude-handoff:25-27, the new handoff section).
+      - Reword `foundation-next-steps.md:143-146` "founder exception" as an **unactivated proposal**. It must not contradict `github-governance.md:89-90`. Rob decides the policy in O3.
+      - Update `vs001-handoff.md:125-127` compatibility counts to the post-B1a 4 breaking / 32 unsupported (`agent-handoff.md:165-168`).
+      - Add a CONTRIBUTING section "2026-09-24 pre-migration source integration exceptions" with the PR #11 line. Later PR lines are appended by later docs PRs.
+      - Commit the B2b draft into `docs/superpowers/specs/2026-09-23-b2b-protocol-draft/`:
+        - Copy PROPOSAL.md, DECISIONS.md, README.md and READ-FIRST.md, each with a header line: "Draft — not frozen, implemented or accepted; superseded where it conflicts with docs/developer/foundation-next-steps.md".
+        - Embed the three draft tests (`public_boundary.rs`, `proto_conformance_test.py`, `openapi_conformance_test.py`) as fenced blocks in `draft-tests.md` so nothing executes them.
+      - Copy this plan to `docs/superpowers/plans/2026-09-24-pre-migration-foundation-completion.md`.
+      - Run `just update-tree` and `just verify`. A fresh docs reviewer applies `.agents/evals/architecture-docs.md`.
+      - Open the PR, wait for green CI, then **Rob checkpoint B** and merge.
+
+### Task 1: B2b — public protocol products and stable Proto numbering
+
+- **Spec:** [compiler-completion.md](/superpowers/plans/2026-09-23-foundation-compiler-completion) section B2b, as corrected by [foundation-next-steps.md](/developer/foundation-next-steps) section B2b. The Task 0.4 draft is an input to the criteria, not authority.
+- **Scope:**
+  - Add the `public/{openapi.json, echo.proto, mcp.json, README.md}` emitters (`codegen/src/emit/{openapi,proto,mcp,docs}.rs`).
+  - Add current/previous field registries `contracts/registries/vs001-proto-fields.yaml`, parsed with B3a's `parse_yaml_strict`.
+  - Add a closed profile enum (7/9/13-file) with downgrade rejection under the publisher lock.
+  - Conformance runs through the pinned `protoc` from locked nixpkgs (a devShell addition with no flake.lock change), decoding the descriptor set.
+  - Add tests under `tests/conformance/vs001/`.
+- **Exit:** the 13-file profile, with internal-type leakage rejected transitively. Numbering regressions (rename, sort, reused reserved number) fail. Both hosts pass. Commit subject `feat(codegen): verify public protocol conformance`.
+- **Rob-owned, not claimed:** accepting the registry baseline as contract owner.
+
+### Task 2: G2 — exact one-change merge-group observation
+
+This can run alongside Task 1: it uses a separate worktree and owns disjoint paths. The parent serializes changes to `.github/workflows/foundation.yaml` and `docs/developer/governance-tools.md`.
+
+- **Spec:** [governance-completion.md](/superpowers/plans/2026-09-23-foundation-governance-completion) section G2 (`observe_queue`, `verify_queue_binding`, fixture `one_entry_queue_case()`).
+- **Extra criteria from Review Focus:**
+  - (1) Audit/binding tests for `--repository Mindclade-org/mindclade-vnext` pass, and a case-mismatched org fails.
+  - (2) Artifact-download redirect behavior is pinned by a fixture, then either fixed with an allowlisted-redirect test or recorded as BLOCKED.
+- **Exit:** positive, negative and Unknown queue cases pass. A live queue proof stays BLOCKED until O2/O3. Commit subject `feat(governance): observe exact merge groups`.
+
+### Task 3: B3b — real bounded RuntimeKit/TestKit Echo composition (after Task 1 merges)
+
+- **Spec:** [compiler-completion.md](/superpowers/plans/2026-09-23-foundation-compiler-completion) section B3b, plus [foundation-next-steps.md](/developer/foundation-next-steps) section B3b amendments:
+  - RuntimeKit takes a generic handler, with no Echo, Codegen, YAML or TestKit imports.
+  - Codegen **emits** the HTTP adapter.
+  - Cooperative, cancellation-aware TestAdmission.
+  - The configuration ABI comes first: compile the generated `service/config.rs` against the real crate.
+- **Transport decision:** at checkpoint A, give Rob a real capability probe of the candidate transport. It must support body/header deadlines and closing connections already handed to handlers. If `tiny_http` fails, present a reviewed transport-spec amendment and an alternative crate as a Rob decision. Never claim a timeout by abandoning a thread.
+- **Scope:** `platform/runtimekit/`, `platform/testkit/` and `services/foundation_echo/`. Root activation goes through a reviewed manifest transition. Real-socket tests cover every item in B3b Step 1, with guaranteed teardown.
+- **Exit:** `//platform/runtimekit:tests`, `//platform/testkit:tests` and `//services/foundation_echo:composition_tests` pass, along with generated-client conformance and the aggregate on both hosts, with no leftover process or listener. The service is recorded as **non-durable partial VS-001**. Commit subject `feat(platform): compose generated Echo`.
+
+### Task 4: B4 — enforce actual configured dependencies (after Tasks 1 and 3)
+
+- **Spec:** [compiler-completion.md](/superpowers/plans/2026-09-23-foundation-compiler-completion) section B4:
+  - `DependencyFactsV1` and `check_boundaries`.
+  - CLI `check-boundaries`, with exit codes 0/2/1.
+  - Collectors: `cargo metadata --locked`, a Bazel aspect, and a TS resolver.
+  - The four `tools/validation/*` stubs are replaced through manifest transitions.
+  - Add `just verify-boundaries` and wire it into the aggregate and Linux CI.
+- **Exit:** forbidden-edge and coverage-omission negatives fail. The real graph passes on both hosts. No validator can pass on presence alone. Commit subject `feat(architecture): enforce actual dependencies`.
+
+### Task 5: G3 — consume independently regenerated B4 (after Tasks 2 and 4)
+
+- **Spec:** [governance-completion.md](/superpowers/plans/2026-09-23-foundation-governance-completion) section G3: `verify_boundaries(candidate_root, expected, trusted_tools)`, where a candidate's own PASS receipt is ignored.
+- **Code PR** (merged): commit subject `feat(governance): consume independently verified boundaries`.
+- **Policy PR** (`claude/policy-b4-proposal`, **left OPEN**): the proposed accepted-policy revision binding the B4 evaluator, model and configurations. The existing policy stays pending and BLOCKED. Rob adopts it in O3 after migration.
+
+### Task 6: DX2 — fresh human and agent local rehearsal (after Task 5)
+
+- **Spec:** [developer-readiness.md](/superpowers/plans/2026-09-23-foundation-developer-readiness) section DX2.
+- **The rehearsal:**
+  - A **fresh clone** of `main` into a scratch directory (not a worktree).
+  - A fresh agent subagent with only the tracked docs follows `CLAUDE.md` -> start-here and runs `just doctor` and `just verify`.
+  - It exercises generated Echo over a real socket, simulates an interrupted task, recovers it and returns a handoff graded by `.agents/evals/development-handoff.md`.
+- **Human half:** stays **BLOCKED — not run** until a human who did not implement the slice performs it (`foundation-developer-readiness.md:120`). Record this honestly.
+- **Exit:** the rehearsal record is committed, and any doc gaps it finds are fixed in the same PR. Commit subject `test(dev): prove fresh contributor and agent workflows`.
+
+### Task 7: Final handoff and GHE Cloud transfer runbook
+
+- [ ] **Final consistency sweep.** Run `git grep` for superseded checkpoints (`a0d6d41`, `2b9aa12`, `bef879d`, older run IDs), for "pending" rows of completed gates, and for stale PR numbers. Update or mark each hit historical. Append all Task 1-6 exception lines to CONTRIBUTING.
+- [ ] **Handoff:** `docs/developer/agent-handoff.md` gets a "Pre-migration source closeout" section containing the fields from `CLAUDE.md:83-89`, `.agents/prompts/handoff.md` and `foundation-next-steps.md:149-152`:
+      - The exact reviewed commits, and PR and CI run IDs for every gate.
+      - Resulting `main` parity.
+      - Recovery locations (bundles and `.superpowers/sdd/*`).
+      - Cleanup performed.
+      - A candid list of what is still pending or blocked:
+        - O1-O4.
+        - B1 contract-owner acceptance and the B2b registry baseline acceptance.
+        - The DX2 human half.
+        - C1-C5 and D1-D4.
+        - Independent qualification and archive destination.
+        - The G3 policy PR, open.
+      - Status wording: **"source-ready and locally rehearsed; development foundation BLOCKED on O1-O4"**. Also update `claude-handoff.md`, `vs001-handoff.md` and `foundation-next-steps.md`, which becomes post-migration next steps.
+- [ ] **Transfer runbook:** extend `docs/operations/github-governance.md`'s transfer section. Do not create a parallel doc.
+      - **Pre-transfer:**
+        - Confirm the org login is exactly `Mindclade-org`; if not, stop and run a policy/constant change PR first.
+        - Refresh the all-refs bundle.
+        - Note that cited Actions artifacts expire 14 days after each run.
+      - **Transfer:** a same-ID GitHub transfer, never an import or mirror. Never recreate `robpearc-mindclade/mindclade-vnext`, because that breaks the redirect.
+      - **Post-transfer:**
+        - Run `git remote set-url origin https://github.com/Mindclade-org/mindclade-vnext.git` once; the shared config covers any worktrees.
+        - SSO-authorize the `gh` token.
+        - Allowlist `cachix/install-nix-action` and enable hosted runners.
+        - Set up classic protection and a matching ruleset exactly as `github_audit.py:416-489` expects: strict required check `linux-foundation` from app 15368, `enforce_admins`, code-owner review, and no bypass.
+        - Merge queue: build 1 / merge 1 / min 1, method MERGE.
+        - No inherited org rulesets with non-`ref_name` conditions.
+        - A dedicated App.
+        - Immutable releases, plus an `evidence/*` tag ruleset.
+        - Re-link Linear and Notion.
+        - Then run the O1 preflight commands from `v1-integration-readiness.md:111-115`, retargeted to the new repo.
+- [ ] **Merge:** `just verify`, a fresh docs reviewer, the PR, **Rob checkpoint B**, then merge.
+- [ ] **Final verification** (see below). Then delete the remaining merged `claude/*` branches and write a final all-refs bundle with a fsck restore.
+- [ ] **Report:** give Rob a short Artifact summary covering status, the open list and the transfer checklist, with a link.
+
+## Rob checkpoints (summary)
+
+| When | What Rob approves |
+| --- | --- |
+| Plan approval | This plan: the PR #11 exception, deleting the four merged remote branches, removing the PR #11 worktree |
+| Each of Tasks 1-6, checkpoint A | Frozen criteria and any new dependency or lock change (the B3b transport crate especially) |
+| Each merge, checkpoint B | The one-time merge exception for that PR, including the Task 0.4 and Task 7 docs PRs |
+| After Task 7 | Rob performs the transfer and O1-O4. This session does not touch GitHub org settings |
+
+## Stop conditions
+
+Stop and bring these to Rob:
+
+- Any authority conflict between docs.
+- A blocking review finding outside the gate's scope.
+- A gate that cannot meet its spec without a spec amendment (for example, the B3b transport).
+- A single-host-only pass.
+- A red `main` CI after a merge. Do not start the next gate; fix forward in a new PR.
+- Any need to edit accepted policy, CODEOWNERS or `.github` protection semantics.
+- A dirty worktree at candidate time.
+
+## Verification (end-to-end)
+
+1. For every merged gate: record the local Apple Silicon `just verify` receipt in a clean worktree, and check that the `linux-foundation` PR run and the post-merge `main` run are both green (`gh run list -R robpearc-mindclade/mindclade-vnext --branch main --limit 3`).
+2. Final state:
+   - `git ls-remote --heads origin` shows `main` plus the open G3 policy branch only.
+   - `git worktree list` shows `$R` only.
+   - Local, tracking and remote `main` SHAs are equal.
+   - `gh pr list --state open` shows only the G3 policy PR.
+3. Run a fresh-clone check of `main` into a scratch directory: `nix develop --no-write-lock-file -c just doctor && … just verify && … just verify-boundaries`, plus `cargo run --locked -q -p mindclade-codegen -- --help`.
+4. `git grep -n 'a0d6d41\|35869828746'` returns only lines marked historical, and `maturity.yaml`, README, `agent-handoff.md` and `VS001_TODO.md` agree on each gate's status.
+5. The final all-refs bundle restores with `git fsck --strict` passing and every ref matching.
+
+## Acceptance gates
+
+| Gate | Condition |
+| --- | --- |
+| Task 0 complete | PR #11 merged, baseline reconciled, stale docs updated, B2b draft committed |
+| Task 1 complete | B2b public protocol products and stable Proto numbering pass on both hosts |
+| Task 2 complete | G2 exact one-change merge-group observation passes with positive/negative/Unknown fixtures |
+| Task 3 complete | B3b real bounded RuntimeKit/TestKit Echo composition passes on both hosts |
+| Task 4 complete | B4 actual configured dependency enforcement passes on both hosts |
+| Task 5 complete | G3 independently regenerated B4 consumed; policy PR left open for O3 |
+| Task 6 complete | DX2 agent rehearsal passes; human half recorded as BLOCKED |
+| Task 7 complete | Final handoff and GHE Cloud transfer runbook merged; status docs consistent |
+| Final verification | All five end-to-end verification items above pass |
+
+## Risks
+
+| Risk | Mitigation |
+| --- | --- |
+| Single-host-only pass | Treat as BLOCKED; both Apple Silicon and Linux must pass before any merge |
+| Post-transfer governance path untested | Add tests in G2 for `--repository Mindclade-org/mindclade-vnext` and case mismatch |
+| Artifact download 302 redirect | Pin with fixture in G2; fix or record as BLOCKED |
+| Status docs drift after each merge | Every gate PR updates its own docs; Task 7 runs repo-wide sweep |
+| Clean-tree claim contaminated | Run all `just verify` receipts in clean worktrees; check `git status --porcelain` |
+| Authority conflict between docs | Stop and fix rather than coding around it |
+| G3 policy PR left open | Existing policy stays BLOCKED; Rob adopts in O3 after migration |
+
+## Related
+
+<CardGroup cols={2}>
+  <Card title="Foundation compiler completion" icon="code" href="/superpowers/plans/2026-09-23-foundation-compiler-completion">
+    Plan for completing B2b, B3b, and B4 compiler gates.
+  </Card>
+
+  <Card title="Foundation governance completion" icon="shield-halved" href="/superpowers/plans/2026-09-23-foundation-governance-completion">
+    Plan for G2 and G3 governance gates.
+  </Card>
+
+  <Card title="Foundation developer readiness" icon="user-graduate" href="/superpowers/plans/2026-09-23-foundation-developer-readiness">
+    Plan for DX2 developer readiness rehearsal.
+  </Card>
+
+  <Card title="V1 integration readiness" icon="list-check" href="/superpowers/plans/2026-09-23-v1-integration-readiness">
+    Master plan specifying integration readiness and ordering.
+  </Card>
+</CardGroup>

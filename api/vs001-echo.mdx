@@ -1,0 +1,223 @@
+---
+title: "VS-001 Echo API reference"
+description: "Describes the one public VS-001 operation, its declared error model and transport rejections, and how to call it through the generated TypeScript client."
+sidebarTitle: "VS-001 Echo"
+---
+
+Purpose: describe the one public VS-001 operation, its declared error model and transport rejections, and how to call it through the generated TypeScript client. Audience: developers and agents who call or test the Echo service. Status: source reference for `main` after K1 (K1-30 merged through PR #23 at `82dad80`). The contract and its generated products are partial B1/B2 work; the running service is the B3b **non-durable partial VS-001** composition. Nothing here is a production, release, deployment or scientific claim.
+
+The authored contract is [`contracts/typespec/public/echo.tsp`](https://github.com/Mindclade-org/mindclade-internal-monorepo/blob/main/contracts/typespec/public/echo.tsp). Everything under `generated/vs001/` is a Codegen projection of that contract: never edit it by hand. To change the API, edit the contract and regenerate (see [regenerate generated outputs](/runbooks/regenerate-generated-outputs)). Sections 1 to 5 describe the contract, including the transport-rejection profile it declares (section 3.1). Section 6 describes what the running service does today beyond the contract, and is labelled as such.
+
+## 1. Operation
+
+| Item | Value |
+| --- | --- |
+| Namespace and version | `Mindclade.Public`, `v1` |
+| Operation id | `echo` |
+| Method and path | `POST /echo/{requestId}` |
+| Request body | `EchoRequest`, `application/json`, required |
+| Success | `200`, `EchoResponse`, `application/json` |
+| Declared errors | `400` `InvalidInput`, `409` `IdempotencyConflict`, `503` `Unavailable` (section 3) |
+| Transport rejections | Empty-body `400`, `404`, `405`, `411`, `413`, `415`, `417`, `431`, `500`, `501`, `505`, with no media type (section 3.1) |
+| Transport profile | `VS001TransportProfile@v1`: `max_body_bytes` 65536 and the transport-rejection profile |
+
+### Path parameter `requestId`
+
+A required string matching `^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$`: 1 to 128 ASCII characters, starting with a letter or digit, then letters, digits, `.`, `_` or `-`.
+
+The contract states nothing more about `requestId` than this path rule. It is carried in the HTTP path and in the MCP input schema, never in a Proto message ([generated README](https://github.com/Mindclade-org/mindclade-internal-monorepo/blob/main/generated/vs001/public/README.md), "Projection limits"). The contract declares a `409 idempotency_conflict` alternative but does not itself define idempotency. The durable design intends admission identity to be `(tenant, environment, capability identity, requestId)` ([VS-001 design §5](/superpowers/specs/2026-09-23-vs001-durable-capability-design)); that behaviour belongs to gate C2 and is not implemented. The current service ignores `requestId` beyond validating it (section 6.3).
+
+### Request body `EchoRequest`
+
+| Field | JSON type | Required | Constraint |
+| --- | --- | --- | --- |
+| `message` | string | yes | at most 4096 Unicode scalar values |
+| `urgent` | boolean | no | none |
+| `tags` | array of string (`Tag`) | yes | at most 128 items; each item at most 64 Unicode scalar values |
+
+### Success body `EchoResponse`
+
+| Field | JSON type | Required | Constraint |
+| --- | --- | --- | --- |
+| `message` | string | yes | at most 4096 Unicode scalar values |
+
+## 2. Limits and validation rules
+
+These come from `echo.tsp` and the generated [public README](https://github.com/Mindclade-org/mindclade-internal-monorepo/blob/main/generated/vs001/public/README.md) ("Validation"):
+
+| Rule | Value |
+| --- | --- |
+| `requestId` | 1 to 128 characters, pattern above |
+| `message` (request and response) | `@maxLength(4096)` |
+| `tags` | `@maxItems(128)`; `Tag` is `@maxLength(64)` |
+| Request body size | 65536 bytes, from `VS001TransportProfile@v1` (a transport limit, not a DTO constraint) |
+| String length unit | Unicode scalar values, not bytes or UTF-16 code units; malformed Unicode is rejected |
+| Objects | closed: unknown properties are rejected |
+| Optional fields | never nullable: an omitted `urgent` differs from `false` |
+
+## 3. Error model (declared)
+
+Every authored error body is a closed JSON object with a literal `code` and a `message` string. Each is `application/json`. The transport rejections in section 3.1 are declared too, with empty bodies.
+
+| Status | TypeSpec response model | Body model | `code` |
+| --- | --- | --- | --- |
+| 400 | `InvalidResponse` | `InvalidInput` | `"invalid_input"` |
+| 409 | `ConflictResponse` | `IdempotencyConflict` | `"idempotency_conflict"` |
+| 503 | `UnavailableResponse` | `Unavailable` | `"unavailable"` |
+
+Example body, as the running service writes it for an invalid path parameter:
+
+```json
+{"code":"invalid_input","message":"invalid requestId path parameter"}
+```
+
+The contract does not bound the length of an error `message`.
+
+**409 is declared but not produced yet.** The current `TestAdmission` port never returns `IdempotencyConflict` ([`services/foundation_echo/src/ports.rs`](https://github.com/Mindclade-org/mindclade-internal-monorepo/blob/main/services/foundation_echo/src/ports.rs): "stores nothing, implements no idempotency store and never reports a conflict"). The process test "B3b-27 test admission retains no state across a restart" sends the same `requestId` with different messages and expects `200` each time. Producing 409 is planned for gate C2 (atomic admission and idempotency). The adapter's mapping of a capability's 409 and 503 to exact bodies is tested with a stub capability (`b3b_18_capability_errors_map_to_exact_authored_bodies` in [`tests/conformance/vs001/service_http/service_http.rs`](https://github.com/Mindclade-org/mindclade-internal-monorepo/blob/main/tests/conformance/vs001/service_http/service_http.rs)).
+
+### 3.1 Transport rejections (declared)
+
+Rob decided in K1-30 (amendment 1 of the [K1 criteria](/superpowers/specs/2026-09-26-k1-codegen-contracts-hardening-criteria)) that the contract declares every status RuntimeKit or the generated adapter can return outside the authored alternatives. The `VS001TransportProfile@v1` transport profile lists them. Each has an empty body (`content-length: 0`) and no `content-type`. A 400 is either the authored `InvalidInput` (an `application/json` body) or a transport rejection (an empty body); the body tells them apart.
+
+The profile is one table in Codegen, `VS001_TRANSPORT_REJECTIONS` in [`codegen/src/target_ir.rs`](https://github.com/Mindclade-org/mindclade-internal-monorepo/blob/main/codegen/src/target_ir.rs). It is published as:
+
+- OpenAPI: `x-mindclade-transport-profile.rejections` lists every rejection, including the empty 400. Each status without an authored alternative is also an operation response with no `content`; the 405 response declares its `Allow` header.
+- MCP: `transport_profile.rejections` in `mcp.json`.
+- Generated README: the "Transport rejections" section.
+- TypeScript client: `EchoTransportRejectionError` (section 4).
+
+| Status | Sent by | Published description |
+| --- | --- | --- |
+| 400 | RuntimeKit | Malformed HTTP/1.1 framing: invalid request-line or header syntax, a request target that is not origin-form, not exactly one Host header, more than one Content-Type header, or an invalid or repeated Content-Length |
+| 404 | Adapter | The request target is not the operation route; a target with a query string does not match |
+| 405 | Adapter, with header `allow: POST` | The route does not accept the request method; the Allow header names the accepted method |
+| 411 | RuntimeKit | The request has no Content-Length, or its final transfer coding is chunked |
+| 413 | RuntimeKit (the adapter's own check is unreachable behind it) | The declared Content-Length exceeds the transport profile body limit |
+| 415 | Adapter | The request Content-Type is absent or is not the request media type, optionally with charset=utf-8 |
+| 417 | RuntimeKit | The request carries an Expect header, which is not supported |
+| 431 | RuntimeKit | The request head is too large or has too many header fields |
+| 500 | RuntimeKit after a handler panic, or the adapter when serializing a response fails | The service failed while handling the request |
+| 501 | RuntimeKit | The request's final transfer coding is one other than chunked |
+| 505 | RuntimeKit | The request uses HTTP/1.0; only HTTP/1.1 is served |
+
+Two checks keep the table true. Codegen refuses to emit the adapter if it would write an empty-body status the profile does not declare, or a 405 without the declared `Allow` header. The raw-socket test `k1_30_every_observed_status_is_declared_in_the_published_openapi` in [`tests/conformance/vs001/service_http/service_http.rs`](https://github.com/Mindclade-org/mindclade-internal-monorepo/blob/main/tests/conformance/vs001/service_http/service_http.rs) produces every status from the real adapter and RuntimeKit. It requires each one to be declared in the published OpenAPI, and the observed empty-body statuses to equal the published `rejections` keys.
+
+## 4. Calling it with the generated TypeScript client
+
+Source: [`generated/vs001/public/client.ts`](https://github.com/Mindclade-org/mindclade-internal-monorepo/blob/main/generated/vs001/public/client.ts). It has no package dependencies and uses standard `fetch`. There is no published npm package. Inside the repository, Bazel compiles it to an ES module with the `vs001_ts_compile` rule. The targets `//tests/conformance/vs001:client_module` and `//services/foundation_echo:client_module` each produce `client_module.mjs`; the conformance and process tests import that file.
+
+### Exports
+
+Runtime exports (checked by the conformance test "only reviewed public runtime exports are present"): `createEchoClient`, `EchoError`, `EchoValidationError`, `EchoProtocolError`, `EchoTransportError`, `EchoTransportRejectionError`.
+
+Type exports: `EchoRequest`, `EchoResponse`, `InvalidInput`, `IdempotencyConflict`, `Unavailable`, `InvalidResponse`, `ConflictResponse`, `UnavailableResponse`, and the `EchoError` type.
+
+```ts
+createEchoClient(options: { baseUrl: string; fetch?: typeof globalThis.fetch }): {
+  echo(requestId: string, body: EchoRequest, options?: { signal?: AbortSignal }): Promise<EchoResponse>;
+}
+```
+
+### Example
+
+```ts
+import {
+  createEchoClient, EchoError, EchoValidationError, EchoProtocolError, EchoTransportError,
+  EchoTransportRejectionError,
+} from "./client"; // generated/vs001/public/client.ts, or the compiled client_module.mjs
+
+// address comes from the service's FoundationEchoReady@v1 receipt
+const client = createEchoClient({ baseUrl: "http://127.0.0.1:PORT" });
+try {
+  const reply = await client.echo("r-1", { message: "hello", tags: [] });
+  console.log(reply.message); // "hello"
+} catch (error) {
+  if (error instanceof EchoError) {
+    console.error(error.status, error.code, error.message); // 400, 409 or 503
+  } else if (error instanceof EchoValidationError) {
+    // rejected locally; nothing was sent
+  } else if (error instanceof EchoTransportRejectionError) {
+    console.error(error.status, error.message); // a declared transport rejection (section 3.1)
+  } else if (error instanceof EchoProtocolError || error instanceof EchoTransportError) {
+    // see the behaviour list below
+  }
+}
+```
+
+Each error class also carries a `kind`: `"api"`, `"validation"`, `"protocol"`, `"transport"` or `"transport_rejection"`. `EchoTransportRejectionError` also has a `status`, typed as the union of the eleven declared statuses, and the message `HTTP <status> transport rejection: <published description>`.
+
+### Client behaviour
+
+- **Construction.** `baseUrl` must be an absolute `http` or `https` origin: no path (a single trailing `/` is allowed), query, fragment or credentials. `fetch` defaults to `globalThis.fetch`. A bad option throws `EchoValidationError` synchronously.
+- **Before sending.** The client checks `requestId` against the path rule, checks `body` against `EchoRequest` (closed object, lengths in Unicode scalar values; `urgent: undefined` counts as omitted) and checks that the encoded JSON is at most 65536 bytes. Any failure throws `EchoValidationError` and nothing is sent.
+- **Request.** One `fetch` call: `POST`, headers `content-type: application/json` and `accept: application/json`, `redirect: "error"`, the caller's `signal` if given. The client never retries.
+- **Transport.** A rejected `fetch`, an already-aborted signal or a failed body read throws `EchoTransportError` with `cause` and `aborted`.
+- **Transport rejection.** A response with no `content-type` whose status is a declared transport rejection (section 3.1) must have an empty body. The client then throws `EchoTransportRejectionError` with that `status`. A body on such a response is `EchoProtocolError("transport rejection with a body")`.
+- **Response.** Otherwise the response `content-type` must be `application/json`, optionally with `charset=utf-8`; otherwise `EchoProtocolError`. The body must be strict UTF-8 JSON: duplicate members, non-integral numbers and trailing data are rejected.
+  - `200`: the body is validated as `EchoResponse` and returned.
+  - `400`, `409`, `503`: the body is validated as the declared model, then `EchoError` is thrown with `status`, `code` and `message`.
+  - Any other status, including a transport-rejection status with a JSON body: `EchoProtocolError("unauthored HTTP status")`.
+  - A body that fails validation: `EchoProtocolError`.
+
+Every empty-body response the service sends (section 6) is a declared transport rejection, so the client reports it as `EchoTransportRejectionError`. RuntimeKit's empty 400 is therefore an `EchoTransportRejectionError`, and an `InvalidInput` 400 is an `EchoError`. An empty response with no `content-type` and an undeclared status, for example a 502 from a proxy, is still `EchoProtocolError("unexpected response media type")`.
+
+## 5. Other generated products
+
+All are in [`generated/vs001/`](https://github.com/Mindclade-org/mindclade-internal-monorepo/blob/main/generated/README.md) and are regenerated by `just generate-vs001`. They describe the contract; none of them is a running service, runtime validator or qualification.
+
+| Product | Path | Notes |
+| --- | --- | --- |
+| API docs | [`public/README.md`](https://github.com/Mindclade-org/mindclade-internal-monorepo/blob/main/generated/vs001/public/README.md) | Operation, fields, responses, transport rejections, validation and projection limits |
+| OpenAPI 3.1.0 | [`public/openapi.json`](https://github.com/Mindclade-org/mindclade-internal-monorepo/blob/main/generated/vs001/public/openapi.json) | Structural description. `x-mindclade-transport-profile.rejections` lists the transport rejections; each without an authored alternative is also a response with no `content`, and 405 declares its `Allow` header |
+| Proto3 messages | [`public/echo.proto`](https://github.com/Mindclade-org/mindclade-internal-monorepo/blob/main/generated/vs001/public/echo.proto) | Package `mindclade.public.v1`; messages only: no service, RPC or options. Field numbers come from [`contracts/registries/vs001-proto-fields.yaml`](https://github.com/Mindclade-org/mindclade-internal-monorepo/blob/main/contracts/registries/vs001-proto-fields.yaml); Rob accepted those numbers as contract owner on 2026-09-26 |
+| MCP tool metadata | [`public/mcp.json`](https://github.com/Mindclade-org/mindclade-internal-monorepo/blob/main/generated/vs001/public/mcp.json) | `McpToolCatalog@v1`, one tool `echo`; `transport_profile.rejections` lists the transport rejections; metadata only, not an MCP server |
+| TypeScript client | [`public/client.ts`](https://github.com/Mindclade-org/mindclade-internal-monorepo/blob/main/generated/vs001/public/client.ts) | Section 4 |
+| Rust DTOs | [`rust/`](https://github.com/Mindclade-org/mindclade-internal-monorepo/blob/main/generated/vs001/rust/mod.rs) | `public.rs` holds `EchoRequest`, `EchoResponse`, `EchoError` and the `EchoCapability` trait |
+| HTTP adapter | [`service/http.rs`](https://github.com/Mindclade-org/mindclade-internal-monorepo/blob/main/generated/vs001/service/http.rs) | `echo_handler`. The only production composition is Foundation Echo; the conformance test `//tests/conformance/vs001:service_http_rust` also composes it over a stub capability |
+| Service config | [`service/config.rs`](https://github.com/Mindclade-org/mindclade-internal-monorepo/blob/main/generated/vs001/service/config.rs), [`service/descriptor.json`](https://github.com/Mindclade-org/mindclade-internal-monorepo/blob/main/generated/vs001/service/descriptor.json) | Checked TestAdmission configuration |
+
+## 6. Current service behaviour beyond the contract
+
+> **Beyond the contract.** Every status in this section is declared: the authored alternatives in section 3 and the transport rejections in section 3.1 (K1-30). What this section adds is current behaviour the contract does not state: which conditions produce each status, the order of the adapter's checks, closes with no response, the admission backlog and the `TestAdmission` port.
+
+Every response carries `content-length` and `connection: close`. A body is either `application/json` or empty. One request is served per connection.
+
+### 6.1 RuntimeKit framing
+
+RuntimeKit frames every request before the adapter sees it. It rejects bad or unsupported framing with an empty-body 400, 411, 413, 417, 431, 501 or 505 (all declared transport rejections), and the handler is not called. The canonical list of conditions, statuses and telemetry reasons is the [RuntimeKit transport table](https://github.com/Mindclade-org/mindclade-internal-monorepo/blob/main/platform/runtimekit/README.md#transport-behaviour-and-limits). Points that matter to a caller:
+
+- `content-length` is required on every request, so a `GET` without it gets 411 before the adapter can return 405.
+- A `#` in the target is rejected with 400 by RuntimeKit. A `?` query reaches the adapter and gets 404.
+- A `content-length` above 65536 gets 413 before any body byte is read.
+- Any `expect` header, including `Expect: 100-continue`, gets 417.
+- Some failures get **no HTTP response**; the connection just closes. This happens when the head or body is not complete within `request_timeout` (2000 ms in the generated config), when the client disconnects, or when a drain closes a connection that is still reading its request.
+- At most `max_in_flight` connections (8) are read at once. Further connections wait in the kernel listen backlog and are not answered with a status.
+
+An empty 500 can also come from RuntimeKit **after** the handler was called: when the handler panics, or returns a status outside 200–599 ([`platform/runtimekit/src/http.rs`](https://github.com/Mindclade-org/mindclade-internal-monorepo/blob/main/platform/runtimekit/src/http.rs)).
+
+### 6.2 Generated adapter (after framing)
+
+[`generated/vs001/service/http.rs`](https://github.com/Mindclade-org/mindclade-internal-monorepo/blob/main/generated/vs001/service/http.rs) checks in this order:
+
+| Order | Condition | Status and body |
+| --- | --- | --- |
+| 1 | Target is not exactly `/echo/{segment}`: missing or extra segment, trailing `/`, or any `?` query | 404, empty |
+| 2 | Method is not `POST` | 405, empty, header `allow: POST` |
+| 3 | `content-type` missing, or not `application/json` with at most the single parameter `charset=utf-8` (case-insensitive, quoted value allowed) | 415, empty |
+| 4 | Body longer than 65536 bytes (the same limit RuntimeKit applies first) | 413, empty |
+| 5 | Path segment fails the `requestId` rule. The segment is not percent-decoded, and `/echo/` gives an empty segment | 400, `{"code":"invalid_input","message":"invalid requestId path parameter"}` |
+| 6 | Body is not a valid `EchoRequest` | 400, `{"code":"invalid_input","message":"invalid request body"}` |
+| 7 | Capability result | 200 `EchoResponse`, or the declared 400/409/503 body |
+| – | Serializing the response JSON fails | 500, empty |
+
+The 400 bodies in steps 5 and 6 are the contract's `InvalidInput`. Their message text is a closed, fixed set chosen by the adapter; decoder errors are never forwarded. The empty-body 400 from section 6.1 is the declared transport-rejection 400, not `InvalidInput`.
+
+### 6.3 TestAdmission
+
+The composed port is `TestAdmission` ([`ports.rs`](https://github.com/Mindclade-org/mindclade-internal-monorepo/blob/main/services/foundation_echo/src/ports.rs)). It returns `EchoResponse { message }` with the request's message. It ignores `requestId`, `urgent` and `tags`, stores nothing and never returns 409. It maps a failure to build the response to 503 `unavailable` ("echo response could not be constructed"). The source comment says this cannot fail for a checked request. Nothing survives a restart.
+
+## Read next
+
+- [Run Foundation Echo](/runbooks/run-foundation-echo) to start the binary and get its address.
+- [Codebase map](/developer/codebase-map) for how the contract, Codegen, generated products and service connect.
+- [Generated output policy](/architecture/generated-output-policy) and the [VS-001 handoff](/developer/vs001-handoff) for ownership and remaining gates.

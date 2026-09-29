@@ -1,0 +1,194 @@
+---
+title: "H1 Foundation Hardening Criteria (2026-09-26)"
+sidebarTitle: "H1 Foundation Hardening"
+description: "Foundation hardening criteria from independent soundness and Nix flake audits, defining Stage 1 fixes across governance, host checks, and test quality."
+---
+
+This page defines the H1 foundation hardening criteria on `main` `72395a3`. They come from two independent read-only reviews: the foundation soundness audit (findings A-1 to A-23) and the Nix flake analysis (findings N-1 to N-8). Those reviews serve as the independent analysis for this gate. A fresh whole-candidate reviewer checks the result. This gate grants no admission, acceptance, or qualification.
+
+## Summary
+
+| Gate ID | Date | Status |
+| --- | --- | --- |
+| H1 | 2026-09-26 | Frozen |
+
+## Rules
+
+- Every fix follows RED -> GREEN. First a test that fails on the current source for the stated reason, then the fix, then the focused suite.
+- Status words stay PASS/FAIL/BLOCKED. A host or availability failure must never be reported as a verdict about the candidate.
+- Do not weaken any existing assertion. A test that pins old wrong behaviour may change only as part of the fix that replaces it, and that change must be named in the commit.
+- **Parent-owned paths:** `flake.nix`, `.bazelrc`, `justfile`, `rustfmt.toml`, locks, `generated/**` (regenerated through Codegen only), `docs/architecture/REPOSITORY_TREE.md`.
+- **Excluded:**
+  - `.github/**` and `.agents/policies/**`. The CI workflow is policy-bound, so A-13 is an owner decision.
+  - Files that B3b is changing: `codegen/src/publication.rs`, `platform/runtimekit/**`, `tests/conformance/vs001/BUILD.bazel`, and `tests/conformance/vs001/service_config/**`. Those items (A-2, A-9 journal and mutation-count, A-15, A-17, and the A-23 `serde_json` item) run in a follow-up stage after B3b merges.
+
+## Stage 1 criteria
+
+### W1: Governance and evidence
+
+**Owned:** `tools/engineering/github_audit.py`, `tools/engineering/evidence.py`, `scripts/evidence_bundle.py`, `scripts/test_governance_github.py`, `scripts/test_evidence*.py`.
+
+**H1-01 (A-1).** `main-protection` FAILs unless all of these hold:
+
+- the merge queue method is `MERGE`;
+- `merge` is among the allowed merge methods;
+- `required_linear_history` is off in both the ruleset path and the classic-protection path.
+
+The legacy fixture moves to MERGE. Negative cases: SQUASH, REBASE, merge missing from the allowed methods, and linear history on in each path.
+
+**H1-02 (A-7).** In the audit, a non-ancestor (exit 1 from `merge-base --is-ancestor`) is a policy violation, FAIL, not "observation unavailable". Exit codes other than 0 and 1 stay BLOCKED. The ancestry test asserts the `policy` check itself, not the overall "not PASS".
+
+**H1-03 (A-6, evidence).** ENOSPC or EIO from `fsync` or write in `evidence.py` is BLOCKED (host), never FAIL (tampering).
+
+**H1-04 (A-18).** `evidence_bundle.py` reads through the descriptor, with an `O_NOFOLLOW` open and dev/ino checks, instead of `lstat` followed by reopening by path.
+
+### W2: Host-failure mapping and hermetic checks
+
+**Owned:** `tools/build/frontend_action.py`, `scripts/test_frontend_action.py`, `scripts/doctor.py`, `scripts/test_doctor.py`, `scripts/validate_bootstrap.py`, `scripts/test_validate_bootstrap.py`, `scripts/verify_foundation.py`, `scripts/test_verify_foundation.py`, `scripts/bootstrap_foundation.sh`, `scripts/generate_foundation.py`, `scripts/generate_vs001.py`, `scripts/validate_repository.py`.
+
+**H1-05 (A-6, frontend).**
+
+- A Node child killed by a signal (negative return code) exits with a distinct host code, not 1.
+- A descriptor read error other than ENOENT, ENOTDIR, or ELOOP (for example EIO or EMFILE) is a host failure (exit 74), not an input rejection.
+
+**H1-06 (A-6, doctor).** An `OSError` from spawning a probe (for example EAGAIN or ENOMEM) gives BLOCKED (exit 3), not FAIL. A missing tool (ENOENT) keeps its existing outcome.
+
+**H1-07 (A-4).** `verify_foundation` no longer runs `pnpm install` into the checkout. Before this change is made, confirm by grep that nothing consumes the root `node_modules`.
+
+**H1-08 (A-5).** The cargo step in `verify_foundation` runs with `RUST*`, `CARGO_*` (other than the provisioned `CARGO_HOME`, if set) and `MINDCLADE_*` scrubbed from the inherited environment. The only exceptions are the explicit B3A/VS001 variables it already sets.
+
+**H1-09 (A-19).** Every subprocess in these scripts has a finite timeout: `run_locked`, the `nix --version` probe, aquery, the `generate_*` scripts, and the git calls in `validate_repository`. A timeout is BLOCKED or a failure, never a silent success.
+
+**H1-10 (A-21).** The forbidden-dependency check parses dependency tables and `Cargo.lock` package names, and matches exact names: `tch`, `tch-rs`, `tch_rs`, `triton`, and case variants of `Triton`. Substrings such as `dispatch`, `matches`, or `[patch.crates-io]` no longer trip it. It skips `node_modules`.
+
+**H1-11 (A-3).** `scripts/bootstrap_foundation.sh` is removed, and its documentation reference is updated to the justfile route, unless it can be made to reuse `RUST_TARGETS`/`TEST_TARGETS` and the justfile environment with a test. Prefer removal.
+
+### W3: Test quality (no production semantics change)
+
+**Owned:**
+
+- `codegen/tests/cases/{yaml_corpus,descriptor,architecture}.rs`
+- the `compile_fail` doctest sites in `core/src/reference.rs`, `codegen/src/graph.rs`, and `tests/conformance/vs001/src/lib.rs`
+- `tests/conformance/vs001/rule_analysis/**`
+- `codegen/frontend/typespec/src/index.mjs`
+- `scripts/test_ci_policy.py`
+- the stale "never executed" headers in `codegen/tests/cases/descriptor.rs`, `scripts/test_descriptor_staging.py`, and `tests/conformance/vs001/service_driver_test.py`
+
+**Criteria:**
+
+**H1-12 (A-8).** Each corpus-driven test asserts a non-zero, exact per-layer case count, and rejects unknown `layer` or `expected` values.
+
+**H1-13 (A-10).** Every `compile_fail` doctest that carries an error code gains a compiling sibling that differs only in the forbidden line.
+
+**H1-14 (A-11).** The manual negative target `rule_analysis:duplicate_descriptor_declaration` is exercised by a test that expects the "Duplicate descriptor" analysis failure, or it is deleted along with its reference. Prefer an exercised test.
+
+**H1-15 (A-12).** `test_ci_policy` pins the exact `just verify-generated` line for VS-001 (`generate_vs001.py --check ...`).
+
+**H1-16 (A-20).** Diagnostics in `index.mjs` are sorted by code point, not `localeCompare`. Generated products must be byte-identical afterwards; the parent verifies this through regeneration.
+
+**H1-17 (A-22, headers).** The stale "has not been executed by its author" headers are corrected.
+
+### Parent: Build configuration and optimization
+
+**H1-18 (N-1).** The flake's `bazel` wrapper ignores `BAZEL_WRAPPER` and `USE_BAZEL_VERSION` (unset them before `exec`). A new test in `tools/build/toolchain_test.py` runs `BAZEL_WRAPPER=<rel script> bazel --version` and still gets `bazel 9.1.1`.
+
+**H1-19 (N-2).** Remove `x86_64-darwin` from the flake systems, which is unevaluable on the locked nixpkgs and is already excluded by doctor and B4, and share one nixpkgs instance per system. The dev-shell derivation paths must be unchanged (`1k9g95fc...`, `94jcpl82...`), and `nix flake check --no-build --all-systems` must pass. Update the docs that describe Intel macOS.
+
+**H1-20 (N-3).** A `just flake-check` recipe runs `nix flake check --no-build --all-systems --no-write-lock-file`.
+
+**H1-21 (A-5).** Commit a `rustfmt.toml` so that host rustfmt configuration cannot change `cargo fmt --check`. Use the default style only, so formatting is unchanged.
+
+**H1-22 (A-16).** Add `.bazelrc` `build --sandbox_default_allow_network=false`, so network denial during Bazel actions and tests is enforced rather than incidental. Every target must still pass.
+
+**H1-23 (A-22, docs).** Refresh `README`, `SYSTEM_DESIGN`, `maturity.yaml` `as_of` and its candidate, and the ADR range, against merged state.
+
+**H1-24.** Regenerate the manifests through Codegen once, after all generator-input edits.
+
+## Amendment 1 (2026-09-26): Performance items from the Bazel/CI analysis
+
+These items come from the independent Bazel/CI analysis of `main` `72395a3`. Rob asked for the work to be optimized.
+
+Measured baseline: in a cold Mac run, `service_driver` took 1121 s of a 1419 s `bazel test`. On CI it took 313 s, with 124.8 s of system CPU. It makes 268 frontend calls, and each call copies 32 MB of `node_modules`.
+
+**H1-25 (W2, P1).** `frontend_action.py` stages `node_modules` as a symlink to the immutable dependency store path, instead of copying it. `codegen/` is still copied and made writable, and staged sources are still copied. The escape check must reject a declared source under `node_modules/`. The existing staging test changes from asserting a byte-identical copy to asserting that the link targets the unchanged dependency, which in turn is not modified. This must be named in the commit. Generated products must be byte-identical after regeneration.
+
+**H1-26 (W3, test author, P2a).** `service_driver_test.py` runs the real frontend once per descriptor-negative case. The `existing=False` pass records each case's frontend output and its descriptor digest. The `existing=True` pass reuses that output only after asserting the descriptor digest matches. Every driver check stays. Timeouts remain failures and nothing retries. The file is test-author-owned, so a context distinct from the production implementers edits it.
+
+**H1-27 (parent, P3).** `tools/build/foundation.bzl` gets `legacy_path_syntax = True`. rules_nixpkgs then evaluates the root flake as `git+file` (tracked files only) instead of `path:`, so the whole worktree, including `target/` and `node_modules/`, is no longer copied into the store. Tool store paths and versions must be unchanged.
+
+**H1-28 (parent, R4).** `//:root_sources` excludes `**/__pycache__/**`.
+
+## Amendment 2 (2026-09-26): H1-25 staging layout
+
+**Why.** The Mac aggregate on `785ba86` failed `//codegen/frontend/typespec:tests`, in the test "configured official emitter emits the same normalized input". The failure was TypeSpec `library-invalid`: `node_modules/@mindclade/typespec-frontend/src/index.mjs is not a file`.
+
+The pnpm workspace link `node_modules/@mindclade/typespec-frontend` is a relative symlink into `codegen/frontend/typespec`. A symlinked `node_modules` makes that link resolve inside the immutable dependency path, where the staged sources do not exist. The original copy existed to preserve exactly these relative links. The frozen H1-25 text ("stages `node_modules` as a symlink") cannot hold together with the workspace link.
+
+**H1-25 now reads:**
+
+- `frontend_action.py` stages `node_modules` as a real directory in the action root.
+- Every top-level entry is recreated as follows:
+  - a symlink is recreated verbatim, with the same relative target;
+  - a scope directory such as `@typespec/` is recreated as a directory whose symlinks are recreated verbatim;
+  - the bulk package store `.pnpm/` is a single symlink to the immutable dependency path's `.pnpm`.
+- No package file is copied.
+- The workspace link then resolves to the staged `codegen/`. `codegen/` is still copied and made writable, and staged sources are still copied.
+- The escape check still rejects a declared source under `node_modules/`.
+
+**Tests:**
+
+- a staging unit test builds a fake dependency tree with a relative workspace link and a `.pnpm` store. It asserts that the workspace link resolves to the staged `codegen/`, and that `.pnpm` is a link to the unchanged dependency path, which is not modified;
+- `//codegen/frontend/typespec:tests` passes;
+- generated products are byte-identical after regeneration.
+
+## Amendment 3 (2026-09-26): Flake-fix leftovers
+
+These are the deferred Minors from the PR #17 reviews. On 2026-09-26 Rob asked to "fix all issues and optimize codebase".
+
+**H1-29 (W2, M3).** `host_failure` extracts errno numbers from the aggregated `shutil.Error` reasons. It must use an anchored match at the start of each reason (`[Errno N]`), not `re.findall` over the whole string. A path containing a literal `[Errno 99]` must not add a spurious name. RED: a unit test with such a path in `scripts/test_frontend_action.py`.
+
+**H1-30 (test author, N2).** `service_driver_test.py` `driver_rejection` includes the decoded child stderr in its exit-code assertion message, as `run_frontend` already does. This changes the diagnostic only; no assertion is weakened.
+
+## Amendment 4 (2026-09-26): Whole-candidate review fixes
+
+**H1-31 (W2).** The frontend escape check rejects a declared source that has a `node_modules` path component anywhere, not only first. The real dependency tree has a real `codegen/frontend/typespec/node_modules/` directory.
+
+**H1-32 (W1).**
+
+- A shallow clone never turns an ancestry check into a verdict. When `merge-base --is-ancestor` exits 1 and `git rev-parse --is-shallow-repository` is `true`, the result is BLOCKED ("shallow clone; ancestry cannot be established"). A failed probe is also BLOCKED.
+- A found ancestor (exit 0) still passes: a shallow boundary can hide ancestry but cannot invent it.
+- A non-ancestor in a complete repository still FAILs (H1-02).
+- This applies to `tools/engineering/github_audit.py` and to `tools/engineering/admission.py`'s ancestry check, which is added to W1's owned files for this item.
+
+**H1-33 (W2).** The verification receipt records the H1-14 negative-analysis check in `negative_checks` (argv, exit code, diagnostic matched), separate from `commands`.
+
+## Deferred (recorded in the handoff)
+
+- **A-13:** CI artifact coverage. Policy-bound workflow; owner decision.
+- **A-14:** `eternal` exceeds the CI job cap. Decide after measuring the new CI timings.
+- **N-4 to N-8:** direnv, fresh-clone docs, `git+file` for rules_nixpkgs after B4, CI Nix cache, gitMinimal.
+- **Bazel CI cost:** runner size or cache persistence is an owner decision.
+
+<Info>
+  Amendment note: H1-22 `--sandbox_default_allow_network=false` was moved to Stage 2 (after B3b merges). It may affect B3b's loopback socket tests, which would then need `requires-network` tags in B3b-owned BUILD files.
+</Info>
+
+## Checks the parent runs
+
+- The focused RED and GREEN run for each item.
+- `nix develop --no-write-lock-file -c just verify` on the Mac.
+- Linux `linux-foundation` via `workflow_dispatch` on the candidate SHA.
+- `just flake-check`.
+- A fresh whole-candidate review.
+
+## Related
+
+<CardGroup cols={2}>
+  <Card title="DOC1 Engineering Docs" icon="book-open" href="/superpowers/specs/2026-09-26-doc1-engineering-docs-criteria">
+    Documentation criteria that reference H1 status discipline and reconciliation.
+  </Card>
+
+  <Card title="K1 Codegen Hardening" icon="code" href="/superpowers/specs/2026-09-26-k1-codegen-contracts-hardening-criteria">
+    Codegen and contracts hardening for production readiness, related to H1 Stage 2 ordering.
+  </Card>
+</CardGroup>

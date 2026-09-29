@@ -1,0 +1,63 @@
+---
+title: "ADR-006: Biological World Model Authority"
+sidebarTitle: "ADR-006"
+description: "Architecture decision recording canonical biological semantics and stable identity for biological entities, accepted 2026-09-22."
+---
+
+This page records ADR-006, the decision to maintain canonical biological semantics rather than letting ingestion, models, evaluation, and experiments invent competing meanings. It is authoritative: architecture-law changes require explicit ADR reviewThis page records ADR-006, the decision to maintain canonical biological semantics rather than letting ingestion, models, evaluation, and experiments invent competing meanings. It is authoritative: architecture-law changes require explicit ADR review.
+
+## Status
+
+## Status
+
+| AttributeAttribute | ValuValue |
+| --- | --- |
+| StatusStatus | AcceptedAccepted |
+| Date | 2026-09-22 |
+| Date | 2026-09-22 |
+
+## Context
+
+Without a canonical authority, biological data and claims fragment across ingestion pipelines, learned models, and assays, making reproducibility and traceability impossibleWithout a canonical authority, biological data and claims fragment across ingestion pipelines, learned models, and assays, making reproducibility and traceability impossible.
+
+## Decision
+
+Mindclade will maintain canonical biological semantics rather than letting ingestion, models, evaluation, and experiments invent competing meanings.
+
+## Consequences
+
+- Biological entities, sequences, structures, measurements, assays, cells, organisms, and relationships receive stable identities.
+- Scientific claims must reference canonical biological meaning and supporting evidence.
+- VS-001 records this law but does not implement the biology domain yet.
+
+## Related
+
+<CardGroup cols={2}>
+  <Card title="ADR-005DR-005" icon="file-code" href="/architecture/adr/adr-005-evidence-claim-policy-and-decision-law">
+    Evidence, claim, policy and decision primitivesEvidence, claim, policy and decision primitives.
+  </Card>
+
+  <Card title="ADR-008" icon="file-code" href="/architecture/adr/adr-008-runtimekit-and-testkit">
+    RuntimeKit and TestKit platform primitives.
+  </Card>
+
+  <Card title="VS-001 Handoff" icon="handshake" href="/developer/vs001-handoff">
+    Where this law is recorded but not yet implemented.
+  </Card>
+
+  <Card title="Architecture Overview" icon="map" href="/architecture/overview">
+    High-level architecture documentation and map.
+  </Card>
+
+  <Card title="ADR-008" icon="file-code" href="/architecture/adr/adr-008-runtimekit-and-testkit">
+    RuntimeKit and TestKit platform primitives.
+  </Card>
+
+  <Card title="VS-001 Handoff" icon="handshake" href="/developer/vs001-handoff">
+    Where this law is recorded but not yet implemented.
+  </Card>
+
+  <Card title="Architecture Overview" icon="map" href="/architecture/overview">
+    High-level architecture documentation and map.
+  </Card>
+</CardGroup>

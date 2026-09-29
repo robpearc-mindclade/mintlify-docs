@@ -1,0 +1,439 @@
+---
+title: "C0: Durable descriptor and configuration profile criteria"
+sidebarTitle: "C0 Durable Profile"
+description: "Review criteria for C0 durable admission profile including descriptor schema, RuntimeKit configuration, Echo argv, session partitions, acceptance gates, and stop conditions."
+---
+
+This page records the review criteria for the C0 durable descriptor and configuration profile. It defines the scope, interfaces, acceptance criteria, transitions, and stop conditions that gate durable admission implementation before any code is committed. The criteria are authoritative for the test author, implementer, and reviewer.
+
+<Warning>
+  The original draft status below is historical. Amendment 1 records Rob's checkpoint-A approval (handoff D-3), but nothing here is implemented, run, admitted, or qualified. It grants no admission, acceptance, qualification, dependency, or lock change. Unresolved implementation criteria must be reconciled before affected implementation proceeds.
+</Warning>
+
+**Status:** Draft revision 2, awaiting a fresh criteria review and Rob's checkpoint A. It applies the one fix round from the first fresh review (CHANGES REQUIRED). Nothing here is implemented, run, admitted or qualified, and it grants no admission, acceptance, qualification, dependency or lock change.
+
+**Task:** the C0 profile gate that the [C criteria](2026-09-26-c-durability-criteria.md) require. Amendment 1 approved it (handoff D-3), and C §3 OD-6, §13 item 6 refer to its grant. It also covers, from the C criteria on `claude/c-reconcile`: Amendment 2's P1 (digest source and capability equality) and P7 (`supervise_with`), and Amendment 3's seventh C0 item (inbound trace context).
+
+**Base:** `main` `8bea4a4`. **Branch:** `claude/c0-criteria`.
+
+**Roles.** This fresh author context neither implements nor tests C0, and it ran reads only. A fresh reviewer applies the [criteria review](../../../.agents/evals/criteria-review.md). The parent assigns a distinct implementer and a distinct test author, and Rob approves.
+
+**Authorities.** In order:
+
+1. AGENTS.md;
+2. design §3 and §6 ("Limit active HTTP work and worker claims through descriptor configuration");
+3. C plan Task C5;
+4. the frozen [service-descriptor-v1](../../architecture/service-descriptor-v1.md) and [service-config-v1](../../architecture/service-config-v1.md);
+5. [platform-and-execution](../../architecture/foundations/platform-and-execution.md) ("A descriptor flag cannot turn the earlier test collaborator into the later implementation");
+6. the B3a corpus, the [B3b criteria](2026-09-24-b3b-criteria.md), and C through Amendment 3.
+
+Where they conflict with this file, they win; §8 records each conflict.
+
+## 1. Scope and non-goals
+
+**Decided by OD-6, not reopened:**
+
+- argv option (a), `--postgres-socket-dir <absolute path>`, with fixed role and database names;
+- exit code 6;
+- B3b-23 and B3b-27 flip only by a reviewed parent transition.
+
+OD-6's bounds (8, 4, 16, 30 s, 10 s and B = 12) are reviewed in §3.4. Changing any of them is Rob's decision.
+
+**In scope:** the durable profile end to end. That covers the descriptor, Codegen, the generated products, RuntimeKit's mode, configuration, errors and telemetry, Echo's argv and startup, exit code 6, the inbound `traceparent` and `tracestate` plumbing, P1's digest source, the §5 transitions, regeneration and fingerprints.
+
+Trace context adds **no** C0 telemetry field and **no** configuration knob. A3.3's proposed `Event` field is not adopted.
+
+**Non-goals** (review rejects them):
+
+- store, engine or `DurableAdmission` behaviour (C1-C5);
+- the ADR-017 transport swap, which is its own gate: tokio or hyper would break the no-crate rule and B3b-26's pins;
+- any new crate, package or Nix input, or any lock change;
+- TCP, TLS or passwords;
+- any `contracts/**` change, since declaring the headers publicly is the contract owner's call (A3.2);
+- a fallback from durable to test;
+- deployment, power-loss claims, and real Clade or scientific work.
+
+**Order (parent ruling).** C1-C4, then ADR-017, then **C0-A**, then C5 together with **C0-B**.
+
+- **C0-A** covers C0-01 to C0-08, C0-14's in-process negative, C0-16 to C0-19 and §5.
+- **C0-B** covers C0-09 to C0-13, C0-14's scan, C0-15 and C0-20. It is worded engine-neutrally, with no threads and no `OverrunWorkers`.
+
+## 2. Paths
+
+**Implementer:**
+
+- **New files:** `services/foundation_echo/{service.durable.descriptor.yaml,src/profile.rs}` and `codegen/src/emit/durable_config.rs`.
+- **Edited, Codegen:** `codegen/src/{descriptor.rs,graph.rs,emit/service_http.rs}`.
+- **Edited, RuntimeKit, for the §3.5 additions only:** `platform/runtimekit/src/{config,lifecycle,telemetry,http}.rs`.
+- **Edited, Echo:** `services/foundation_echo/src/{main,lib,ports,composition}.rs`. These overlap C §5.1, so one implementer holds both.
+
+**Test author** (additions only, except as §5 lists): `platform/runtimekit/tests/{config,transport}.rs`; `codegen/tests/cases/{descriptor,service_binding}.rs`; `c0/*` cases in `codegen/tests/fixtures/b3a/cases.json`, and `descriptor/c0-*.yaml`; `tests/conformance/vs001/{service_driver_test.py,service_config/*,service_http/composition_driver_test.py}`; `services/foundation_echo/tests/composition.rs`, and a new `tests/durable_profile.test.mjs`; C0 sections of C's reserved `tests/{public_durable,durable_boundaries}.rs`.
+
+**Parent:**
+
+- every `BUILD.bazel`; `codegen/frontend/typespec/BUILD.bazel:72` `descriptor_sources` gains the durable file;
+- `codegen/src/{emit/mod.rs,projection.rs,publication.rs,main.rs,generator.rs}`;
+- `scripts/{generate_vs001,validate_generator_inputs,verify_foundation,test_ci_policy}.py`;
+- the `justfile`;
+- W1;
+- `generated/**` (through Codegen only) and `REPOSITORY_TREE.md`;
+- the ABI and criteria amendments.
+
+**Excluded:**
+
+- `core/**`, `contracts/**` and `platform/testkit/**`;
+- `services/foundation_echo/src/execution/**`;
+- scaffold stubs and the B4 model;
+- `.github/**`, `.agents/policies/**` and the lockfiles.
+
+## 3. Interfaces (proposed unless marked existing)
+
+### 3.1 Topology (Q1, an owner decision)
+
+The profile is **additive**. The test descriptor, its products and the binary's behaviour stay as they are. A second authored descriptor yields a second constructor and a second inspection. `:foundation_echo` stays one binary: `[]` runs the test profile, and exactly `["--postgres-socket-dir", P]` runs the durable profile.
+
+**Codegen rule: one descriptor per (identity, profile).** The source path alone selects the profile: `service.descriptor.yaml` is the test profile, and its validator stays byte-unchanged; `service.durable.descriptor.yaml` is the durable profile.
+
+Today four sites allow exactly one descriptor: `seal_services` (`codegen/src/graph.rs:270-272`, which reports `descriptor-binding` for a second identity); `emit/service_http.rs:55-60`; `emit/mod.rs:61-67`; `projection.rs:402-416`.
+
+C0 changes them as follows:
+
+- **`seal_services`** keys on (identity, profile), so a same-profile duplicate is still `descriptor-binding`. It also reports `descriptor-pair`, at the durable value, when any field outside the four §3.2 deltas differs from the test descriptor.
+- **The adapter** is emitted once, from the test descriptor. Its operation and `max_body_bytes` are shared with the durable descriptor.
+- **Inventory.** `vs001_services` carries both files, so every profile compiles both. Only `DurableComposition` publishes durable products, and it reports `descriptor-inventory` if the durable file is missing.
+
+### 3.2 The durable descriptor (`FoundationEchoDurableAdmission@v1`)
+
+These are the only deltas from the test descriptor. Key sets stay closed. A test-only value is `descriptor-profile`, a value out of range is `descriptor-range`, and a missing or extra key is `descriptor-field`.
+
+```yaml
+dependencies:
+  postgres: {kind: postgresql, required: true, max_connections: 13}
+configuration:
+  admission: durable
+  lifecycle: {request_timeout_ms: 2000, shutdown_timeout_ms: 5000}
+  execution: {worker_claims: 4, dispatch_batch: 16, lease_ms: 30000, request_deadline_ms: 10000}
+health: {readiness: durable-admission}
+```
+
+### 3.3 Products
+
+- **Variant.** `DurableComposition` (`VS001DurableCompositionProducts@v1`) is a new closed variant after `Composition`, selected by `generate_vs001.py --composition --durable`. A downgrade is rejected under the existing lock and in recovery, with `projection-profile`.
+- **Catalog.** 16 files: the 14 existing ones plus `service/durable/{config.rs,descriptor.json}`. There are 15 output hashes and 2 `descriptor_inputs`.
+- **`service/durable/descriptor.json`** keeps the shape of service-config-v1 §3: `profile` is `FoundationEchoDurableAdmission@v1`, and `source` is the durable path; `config.admission` is `"durable"`, and `config` keeps exactly its nine fields; the five integers go in a new closed top-level object, `durable`: `worker_claims`, `dispatch_batch`, `lease_ms`, `request_deadline_ms` and `max_connections`.
+
+### 3.4 Bounds, sessions and B (Q2 and Q3, owner decisions)
+
+| Bound | Key | Recommended | Accepted range (Codegen and `DurableConfig::new`) |
+| --- | --- | --- | --- |
+| HTTP in flight | `resources.max_in_flight` | 8 (shared field) | 1..=64 (existing) |
+| Worker claims | `execution.worker_claims` | 4 | 1..=16 |
+| Dispatch batch | `execution.dispatch_batch` | 16 | 1..=256 |
+| Lease | `execution.lease_ms` | 30000 | 1000..=300000 |
+| Request deadline | `execution.request_deadline_ms` | 10000 | `request_timeout_ms`..=30000 |
+| Connections B | `postgres.max_connections` | **13** | `= max_in_flight + worker_claims + 1`, ≤ 24 |
+
+**Session partition** (a C-owned interface, proposed here). The app-role sessions open at startup in three fixed partitions. Nothing borrows across partitions, and each checkout waits, under a deadline, only on its own partition.
+
+- **Admission: `max_in_flight` sessions.** A request holds one only for its admission transaction and releases it at commit or rollback. It then waits for the terminal state on an in-process signal, holding **no** session, and checks one out again to read the artifact.
+- **Worker: `worker_claims` sessions.** Each is held from claim until the completion or failure commits.
+- **Control: one session.** The scheduler loop holds it for dispatch, reconciliation and exit observations.
+
+**Why B = 13.**
+
+- **13 is the maximum concurrent use**, so no class ever waits on another.
+- **B = 12 with release at commit only delays:** dispatch can wait on an admission's commit.
+- **Holding sessions across the wait deadlocks:** at 12 in C5-12, eight waiting admissions and four workers starve dispatch.
+- **Headroom.** The cap of 24 leaves room, within C §4.2's `max_connections = 32`, for four test sessions and three reserved slots.
+- **The admin migration session** closes before readiness and is not counted.
+
+OD-6 approved B = 12, so changing it is a stop for Rob (Q2).
+
+### 3.5 RuntimeKit
+
+**Configuration.**
+
+- **`AdmissionMode { Test, Durable }`.** `ServiceConfig::new` keeps its eleven arguments and its **eight** checks (`tests/config.rs:476`), its nine `ConfigError` variants with their texts, and its purity.
+- **`DurableConfig`** owns a Durable `ServiceConfig`. It has private fields and no `Default`, `Deserialize` or builder. Its constructor is `DurableConfig::new(listen, service, tenant,
+  environment, descriptor_digest, max_body_bytes, max_in_flight, request_timeout, shutdown_timeout,
+  log_level, worker_claims, dispatch_batch, lease, request_deadline, max_connections) ->
+  Result<DurableConfig, DurableConfigError>`. It has **no mode parameter**. It calls `ServiceConfig::new(…, Durable, …)`, so a Test config can never pair with durable limits. It checks, in order: the eight `ServiceConfig` checks, then the five §3.4 ranges (in integral milliseconds), then the B equality and cap. Accessors: `service() -> &ServiceConfig`, and one per limit.
+- **`DurableConfigError`.** Variants: `{Config(ConfigError), Admission, WorkerClaims, DispatchBatch,
+  Lease, RequestDeadline, MaxConnections, Arguments, PostgresSocketDir}`. Codes: `Config(e)` delegates `code()`. The others are `config-admission`, `-worker-claims`, `-dispatch-batch`, `-lease`, `-request-deadline`, `-max-connections`, `-arguments` and `-postgres-socket-dir`. `Display` texts are fixed and never echo input, and `source()` is `None`. `Config(e)` has its own nine texts with "invalid durable-profile" naming, never the "TestAdmission" ones.
+
+**Telemetry.**
+
+- **`Event.code`** (`telemetry.rs:191`, set at `:222-225`) widens from `Option<ConfigError>` to a private `Option<Code>`, where `Code` is `Config(ConfigError)` or `Durable(DurableConfigError)`. `code()` keeps its signature.
+- **New constructors:** `Event::durable_config_error(ts, e)` emits `config_error`; `Event::dependency_error(ts, DependencyFailure)` emits `dependency_error`, with reason `unavailable`, `migration`, `durability` or `integrity`; `Event::attempt(ts, AttemptEvent)` emits `attempt_started` or `attempt_committed` (C5-11).
+- **`serve`** applies its identity rule to `Durable` as well.
+
+**HTTP.** `Request::trace_fields() -> TraceFields<'_>` returns every raw `traceparent` and `tracestate` value, in the order received and with surrounding whitespace trimmed.
+
+- The existing head bounds still apply: 8192 bytes and 32 fields.
+- The values never reach telemetry.
+- Only C's `TraceContext::from_fields` parses them (A3.1).
+
+### 3.6 Echo
+
+- **Generated constructor.** `generated/vs001/service/durable/config.rs` defines `pub fn
+  build_durable_service_config() -> Result<DurableConfig, DurableConfigError>`, following service-config-v1 §2 with the §3.2 literals. It uses no panic, `unwrap` or dynamic lookup.
+- **Argv.** `main.rs` accepts exactly `[]` or `["--postgres-socket-dir", P]`. Anything else is `Arguments`, which exits 3 (Q8).
+- **Supervisors.** `supervise_durable(build: fn() -> Result<DurableConfig, DurableConfigError>,
+  socket_dir: &OsStr) -> Stopped` is proposed. A test builder cannot be passed to it; `supervise_with` (`lib.rs:256-282`, which builds `TestAdmission` at `:282`) gains a guard: if `admission()` is not `Test`, it exits 3 with `config-admission` before building any port.
+- **Socket directory P.** It is checked with std only: no `unsafe`, no crate, no environment variable. A failure is `PostgresSocketDir`, and no connection is attempted. P must: be absolute UTF-8 with no whitespace, quote, backslash or control character; be a real directory under `symlink_metadata`, with mode `0o700`; be owned by the effective uid, established std-only (for example, from a probe file that is created and removed inside P); give `P/.s.PGSQL.5432` of at most 103 bytes.
+- **Constants.** Roles: `mindclade_admin` and `mindclade_app`. Database: `mindclade`. Port: 5432. `application_name`: `mindclade-foundation-echo:{migrate,admission,worker,control}`. DSN keys: `host`, `user`, `dbname` and `application_name` (C1-03).
+- **Durable startup,** with the exit code for a failure at each step: argv (3); the constructor (3). P (3); an admin session runs `verify_durability` and `migrate`, then closes (6); the §3.4 app sessions open and pass `verify_durability` (6); `compose` with `DurableAdmission`, then bind and identity (4); the engine starts; the ready receipt.
+- **Exit codes.** 0, 1, 3, 4 and 5 are unchanged. `EXIT_DEPENDENCY = 6` applies to the durable profile only, and only before readiness. Its reasons: `unavailable`: refused, no socket, or a missing role or database; `migration`: checksum, version or apply; `durability`: `verify_durability`, or `rolsuper` on the app role. After readiness, a dependency loss gives 503 and a `dependency_error`, never exit 6. Exits 3, 4 and 6 write no receipt.
+- **Receipts.** The ready receipt keeps its four `FoundationEchoReady@v1` keys, with `"admission":"durable"` and the durable descriptor's SHA-256. Stdin control and `FoundationEchoStopped@v1` are unchanged.
+- **P1 digest source.** `DurableAdmission` sets `Admission.capability` to `{identity:
+  AdmissionContext::identity(), digest: AdmissionContext::descriptor_digest(), target_kind:
+  "capability"}`. It takes `tenant` and `environment` from the context, never from request bytes.
+- **Trace plumbing.** The generated adapter stays unchanged. T1 proposes a hand-owned `http.rs` trace-accessor addition with different signatures (`traceparent_fields()` and `tracestate_fields()`, each returning `Vec<&[u8]>`), whereas C0 requires `Request::trace_fields() -> TraceFields<'_>`. C0 must reconcile that interface after T1's separate review and owner decision. Per request, the composition binds `request.trace_fields()` into its `BoundAdmission` before it calls `echo_handler`. `AdmissionPort` gains a provided method, `execute_traced(&self, context, request_id, request, trace)`. Its default calls `execute`, so `TestAdmission` and B3b's ports compile unchanged; `DurableAdmission` overrides it and passes `TraceContext::from_fields(…)` to `Engine::admit_and_wait`, beside the `AdmissionContext` and never inside it.
+- **The C5 harness** reads P only from the `host=` value of `PgHarness::dsn(Role::App)`, so `PgHarness` gets no new item. It sets decoys for `PGHOST`, `PGPORT`, `PGUSER`, `PGDATABASE`, `PGOPTIONS` and `DATABASE_URL`.
+
+## 4. Acceptance criteria
+
+**Rules.**
+
+- Each criterion states a positive control (P), negatives (N), a RED reason and a target.
+- C §6's skip and timeout rules apply.
+- Where base lacks only wiring, RED is a recorded scratch mutation that removes the guard, never committed.
+- `TEST_TARGETS` gains no entry.
+- C0-11, C0-13 and C0-15 state only their deltas over C5-03 and C5-12.
+
+**C0-01 The durable descriptor compiles; the test profile is unchanged.**
+
+- P: the §3.2 file compiles with the §3.4 values, and the test file compiles equal to base.
+- N: the B3a corpus passes unchanged.
+- RED: base rejects the durable path at `descriptor-owner` (`descriptor.rs:350`, reached from `:450`).
+- Target: `//codegen:b3a_tests`.
+
+**C0-02 Descriptor, pair and duplicate negatives,** each at its location.
+
+- N `descriptor-profile`: `required: false`; `admission: test`; `readiness: local-admission`; `max_connections` of 12 or 14.
+- N `descriptor-range`: each bound at 0 or one past either end; a deadline below `request_timeout_ms`; `worker_claims: 16` with `max_connections: 25`, which is over the cap.
+- N `descriptor-field`: a missing or extra `execution` key; `connection_ref`.
+- N `descriptor-pair`: any shared field that differs, for example `max_in_flight: 9`, `request_timeout_ms: 3000` or bind `127.0.0.2:0`.
+- N duplicates: the test path listed twice gives `descriptor-source-duplicate`, and two same-profile descriptors in `seal_services` give `descriptor-binding`.
+- RED: base gives `descriptor-binding` for the valid pair.
+- Target: `//codegen:b3a_tests` (`c0/*`), `//codegen:service_projection_tests`.
+
+**C0-03 Two-descriptor catalog under one publisher.**
+
+- P: exactly 16 files and 15 recomputed hashes; a rerun is unchanged, and relocation is byte-identical; upgrades from the 7-, 9-, 13- and 14-file profiles succeed; `service/{config.rs,descriptor.json,http.rs}` and the 10 other non-graph outputs are byte-identical to base; `Composition` still gives 14 files in isolated roots.
+- N: a downgrade from 16 is rejected before replacement, and during recovery; `DurableComposition` without the durable file gives `descriptor-inventory`; there is no second lock or publisher.
+- RED: base fails with `service-http-descriptor` (`service_http.rs:55-60`).
+- Target: `//codegen:service_projection_tests`, `//tests/conformance/vs001:composition_driver`.
+
+**C0-04 The durable inspection is closed.**
+
+- P: exactly the §3.3 shape: `config` has 9 fields and `durable` has 5, with digests recomputed.
+- N, each rejected: a removed, duplicate or extra key; `admission` of `test`; a numeric string or a float; an out-of-range value; a `durable` object in the test inspection.
+- RED: a mutation that places the five integers inside `config`.
+- Target: `//tests/conformance/vs001:service_driver`.
+
+**C0-05 The generated durable constructor, against real RuntimeKit.**
+
+- P: the actual file, compiled through its runfile, has accessors equal to its `descriptor.json`.
+- N: a mechanical mutation of each literal gives its exact `DurableConfigError`, with no panic. The literals are the socket, each identity part, the digest, each bound and the B sum.
+- RED: a mutation that swaps `worker_claims` and `dispatch_batch`.
+- Target: `//tests/conformance/vs001:service_config_rust`.
+
+**C0-06 `DurableConfig` direct calls and errors.**
+
+- P: each bound at its minimum, its maximum and its recommended value.
+- N: each bound at 0, one past either end, and `MAX`; 1 ms + 1 ns, and 999999 ns; a B mismatch, and a B over the cap; multiple faults, which prove the order with no side effects; exact codes, and no `Display` text containing "TestAdmission" or echoing input. This includes all nine `Config(e)` texts.
+- RED: a mutation that delegates `Display` to `ConfigError`.
+- Target: `//platform/runtimekit:config_tests`.
+
+**C0-07 The frozen configuration ABI is preserved.**
+
+- P: B3b-01/02 pass byte-unchanged, and a Durable `ServiceConfig::new` runs the same eight checks.
+- N: `serve` with a Durable config and a wrong identity returns `RuntimeError::Identity` before binding.
+- RED: a mutation that skips the Durable identity arm.
+- Target: `//platform/runtimekit:{config_tests,transport_tests}`.
+
+**C0-08 Compile-fail pairs (T1, T2).**
+
+- P: an exhaustive `{Test, Durable}` match compiles.
+- N: each of these fails beside a compiling sibling: `AdmissionMode::Unknown`; an `AdmissionMode` argument to `DurableConfig::new`; `supervise_durable(build_service_config, …)`; a `DurableConfig` struct literal; a `Default` bound on `DurableConfig`. The E0061 and `AdmissionContext` pairs are unchanged.
+- RED: the new siblings fail on base.
+- Target: `//services/foundation_echo:composition_compile_fail`, `//tests/conformance/vs001:service_config_compile_fail`.
+
+**C0-09 Argument grammar.**
+
+- P: `[]` gives `"admission":"test"`, and `:process_tests` passes unchanged. A valid argument pair gives durable.
+- N: each case gives exit 3, one `config-arguments` line, no receipt and no listener: `--bogus`; a missing value; `=P`; a repeat; an extra argument; non-UTF-8 input.
+- RED: base ignores argv.
+- Target: `//services/foundation_echo:public_durable_tests` (`durable_profile.test.mjs`).
+
+**C0-10 Socket-directory checks.**
+
+- N: each case gives exit 3 with `config-postgres-socket-dir`, and no session under the binary's `application_name`: a relative or missing path; a file; a symlink to a valid directory; mode 0755, 0770 or 0711; a 104-byte socket path; a path containing a space.
+- N: a decision table with injected facts rejects a foreign owner and a failed probe.
+- P: the harness's 0700 directory.
+- RED: base ignores argv.
+- Target: `:public_durable_tests`, `//services/foundation_echo:composition_in_process`.
+
+**C0-11 Exit code 6 (its delta over C5-03).** Each case below exits 6 with exactly one `dependency_error` line, and leaves no binary session afterwards.
+
+- N `unavailable`: the server is stopped, or the app role is absent.
+- N `migration`: a tampered checksum, or a persisted version of 2.
+- N `durability`: `synchronous_commit = off`, or `ALTER ROLE mindclade_app SUPERUSER`.
+- N precedence: a bad argv with the server stopped gives 3. An occupied port with a healthy server gives 4, with no `attempts` row and no `:worker` session.
+- RED: base never exits 6.
+- Target: `:public_durable_tests`.
+
+**C0-12 Readiness, receipt and roles.**
+
+- P: the receipt has exactly four keys, `"admission":"durable"`, and the durable SHA-256; it appears only after migration and verification; by then no `:migrate` or admin session remains, and every binary session is `mindclade_app` with a §3.6 name.
+- N: the decoys change neither the socket nor any durability setting, and the test profile opens no PostgreSQL session.
+- RED: base prints `"admission":"test"`.
+- Target: `:public_durable_tests`.
+
+**C0-13 Bounds and partition (its delta over C5-12).**
+
+- P: with `lock_artifacts_share()` held and 8 requests in flight: exactly 4 attempts are `running` and 4 Runs are `queued`; there are at most 4 `:worker` sessions; no `:admission` session is `idle
+  in transaction` while waiting.
+- P: `expires_at − claim` is 30 s ± 1 s of database time.
+- N: C5-12's sampler never exceeds B, and never sees more than 1 `:control` session.
+- Scan: the bounds come only from `DurableConfig` accessors.
+- RED: a mutation that holds the admission session across the wait.
+- Target: `:public_durable_tests`, `:durable_boundaries_tests`.
+
+**C0-14 No relabelling.**
+
+- N (C0-A): in process, `supervise(build)` with a Durable `ServiceConfig` returns `Stopped::Exit(3, _)` with `config-admission`. It writes no receipt and builds no port.
+- Scan (C0-B): `src/**` constructs `TestAdmission` only in `supervise_with`'s Test arm, and `DurableAdmission` only in `supervise_durable`. Each is found exactly once.
+- P: `:process_tests`' `/durable/i` check is unchanged.
+- RED: a mutation that removes the `supervise_with` guard. The run then reaches ready and exits 0 on stdin EOF.
+- Target: `:composition_in_process`, `:durable_boundaries_tests`, `:process_tests`.
+
+**C0-15 Durable shutdown (its delta over C5-03).**
+
+- P: the admin session holds `lock_artifacts_share()`, so a worker's completion waits on a cancellable lock. On `shutdown\n`: the engine cancels that statement with the client's cancel request; the waiting request gets 503; the process exits 0 within 7000 ms; no binary session remains, and every engine unit of work has stopped.
+- N: the harness sends `SIGSTOP` to the worker's backend, found by its pid in `pg_stat_activity`, so the cancel cannot take effect. The run exits 5 with `overrun`, never 0. Afterwards the harness sends `SIGCONT`.
+- RED: a mutation that writes the receipt before the engine stops.
+- Target: `:public_durable_tests`.
+
+**C0-16 Telemetry sets, the widened code and redaction.**
+
+- P: every durable line parses with §3.5 values only. `Event::config_error` output is byte-unchanged, and B3b-15 is unchanged.
+- N: a `CANARY` path, role or trace value never appears in stdout, stderr, `Display` or `Debug`, and neither does `postgres://`.
+- RED: a mutation that echoes the path.
+- Target: `//platform/runtimekit:transport_tests`, `:public_durable_tests`.
+
+**C0-17 Regeneration and fingerprints.**
+
+- P: the manifest has a new `generator.source_fingerprint`, the new label, 15 outputs and 2 `descriptor_inputs`; `graph.json` and `graph_digest` change. C0-03's byte-identical outputs do not change; `just verify-generated` passes.
+- N: the four lockfiles are byte-identical. RuntimeKit is not a generator input.
+- RED: `just verify-generated` fails before regeneration.
+- Target: K3.
+
+**C0-18 ABI and criteria text amended truthfully.**
+
+- P: dated C0 amendments to: service-descriptor-v1 (the durable profile and the pair rule); service-config-v1 §1 (the mode, `DurableConfig`, `DurableConfigError`, `Event.code`), §2 (the second constructor) and §3 (`durable`); the B3b text (T3).
+- N: no page claims durable execution is implemented or qualified before C5-08.
+- Target: parent review, `just verify-tree`.
+
+**C0-19 Inbound trace plumbing.**
+
+- P: a recording port sees 0, 1 and 2 `traceparent` and `tracestate` fields, in order, through `execute_traced`. `TestAdmission` and B3b's ports are unchanged.
+- N: B3b-21's recorded `AdmissionContext` is identical with and without trace headers; invalid values never change the status or body; an 8193-byte head still gives 431.
+- RED: on base, `Request` keeps no header (`http.rs:266-316`).
+- Target: `//platform/runtimekit:transport_tests`, `:composition_in_process`.
+
+**C0-20 The P1 digest source.**
+
+- P: after a durable 200, `runs` stores the capability `{Mindclade.Foundation/foundation-echo@v1,
+  the receipt's descriptor_digest, "capability"}`. The test profile's digest never appears.
+- N: B3b-21's spoofed headers and body fields leave the stored capability, tenant and environment byte-identical. If Q4 is answered yes, C2-02's mismatch negative applies.
+- RED: a mutation that uses the test descriptor's digest.
+- Target: `:public_durable_tests`.
+
+## 5. Frozen-test and wrapper transitions (reviewed parent edits, like B2b-20)
+
+| # | Owner | Path and lines | Change |
+| --- | --- | --- | --- |
+| T1 | B3b-23 | `services/foundation_echo/src/lib.rs:47-60` | Prose becomes "exactly {Test, Durable}"; the E0599 block becomes the C0-08 pairs |
+| T2 | B3b-03 | `tests/conformance/vs001/service_config/forgery.rs:86-101` | The `{Test}` control becomes `{Test, Durable}`; the negative names `Unknown` |
+| T3 | B3b text | [B3b criteria](2026-09-24-b3b-criteria.md): B3b-03 N ("`Durable`"), B3b-23 N ("no runtime type …"), B3b-27 P ("no source … `durable`") | A dated amendment narrows each claim to the test profile |
+| T4 | B3a, B3b-23 | `tests/conformance/vs001/service_driver_test.py:176-179` | Two-file `descriptor_sources` and `descriptors`; `len == 2` |
+| T5 | B3a | `codegen/tests/cases/service_binding.rs:147` | Descriptor count 1 → 2 |
+| T6 | CI policy | `scripts/test_ci_policy.py:12-17`, `justfile:35,59` | ` --durable` after ` --composition` |
+| W1 | B4 wrappers (B4 §8 re-review; Q5) | `tools/validation/descriptor-lint.py:26-28`, `generated-provenance.py:25-27`, `test_boundary_entrypoints.py:85-87` | `--durable` added to each vs001 argv |
+
+**Unchanged:**
+
+- B3b-02, because `ConfigError` is untouched;
+- `process.test.mjs`;
+- the B3a corpus;
+- `codegen/tests/cases/service_http.rs:41-217` and `composition_driver_test.py`, because `Composition` stays at 14 files.
+
+The parent also updates `codegen/README.md:61,125` and `tests/conformance/vs001/README.md:60`.
+
+## 6. Checks the parent runs (both hosts)
+
+C §10 applies: RED, the two-host aggregates, cleanup and fresh reviews. C0 adds these checks:
+
+- **K1 (C0-A).** `nix develop --no-write-lock-file -c bazel test //codegen:b3a_tests
+  //codegen:service_projection_tests //platform/runtimekit:tests //tests/conformance/vs001:all
+  //services/foundation_echo:composition_tests`, then the last target again with `--runs_per_test=20`.
+- **K2 (C0-B).** `… bazel test
+  //services/foundation_echo:{public_durable_tests,durable_boundaries_tests}`.
+- **K3.** `python3 scripts/validate_generator_inputs.py`, `just generate-foundation`, `just
+  generate-vs001`, `just verify-generated` and `just verify-boundaries`, then `git diff --exit-code
+  flake.lock Cargo.lock MODULE.bazel.lock pnpm-lock.yaml`.
+- **K4.** `git diff` of every frozen test and wrapper file shows only additions, apart from T1–T6 and W1.
+- **K5.** `cargo test --locked -p mindclade-runtimekit -p mindclade-foundation-echo -p
+  mindclade-codegen`, then `just fmt-check` and clippy.
+
+## 7. Stop conditions (stop and report to Rob; no workaround)
+
+C §11 applies. C0 adds these stops:
+
+- **S0-1.** A §8 owner decision is open.
+- **S0-2.** C0 would need a crate, a package, a Nix input or a lock change.
+- **S0-3.** A frozen test or wrapper outside §5 changes or fails.
+- **S0-4.** A test-profile byte, receipt, exit code or `just run-echo` behaviour changes. The one carve-out is Q8: extra argv, which base ignores, now exits 3.
+- **S0-5.** The work needs `unsafe`, a signal handler, an environment lookup, or I/O in `ServiceConfig::new` or `DurableConfig::new`.
+- **S0-6.** A durable start falls back to test, or a port is composed under the other profile.
+- **S0-7.** `PgHarness`, `EchoCapability` or the generated adapter would change.
+- **S0-8.** A second publisher or lock is needed, or a profile would sit outside the closed order.
+- **S0-9.** A bound differs from Rob's decision, or B exceeds the headroom.
+- **S0-10.** ADR-017 changes any of these: `serve`, `Handler`, `Stopped`, `EventKind::ALL`, `Reason::ALL`, the exit codes, or `max_in_flight` bounding concurrent `Handler` calls. C0 is then reconciled before C0-A.
+- **S0-11.** The ownership check cannot be done std-only with its effects confined to P.
+
+## 8. Decisions for Rob, and conflicts found
+
+1. **Q1, topology (owner decision).** Options: (a) an additive second descriptor, with one binary selected by argv and the §3.1 rule; (b) flip the single descriptor in place; (c) additive, with a second binary. **Recommend (a).** It keeps B3b's tests and `just run-echo`, and it matches C §8. _Conflict:_ four sites allow only one descriptor today (§3.1), and the B3a corpus rejects the durable values. Option (b) would also flip the B3a corpus and B3b-20/21/22/24/25, and would put PostgreSQL under every process test.
+2. **Q2, B = 13 (owner decision)** instead of OD-6's approved 12, with §3.4's release-at-commit partition. **Recommend yes.** At 12 this design only delays, but holding sessions across the wait deadlocks.
+3. **Q3, the other bounds and ranges** (8, 4, 16, 30 s, 10 s). **Recommend approving.**
+4. **Q4, capability equality (owner decision; P1).** Must `Admission.capability` equal the packet's `WorkPacket.capability`? **Recommend yes.** A mismatch is `StoreError::Integrity` with zero rows, so no Run is keyed under one capability while running another.
+5. **Q5, transitions beyond OD-6's list:** T2–T6, and W1 with its B4 §8 re-review. OD-6 named only B3b-23 and B3b-27. _Conflict:_ adding `Durable` also breaks B3b-03's `forgery.rs` control. **Recommend approving.**
+6. **Q6, separate `DurableConfig` and `DurableConfigError` types, plus the widened `Event.code`.** _Conflict:_ a new `ConfigError` variant would break B3b-02's exhaustive match (`tests/config.rs:466-475`), and its texts say "TestAdmission". **Recommend approving.**
+7. **Q7, the §3.5 telemetry additions.** _Conflict:_ C5-11 needs attempt and integrity events that the closed set cannot express. A3.3's trace field is not added. **Recommend approving.**
+8. **Q8, argv and exit 6.** The option and the code were **decided by OD-6**. **Recommend**: exit 6 only before readiness, and extra test-profile argv exits 3 (S0-4's carve-out).
+9. **Q9, order.** A **parent ruling** (§1), not asked.
+
+Two further conflicts are resolved in §3: `PgHarness` has no socket-directory accessor (C1-03), so the harness parses `dsn`. service-config-v1 §1 and §3 allow only `Test` and a nine-field `config`; C0-18 amends both.
+
+## Amendment 1 (2026-09-27): checkpoint A approved
+
+Rob decided checkpoint A in chat on 2026-09-27 ("Approve all"), after the parent listed Q1–Q8 with their recommendations (Rob, 2026-09-27, chat). This amendment adds to the criteria above and rewrites none of them.
+
+- **Decisions.** Every recommendation is approved as written:
+  - Q1: one descriptor per (identity, profile), with the profile selected by argv.
+  - Q2: **B = 13**. This amends OD-6's approved value of 12, per the stated session partition.
+  - Q3: the remaining bounds.
+  - Q4: `Admission.capability` must equal the packet's capability.
+  - Q5: the transitions T2–T6 and W1.
+  - Q6: separate config and error types.
+  - Q7: the RuntimeKit telemetry additions.
+  - Q8: exit 6 only before readiness.
+- **Order (parent ruling).** C1–C4, then T1 (the ADR-017 transport swap), then C0-A, then C5 with C0-B. If T1 changes `serve`, `Handler`, `Stopped`, the event and reason sets, the exit codes or the `max_in_flight` semantics, stop S0-10 applies and these criteria are reconciled first.
+- **Not changed.** Nothing is implemented, and the stop conditions still apply.
+
+## Integration review clarification (2026-09-27)
+
+The statement that `http.rs` never changes was too broad: §3.5 requires a new hand-owned RuntimeKit trace accessor, while the generated adapter remains unchanged. T1 proposes to own that addition, but T1 remains a draft and its accepted ADR-017 keep-alive conflict must be resolved before implementation. This note preserves Rob's checkpoint-A decisions above; it does not approve T1 or change C0's stop conditions. Reconcile the final accessor ownership and exact C0 base after the T1 criteria and ADR are reviewed.

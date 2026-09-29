@@ -1,0 +1,347 @@
+---
+title: "B3b Criteria: Bounded RuntimeKit/TestKit Composition of Generated Echo"
+sidebarTitle: "B3b RuntimeKit Criteria"
+description: "Frozen acceptance criteria for B3b bounded RuntimeKit and TestKit composition, covering transport, adapters, and the generated Echo service."
+---
+
+The B3b criteria define the acceptance conditions for composing a bounded HTTP/1.1 RuntimeKit, deterministic TestKit collaborators, and a Codegen-emitted Echo HTTP adapter into a Foundation Echo service. These criteria are frozen and govern implementation, testing, and stop conditions.
+
+**Status:** Frozen 2026-09-24. Independent criteria review returned APPROVE WITH CHANGES; all required changes are applied. Rob approved these criteria and transport option (c) with `httparse = "=1.10.1"` (single new crate). Reviewer recommendations in §8 are adopted. These criteria grant no operational admission. Nothing here is implemented, executed, admitted or qualified. It grants no dependency approval, root activation or operational permission.
+
+Date: 2026-09-24. Baseline: `main` at `06a903f`. Branch: `claude/b3b-runtimekit`.
+
+Authorities, in order: `AGENTS.md`; ADR-008 (RuntimeKit/TestKit), ADR-010 (modular monolith), ADR-013 (generated projections); the [compiler completion plan §B3b](../plans/2026-09-23-foundation-compiler-completion#task-b3b-real-bounded-runtimekittestkit-composition) with its Global Constraints and Review Focus #4; the **binding amendments** in [foundation next steps §B3b](../../developer/foundation-next-steps#b3b-actual-runtimekit-testkit-and-echo-composition); [service-config-v1](../../architecture/service-config-v1) (frozen ABI); [service-descriptor-v1](../../architecture/service-descriptor-v1); and the [existing B interfaces](../plans/2026-09-23-vs001-b-composition.md#task-b3-descriptor-composed-runtimekit-service). Where this document and those sources disagree, the sources win and the criteria reviewer records the conflict. Items marked **[reconcile after B2b merge]** depend on names B2b has not yet landed (at `06a903f`, `codegen/src/projection.rs` still selects modes with a `vs001: bool` plus an optional architecture path; no closed profile enum exists yet).
+
+## 1. Scope and non-goals
+
+In scope: the pure checked `ServiceConfig` ABI; a bounded HTTP/1.1 transport in RuntimeKit that serves one generic, product-neutral handler; TestKit deterministic collaborators; a Codegen-emitted Echo HTTP adapter; the Foundation Echo composition and binary using the generated config; real-socket and generated-client evidence on Apple Silicon and Linux.
+
+Non-goals, each an explicit boundary rather than a pending promise:
+
+- **Non-durable.** `TestAdmission` is an in-memory, stateless, explicitly non-durable collaborator. It stores nothing, implements no idempotency store and never produces 409; state is lost on restart. Nothing is labelled durable.
+- No PostgreSQL connection, migration, outbox, lease, worker or Run. C1–C5 own those. `dependencies.postgres.required` stays `false`.
+- **Socket disconnect is not Run cancellation.** A client disconnect never cancels admitted domain work. Cancellation observed by domain code comes only from service shutdown or the service's own deadline, never peer behaviour.
+- No TLS, HTTP/2, keep-alive, pipelining, chunked or other transfer codings, `Expect: 100-continue`, HTTP health route, MCP server, deployment or multi-replica topology. There are no new `ServiceConfig` fields.
+- No `unsafe` code (workspace lint `unsafe_code = "forbid"`). Therefore no POSIX signal handler; graceful supervisor control uses stdin (§3.6).
+
+## 2. Transport decision
+
+Question: which transport can _prove_ absolute header and body deadlines, byte limits, pre-header admission bounds and finite shutdown, including for connections already handed to handlers, without abandoning threads?
+
+### 2.1 Capability matrix
+
+| Requirement | (a) tiny_http 0.12.0 | (b) hyper 1.11.1 + hyper-util 0.1.20 + tokio | (c) std::net + `httparse` 1.10.1 | (d) std::net, zero crates |
+| --- | --- | --- | --- | --- |
+| Absolute header deadline, independent of pacing | **No.** No socket timeouts are set; per-connection threads block in `read_next_line` | Yes: `header_read_timeout` arms one deadline per head (needs a `Timer`) | Yes: before every read, `set_read_timeout(deadline − now)`; fail at zero | Same as (c) |
+| Separate absolute body deadline | **No.** The body reader blocks, and bodies ≤1024 B are read eagerly in the pool thread without a timeout | Yes, in application code (`tokio::time::timeout_at` around collection) | Yes (same mechanism, own deadline) | Same as (c) |
+| Max body independent of Content-Length; reject chunked | **No.** Any `Transfer-Encoding` value triggers chunk decoding and discards Content-Length (CVE-2026-66752) | Yes: `http_body_util::Limited` plus rejecting TE before polling the body | Yes: RuntimeKit owns framing, accepts Content-Length only, and caps reads at min(CL, limit) | Same as (c) |
+| Bounded connections **before** header read | **No.** `TaskPool` spawns threads without limit | Yes: acquire a semaphore permit before `accept` | Yes: take the permit before `accept` | Same as (c) |
+| Shutdown closes handed-off connections and joins all threads | **No.** Drop closes the listener and read halves, but not requests already returned by `recv`. The accept thread and pool threads are never joined | I/O yes (drop/abort connection tasks). A synchronous handler in `spawn_blocking` cannot be aborted, and `shutdown_timeout` leaks those threads | I/O yes: a registry of `try_clone`d sockets, `shutdown(Both)`, then join. The handler must cooperate, as in every option | Same as (c) |
+| Bound address (ephemeral loopback) | `server_addr()` | `TcpListener::local_addr` | `TcpListener::local_addr` | Same |
+| New crates | 4 (ascii, chunked_transfer, httpdate, log) | hyper and hyper-util plus about 14 non-Windows crates (bytes, http, http-body, http-body-util, tokio, mio, socket2, atomic-waker, futures-channel/core, httparse, httpdate, pin-project-lite, smallvec), and the windows-sys family in Cargo.lock | **1** (httparse; zero transitive deps) | Bespoke parser; needs its own corpus |
+| Maturity / maintenance | Last release 2022-10-06. Open CVEs; issue #286 asks for new maintainers | Very high | httparse is hyper's own parser: 46 releases, fuzz targets in the repo | Bespoke parser; needs its own corpus |
+| MSRV vs 1.96.1 | Not declared | 1.63 / 1.64 / 1.71 | No declared MSRV; build.rs gates features at ≥1.59 | n/a |
+| Bazel/crate_universe friction | Low | Highest: a large lock delta and a runtime to configure | Low. It has a build.rs that runs `rustc --version`, and `crate.from_cargo` already runs build scripts for locked crates (libc, typenum, serde_core) | None |
+| Determinism/testability | Poor (detached threads) | Async scheduling plus a runtime | Bounded synchronous threads; plain std test sockets | Same as (c) |
+
+### 2.2 Evidence
+
+- tiny_http `Server` docs say `recv_timeout` is "Same as `recv()` but doesn't block longer than timeout". The source implements it as `self.messages.pop_timeout(timeout)`, which bounds only the queue wait. The Drop docs say "Requests that have already been returned by the `recv()` function will not close". This confirms the plan's warning. Sources: [Server docs](https://docs.rs/tiny_http/0.12.0/tiny_http/struct.Server.html); [lib.rs](https://github.com/tiny-http/tiny-http/blob/master/src/lib.rs): the accept loop is started with a `thread::spawn` whose handle is dropped, and Drop self-connects to wake `accept`.
+- The tiny_http pool is unbounded and never joined. Its source says: "If no thread is available, spawns a new one". Its Drop only stores a sentinel and calls `notify_all` ([task_pool.rs](https://github.com/tiny-http/tiny-http/blob/master/src/util/task_pool.rs)). The eagerly read body of ≤1024 B and the unconditional chunk decoder for any TE value are in [request.rs](https://github.com/tiny-http/tiny-http/blob/master/src/request.rs). [client.rs](https://github.com/tiny-http/tiny-http/blob/master/src/client.rs) sets no socket read or write timeouts.
+- tiny_http advisories: CVE-2026-66752 (TE smuggling; CVSS 4.0 6.3 / 3.1 5.4) and CVE-2026-66753 (CR/LF injection; 4.0 6.3 / 3.1 3.7), both "through 0.12.0", NVD status Deferred ([66752](https://services.nvd.nist.gov/rest/json/cves/2.0?cveId=CVE-2026-66752), [66753](https://services.nvd.nist.gov/rest/json/cves/2.0?cveId=CVE-2026-66753); [OpenCVE](https://app.opencve.io/cve/CVE-2026-66752)). Both are open issues ([#287](https://github.com/tiny-http/tiny-http/issues/287), [#288](https://github.com/tiny-http/tiny-http/issues/288)). RustSec lists only RUSTSEC-2020-0031 for tiny_http, so `cargo-audit` will not flag them. Maintainer request: [#286](https://github.com/tiny-http/tiny-http/issues/286). Releases: [crates.io versions](https://crates.io/crates/tiny_http/versions).
+- hyper's header deadline is armed once in `Conn::poll_read_head` as `timer.now() + h1_header_read_timeout` and is not reset by incoming bytes (local source `hyper-1.11.1/src/proto/h1/conn.rs`). See [Builder::header_read_timeout](https://docs.rs/hyper/1.11.1/hyper/server/conn/http1/struct.Builder.html#method.header_read_timeout), which "Requires a Timer", and [GracefulShutdown](https://docs.rs/hyper-util/0.1.20/hyper_util/server/graceful/struct.GracefulShutdown.html).
+- Tokio's runtime docs: "Blocking functions spawned through `spawn_blocking` keep running until they return … When the timeout is reached, spawned work that did not stop in time and threads running it are leaked" ([Runtime § Shutdown](https://docs.rs/tokio/1.53.1/tokio/runtime/struct.Runtime.html#shutdown)). So (b) does not remove the amendment's cooperative-handler requirement.
+- Rust std: `TcpStream::shutdown` "will cause all pending and future I/O on the specified portions to return immediately". A second call returns `NotConnected` on macOS and `Ok` on Linux. `set_read_timeout` returns `Err` for a zero Duration, and Unix reports timeouts as `WouldBlock`. `try_clone` shares one socket ([TcpStream](https://doc.rust-lang.org/std/net/struct.TcpStream.html)). Implementations must treat `WouldBlock` and `TimedOut` as deadline expiry, never pass a zero timeout, and tolerate `NotConnected` on a repeated close.
+- httparse ([docs](https://docs.rs/httparse/1.10.1/httparse/), [repo](https://github.com/seanmonstar/httparse)) tokenizes only; it does no framing, body handling or I/O. It uses internal `unsafe` (SIMD), and its build.rs runs `$RUSTC --version` to gate features (1.59). It accepts bare LF, leading empty lines, and `#`, `{` and 0x80–0xFF bytes in the request target (local source `httparse-1.10.1/src/lib.rs`, e.g. `skip_empty_lines`), hence RuntimeKit's **required pre-scan** rejecting all of these before tokenizing. A fixed header array bounds the header count (`TooManyHeaders`).
+- Bazel today uses one `crate.from_cargo` over root `Cargo.toml`/`Cargo.lock` for `aarch64-apple-darwin`, `x86_64-apple-darwin` and `x86_64-unknown-linux-gnu`, and packages consume `all_crate_deps`. Any new crate or workspace member changes `Cargo.lock`, `MODULE.bazel.lock` and the generator source fingerprint/`dependency_locks` in `generated/vs001/manifest.json`, so generated output must be regenerated through Codegen (parent-owned).
+
+### 2.3 Recommendation
+
+**Option (c): an in-house, bounded, synchronous HTTP/1.1 server over `std::net::TcpListener`/`TcpStream`, using `httparse` only to tokenize the request head.**
+
+Only (b) would supply the I/O half of the bounds (deadlines, framing, connection teardown) from a library, and even (b) cannot finish a synchronous callback, so handler finality is RuntimeKit code in every option. (c) adds one widely used, fuzzed, dependency-free tokenizer to the smallest correct design and keeps it deterministic, boring Rust. **Rob must approve exactly: `httparse = "=1.10.1"` (default features, `std`), with no transitive crates.**
+
+- **Fallback if declined:** option (d). The criteria below are unchanged: a closed-grammar tokenizer (~200 lines) replaces httparse and gains the extra tokenizer corpus in B3b-05.
+- **Escalation:** if the finite-shutdown probe (B3b-12/13) fails on either host, **stop** and prepare a reviewed amendment that evaluates (b). Do not weaken the criteria.
+- tiny_http is rejected on the evidence above.
+
+## 3. Interfaces (proposed; exact paths confirmed at criteria review)
+
+### 3.1 Configuration
+
+Configuration is `mindclade_runtimekit::config` exactly as in service-config-v1 §1–§2 (`ServiceConfig::new`, eleven arguments, `ConfigError`, the zero-argument generated `build_service_config`). B3b adds nothing to it. RuntimeKit depends only on `std`, `mindclade_core` and (for `http`) `httparse`.
+
+### 3.2 Lifecycle (`mindclade_runtimekit::lifecycle`)
+
+Preserved traits, all `Send + Sync`: `Clock::now_millis() -> u64`, `IdentityProvider::identity() -> Identity`, `ShutdownSignal::requested() -> bool`. Additions: production `SystemClock`, `ConfiguredIdentity::new(Identity)` and `ShutdownLatch` (Clone; idempotent `request()`; `wait_timeout(Duration) -> bool`); `Lifecycle::new(Arc<dyn Clock>, Arc<dyn IdentityProvider>, Arc<dyn ShutdownSignal>)` plus `with_telemetry(self, Arc<dyn TelemetrySink>)` (default: stderr JSON lines). `serve(config: ServiceConfig, handler: Arc<dyn Handler>, lifecycle: Lifecycle) -> Result<RunningService, RuntimeError>` **amends** the plan's `Arc<dyn EchoCapability>` as the binding amendment requires. `RunningService::address() -> SocketAddr` returns the _bound_ address; `shutdown(self) -> Result<(), RuntimeError>`; dropping it performs the same drain and never detaches a thread (on overrun, Drop emits `overrun` and blocks joining). `ShutdownLatch` implements `ShutdownSignal`.
+
+- **Clock rule:** the injected `Clock` stamps telemetry and domain observations only. Socket deadlines always use `std::time::Instant`, so a frozen `ManualClock` can neither disable nor accelerate them.
+- **Identity rule:** under `AdmissionMode::Test`, `serve` requires `lifecycle.identity.identity() == config.service()` before binding, else `RuntimeError::Identity`. No request byte ever contributes to identity.
+
+### 3.3 Transport (`mindclade_runtimekit::http`)
+
+`Request` (private fields; `method()`, `target()`, `content_type()`, `body()`); `Response::json(status, Vec<u8>)` / `Response::empty(status)` / `Response::with_allow(self, &'static str)` (the only extra header a handler can set; needed for 405 `allow: POST`); `RequestScope` (`deadline() -> Instant`, `cancelled() -> bool`, true once drain begins, when `lifecycle.shutdown.requested()`, or after the handler deadline — never set by a client disconnect); `trait Handler: Send + Sync + 'static { fn handle(&self,
+request: &Request, scope: &RequestScope) -> Response; }`. Here **"protocol-neutral" means product-neutral**: the handler sees HTTP/1.1 framing concepts only — no Echo route, DTO, schema, Codegen type, YAML or TestKit — and no separate transport-agnostic envelope is introduced.
+
+Fixed transport-profile constants (proposed; not configuration): head ≤ 8192 bytes and ≤ 32 fields; header deadline `Dh = t_accept + request_timeout`; body deadline `Db = t_head_complete + request_timeout`; advisory handler deadline `Dx = t_body_complete + request_timeout` (exposed only through `scope`; a handler cannot be preempted); write deadline `Dw = t_response_ready + request_timeout`; during drain every deadline is clipped to `S = t_drain + shutdown_timeout`. These are `pub const`s in `http`. Composite bound: a permit is held for at most 2×`request_timeout` before the handler, plus handler time, plus `Dw`. Every response carries `connection: close` and `content-length`, no `date`; bodies are `application/json` or empty. After an error response sent before the body was consumed, RuntimeKit performs a bounded lingering close: half-close write, then discard input until EOF, 8192 + `max_body_bytes` bytes, or the current phase deadline, whichever comes first. Deliberate RFC 9112 deviations, recorded here: `chunked` is not supported (→ 411), other transfer codings → 501, and a leading empty line before the request line is rejected rather than ignored.
+
+### 3.4 Errors and telemetry
+
+`RuntimeError::{Config(ConfigError), Identity, Bind(io::ErrorKind),
+Transport(io::ErrorKind), Shutdown(ShutdownFailure)}`. `Transport` is only a non-transient accept failure, reported at shutdown; transient accept errors are retried. `ShutdownFailure::Overrun(OverrunWorkers)` owns the unfinished `JoinHandle`s; `OverrunWorkers::join(self)` joins them and its Drop also joins (blocking), so a handle is never dropped unjoined. `Display` is fixed text and never echoes input. `TelemetrySink::record(&Event)`: `Event` fields are only `ts_ms`, `level`, `event`, `conn` (sequence number), `status`, `reason`, `code`. `event` is one of `ready accepted rejected completed deadline disconnect
+write_failed shutdown_begin shutdown_complete worker_exit config_error bind_error
+transport_failed overrun`; `reason` and `code` are closed sets (`code` = `ConfigError::code()` values). No address, target, header, body, requestId or Identity text appears. `worker_exit` is emitted only after `join` returns. `accepted` is recorded after the permit is acquired; a connection's terminal event (`completed`/`rejected`/`deadline`/`disconnect`/`write_failed`) is recorded before its permit is released; "closed" means any terminal event. `TelemetrySink` lives in RuntimeKit.
+
+### 3.5 TestKit and Codegen products
+
+**TestKit** (`mindclade_testkit`, `testonly`; depends on RuntimeKit for its traits, never the reverse): `ManualClock::new(u64)` / `advance(u64)` (panics on overflow, never wraps); `FixedIdentity::new(Identity)`; `FaultBarrier` — `arrive(name)` blocks until `release(name)` (a permanent, idempotent per-name latch, so arriving after release passes), `arrive_or_cancel(name, &dyn
+ShutdownSignal) -> Arrival { Released, Cancelled }`, `wait_arrivals(name, count,
+harness_timeout) -> bool`; internal condvar re-check slices (≤10 ms) are a liveness bound only, never an ordering mechanism; `RecordingSink` implements `TelemetrySink`.
+
+**Codegen-emitted HTTP adapter** **[reconcile after B2b merge]**: output `generated/vs001/service/http.rs`, a module body the composition includes as `generated_service_http` (it includes `rust/mod.rs` as `generated_dto`, which the adapter uses via `super::generated_dto::public::…`). Entry point: `pub fn echo_handler(capability: Arc<dyn EchoCapability>) -> Arc<dyn mindclade_runtimekit::http::Handler>`. Everything is emitted from `TargetBundle` operation data — route, method, path field and rule, request/response models, success status, media types, error alternatives — and the transport profile's `max_body_bytes`. The checked descriptor's `operation` must equal the bundle operation, or emission fails. `rust/mod.rs` stays free of RuntimeKit. Publication uses a **new closed profile variant**, provisionally `Composition` (13-file protocol catalog + `service/http.rs` = 14 files, 13 output hashes), through the existing publisher and `MindcladePublicationLock@v1`; no forked publisher.
+
+### 3.6 Service (`services/foundation_echo`)
+
+`ports.rs`: `AdmissionContext` (private tenant, environment, identity and descriptor digest; public accessors; `pub(crate)` constructor used only by composition); `trait AdmissionPort: Send + Sync { fn execute(&self, context:
+&AdmissionContext, request_id: &str, request: EchoRequest) -> Result<EchoResponse,
+EchoError>; }`; `TestAdmission` returns `EchoResponse{message}`. `composition.rs`: `compose(config, clock, identity, latch: ShutdownLatch, telemetry, admission:
+Arc<dyn AdmissionPort>) -> Result<ComposedService, RuntimeError>` builds the `Lifecycle` with that same latch, wraps the port in an `EchoCapability` bound to the trusted context, and serves the generated adapter. `ComposedService` exposes `address()` and `shutdown(self)`, which calls `latch.request()` before `RunningService::shutdown`. `EchoCapability` has no scope, so the latch is the only cancellation channel reaching admission ports (test ports use `FaultBarrier::arrive_or_cancel(name, &latch)`). `main.rs` builds the generated config, `SystemClock`, `ConfiguredIdentity(config.service())` and a `ShutdownLatch`, then composes.
+
+- **stdout** carries exactly two receipts: `{"address":…,"admission":"test","descriptor_digest":…,"schema":"FoundationEchoReady@v1"}` and `{"outcome":"drained"|"overrun","schema":"FoundationEchoStopped@v1"}`. **stderr** carries only telemetry lines.
+- **stdin control:** a `shutdown` line or EOF requests shutdown; repeats are ignored. The stdin reader thread returns after the first `shutdown` line or EOF and is joined. A `transport_failed` event also triggers shutdown.
+- **Overrun:** `main` writes the overrun receipt, flushes stdout, and calls `process::exit(5)` while still holding `OverrunWorkers` (process termination, not thread detachment).
+- **Exit codes:** 0 drained, 3 config, 4 bind or identity, 5 overrun, 1 other. The binary does not depend on TestKit.
+
+## 4. Owned and parent-owned paths
+
+**B3b implementer-owned (after approval):**
+
+- `platform/runtimekit/{Cargo.toml,BUILD.bazel,src/{lib,config,lifecycle,http,telemetry}.rs,tests/*.rs}`
+- `platform/testkit/{Cargo.toml,BUILD.bazel,src/{lib,clock,identity,faults}.rs,tests/*.rs}`
+- `services/foundation_echo/{Cargo.toml,src/{main,lib,composition,ports}.rs,tests/{composition.rs,process.test.mjs}}`, and `services/foundation_echo/BUILD.bazel` (modify; keep `exports_files`)
+- `codegen/src/emit/service_http.rs`, `codegen/tests/cases/service_http.rs`
+- `tests/conformance/vs001/{service_config,service_http}/**`
+
+Keep every existing `.gitkeep` directory marker. Every new crate declares `[lints] workspace = true` **and** its Bazel targets set `rustc_flags = ["-Funsafe-code"]` (Bazel does not read Cargo lints).
+
+**Parent-owned, serialized under their locks:**
+
+- Root `Cargo.toml` members/workspace deps, `Cargo.lock`, `MODULE.bazel(.lock)`, `flake.*`
+- `tools/build/*.bzl` (new composition test rule), root `BUILD.bazel` filegroups, `justfile`
+- `codegen/src/{emit/mod.rs,publication.rs,projection.rs,main.rs,generator.rs}` (profile enum extension, catalog, CLI) and the generator fingerprint/inventory
+- All of `generated/` (regenerated only through Codegen under the publisher lock)
+- `docs/architecture/model/{repository-layout.json,blueprint-scaffold.json}`: reviewed transitions for `platform/runtimekit`, `platform/testkit` and `services/foundation_echo` source presence; roots stay planned or partial and non-durable
+- `.gitignore` (extend the vs001 stage-entry pattern to cover `entry-1[0-3]`), `codegen/{Cargo.toml,BUILD.bazel}`, `tests/conformance/vs001/{BUILD.bazel,Cargo.toml}`, `scripts/{generate_vs001,verify_foundation,validate_generator_inputs}.py`
+- `REPOSITORY_TREE.md` (via `python3 scripts/validate_repository.py --write-tree`), maturity, handoff, and Git/CI/receipts
+
+## 5. Acceptance criteria
+
+Each criterion lists a positive control (P), negative cases (N) and a Bazel target. Real-socket waits use bounded harness timeouts (default 10 s) that fail with a distinct "harness timeout" message; a harness timeout is never product success. Deadline tests assert that closure happens no earlier than `D − 50 ms` and no later than `D + 1500 ms`. `//services/foundation_echo:composition_tests` is a `test_suite` of `:composition_rust` (B3b-19–21) and `:process_tests` (B3b-22–25).
+
+### Stage A — pure configuration ABI (implemented first)
+
+**B3b-01 Config positives.**
+
+- P: Every accessor over IPv4 `127.0.0.1`/`127.0.0.2` and `[::1]`; ports 0 and 65535; max_in_flight 1 and 64; both durations at 1 and 30000 ms; all three log levels (service-config-v1 §4.3). Negatives are B3b-02.
+- Target: `//platform/runtimekit:tests`.
+
+**B3b-02 Config direct-call negatives.**
+
+- N: every §4.4 case with its exact variant and `code()`: wrong service, tenant or environment; wildcard or external IPv4/IPv6; IPv4-mapped; nonzero scope or flow; body 0, 65535, 65537 or `usize::MAX`; concurrency 0, 65 or MAX; both durations at 0, 1 ns, 999999 ns, 1 ms + 1 ns, 30000 ms + 1 ns, 30001 ms and `Duration::MAX`. Multiple-invalid inputs prove the validation order, with no side effects. P: the B3b-01 set.
+- Target: `//platform/runtimekit:tests`.
+
+**B3b-03 Generated constructor against the real crate.**
+
+- P: compile the actual `generated/vs001/service/config.rs` via the declared runfile against real RuntimeKit, call `build_service_config()`, and assert every accessor equals `descriptor.json`.
+- N: temporary mutations (§4.5) — malformed socket, each malformed identity component, malformed Digest — produce the exact mapped `ConfigError` with no panic. Compile-fail tests show config cannot be forged (public fields, `Default`, `Deserialize`, `Durable`). A DTO-only consumer of `rust/mod.rs` compiles without RuntimeKit.
+- Target: `//tests/conformance/vs001:service_config`.
+
+### Stage B — RuntimeKit transport (generic test handler, raw std sockets; no TestKit)
+
+**B3b-04 Loopback ephemeral bind.**
+
+- P: config port 0 gives an `address()` with a nonzero port and the same IP, and a request succeeds there. The same holds for `[::1]:0`. `ready` is emitted only after binding.
+- N: binding an occupied port returns `RuntimeError::Bind` with no thread left (no `worker_exit` pending) and no telemetry `ready`. An identity provider that disagrees with `config.service()` returns `RuntimeError::Identity` before binding (the port stays free).
+- Target: `//platform/runtimekit:tests`.
+
+**B3b-05 Head framing.**
+
+- P: a well-formed `POST /x HTTP/1.1` with Host and Content-Length reaches the handler exactly once.
+- N, each closed with its exact status, the handler never invoked and the permit released. **400:** bare LF; leading empty line; obs-fold; NUL or other control byte in the head; invalid method token; absolute-form or `*` target; target bytes `#`, `{` or 0x80–0xFF; missing or duplicate Host; duplicate Content-Type; HTTP/2 preface; any version other than `HTTP/1.1` and `HTTP/1.0`. **505:** only `HTTP/1.0`. **431:** an 8193-byte head or 33 header fields. **417:** any `Expect` header.
+- Positive boundary: a head of exactly 8192 bytes with exactly 32 headers is accepted. The tokenizer corpus (tchar and field-value grammar, whitespace around the colon, empty name) applies under both (c) and (d).
+- Target: `//platform/runtimekit:tests`.
+
+**B3b-06 Body framing and byte limit.**
+
+- P: `content-length: 65536` with exactly 65536 bytes is delivered intact. CL 0 delivers an empty body.
+- N (handler not invoked, connection closed): CL 65537 → 413, sent **before any body byte is read** (the client sends the head only, then reads). Missing CL → 411. Duplicate CL (even when equal), a signed value, leading zeros, inner whitespace, non-digits or u64 overflow → 400. `Transfer-Encoding` whose final coding is `chunked` → 411; any other `Transfer-Encoding` value (including `identity`), with or without CL → 501. Error responses sent before the body is consumed use the bounded lingering close (§3.3).
+- N: CL 10 followed by 70 000 bytes — the handler receives exactly 10 bytes and no second request is parsed from the connection.
+- Target: `//platform/runtimekit:tests`.
+
+**B3b-07 Absolute header deadline (slowloris).**
+
+- P: a head completed by `Dh` succeeds.
+- N (request_timeout 300 ms): a client trickling one head byte every 50 ms, which would defeat any idle timeout, is closed at `Dh` (tolerance above) with telemetry `deadline/header`; the handler is not invoked and the permit is released. A client that connects and sends nothing is also closed at `Dh`.
+- Target: `//platform/runtimekit:tests`.
+
+**B3b-08 Absolute body deadline.**
+
+- P: a body completed by `Db` succeeds.
+- N: a complete head followed by a body trickled every 50 ms, and a body that stops short of CL, are each closed at `Db` with `deadline/body` and the handler not invoked. Header trickle time does not extend `Db`.
+- Target: `//platform/runtimekit:tests`.
+
+**B3b-09 Write deadline.**
+
+- P: normal responses are fully written.
+- N: a test handler returns an 8 MiB body to a client that never reads. The write stops at `Dw` with `deadline/write`, and the worker exits (`worker_exit`).
+- Target: `//platform/runtimekit:tests`.
+
+**B3b-10 Disconnect.**
+
+- N: client EOF or RST during the head, or during the body, → `disconnect`, no handler invocation, permit released.
+- P, disconnect ≠ cancellation: the client disconnects while the handler is gated. After the gate opens, the handler runs to completion with `scope.cancelled() == false` throughout, and the write fails as `write_failed`. The handler's completion is recorded exactly once, and no retry happens.
+- Target: `//platform/runtimekit:tests`.
+
+**B3b-11 Admission bound before header read.**
+
+- P: with `max_in_flight = N` (1, 8 and 64), min(4×N, N+64) concurrent valid clients all eventually get 200 (eventual success only; no latency bound), and the high-water mark of `accepted − closed` (closed = any terminal event, §3.4) derived from the ordered telemetry log is ≤ N. Backlog waiting is unbounded server-side and is recorded as such.
+- N (`request_timeout` = 10000 ms): N idle connections that have sent nothing hold every permit. The (N+1)th full request is accepted only after the test closes one idle connection: `accepted(N+1)` follows `disconnect(1)` in the log. No request bytes of connection N+1 are read before that.
+- Target: `//platform/runtimekit:tests`.
+
+**B3b-12 Finite shutdown (probe gate).**
+
+- P: simultaneously hold idle, head-reading, body-reading, handler-gated (cooperative: waits on `scope.cancelled()`) and write-blocked connections, then call `shutdown(self)`. It returns `Ok` within `shutdown_timeout + 1000 ms`. Inbound-phase connections close without invoking the handler; the cooperative handler observes cancellation and its response is written or fails within `S`; `worker_exit` count equals `accepted` + 1 (the accept thread); a later connect to `address()` is refused; no `mindclade-rt-*` thread remains (Linux `/proc/self/task/*/comm`; macOS `ps -M` on the test's own pid). Run with `max_in_flight` equal to the held connections (accept thread waiting for a permit) and larger (accept thread blocked in `accept`); plus one connection still in the backlog: it is closed or reset, never served. `accept` is woken by a self-connect bounded by `S`, never by a polling sleep.
+- N: an implementation that only closes the listener, or returns before every `worker_exit`, fails.
+- Target: `//platform/runtimekit:tests`. Failure on either host triggers **stop condition S1**.
+
+**B3b-13 Overrun is truthful.**
+
+- P: B3b-12.
+- N: a non-cooperative handler (it ignores `scope` and blocks on a test gate) makes `shutdown(self)` return `Err(Shutdown(Overrun))` within `shutdown_timeout + 1000 ms` — never `Ok` — with no `worker_exit` yet recorded for it. After the test opens the gate, `OverrunWorkers::join` returns and `worker_exit` appears. Static check: no unjoined `JoinHandle` drop, `mem::forget` or `process::exit` in RuntimeKit.
+- Target: `//platform/runtimekit:tests`.
+
+**B3b-14 Deadlines use real monotonic time; telemetry uses Clock.**
+
+- P: with a test clock frozen at 0, B3b-07 still closes at `Dh`, and every event carries `ts_ms == 0`.
+- N: advancing the test clock by 10⁹ ms mid-request does not expire any deadline early.
+- Target: `//platform/runtimekit:tests`.
+
+**B3b-15 Redaction allowlist.**
+
+- P: every emitted line parses as a JSON object whose keys are a subset of the §3.4 set, and whose `event`, `reason` and `code` values are in their closed sets.
+- N: send requests carrying canaries in the body, the target, `authorization`, `cookie` and `x-dsn: postgres://u:CANARY-PW@h/db`, including requests that fail framing. No canary, and no substring of `postgres://`, appears in any telemetry, `RuntimeError` `Display` or `Debug`, or any non-2xx body.
+- Target: `//platform/runtimekit:tests`.
+
+### Stage C — Codegen adapter and profile extension (after B2b merge)
+
+**B3b-16 Adapter emitted from resolved data.**
+
+- P: deterministic `service/http.rs` bytes that are unchanged across repeated runs and relocation.
+- N (mutation fixtures): changing the route template, method, success status, an error status or model, or the request model changes the emitted adapter accordingly; a descriptor `operation` differing from the bundle operation fails emission, as does a descriptor `max_body_bytes` differing from the transport profile; the legacy, service-only and protocol-only profiles emit no adapter.
+- N: `services/foundation_echo/src/**` contains no `"/echo`, `application/json` or error-code string literals and no hand-maintained route or schema.
+- Target: `//codegen:service_http` (via `cargo test -p mindclade-codegen --test service_http`).
+
+**B3b-17 Profile variant under one publisher** **[reconcile after B2b merge]**.
+
+- P: exact 14-file catalog and 13 recomputed hashes; direct upgrade from fresh output and from valid 7-, 9- or 13-file predecessors; unchanged second generation.
+- N: downgrade from 14 to 13, 9 or 7 is rejected under the lock and during journal-recovery preflight, before any replacement or removal. Interruption at each new catalog boundary recovers; stale-output cleanup is exercised. The 7-, 9- and 13-file routes still pass in isolated roots; modes never alternate against the live tree; no second publisher or lock exists.
+- Extend B2b's `ManifestProfile` with `Composition` (label `VS001CompositionProducts@v1`, name pending) and extend `check_profile_transition`, keeping diagnostic code `projection-profile`. Composition→Protocol/Unlabelled is rejected, as is a Composition label whose outputs are not the 13 protocol outputs + `service/http.rs`. The 12 shared outputs are byte-identical to protocol mode. B2b's live-tree 13-file assertions flip to 14 by a reviewed parent transition (like B2b-20).
+- Target: `//tests/conformance/vs001:service_driver`.
+
+**B3b-18 Adapter conformance against real RuntimeKit and DTOs.**
+
+- P: `POST /echo/r-1` with a valid body → 200, body bytes equal to `EchoResponse::to_json`, `content-type: application/json`.
+- Wire boundaries (Global Constraints), P at the limit and 400 one past it: message 4096/4097 scalars (including astral characters); 128/129 tags; 64/65 scalars per tag; 127/128 nesting levels. Also 400 for non-UTF-8, duplicate keys, unknown fields (including `tenant`), missing `tags`, non-bool `urgent` and floats.
+- A shared requestId corpus is accepted or rejected identically by the TS client `PATH_RULE`, the Rust wire rule and the adapter: 1/128/129 chars, leading `.`/`-`/`_`, `%2F`, non-ASCII, empty.
+- Invalid requestId or body → 400 `invalid_input` with a message from a closed fixed set; never forwarded `WireError`/serde text. Adapter statuses: 404 for an extra segment, `?` or `#`; 405 with `allow: POST` (405 tests send `content-length: 0`); 415 for media other than `application/json[; charset=utf-8]`. A stub capability's `IdempotencyConflict` and `Unavailable` map to exact 409 and 503 bodies.
+- Target: `//tests/conformance/vs001:service_http`.
+
+### Stage D — TestKit, composition and the real binary
+
+**B3b-19 TestKit determinism.**
+
+- P: `ManualClock` is monotonic under `advance`; `FixedIdentity` returns its identity; `FaultBarrier` release-before-arrive and release-after-arrive both pass; a second release is a no-op; `arrive_or_cancel` returns `Cancelled` once the signal is requested; `wait_arrivals` is exact.
+- N: `advance` overflow panics without wrapping. A two-request interleaving ordered only by barriers produces the identical recorded order across 50 in-process repetitions; test sources contain `thread::sleep` only inside the allowlisted socket-pacing helper.
+- Target: `//platform/testkit:tests` and `//services/foundation_echo:composition_tests`.
+
+**B3b-20 In-process composition.**
+
+- P: `compose` with `FixedIdentity` and `ManualClock` serves the adapter; a test-side `BarrierAdmission` wraps `TestAdmission`. With `max_in_flight` = 8, send 12 requests: `wait_arrivals(8)` returns true, every `accepted` after the 8th follows a terminal event, high-water ≤ 8, and all 12 complete after release.
+- N: after `latch.request()` then `ComposedService::shutdown`, a request held via `arrive_or_cancel` returns 503 `unavailable` and shutdown is `Ok` within bound; the same 503 and `Ok` result when only `ComposedService::shutdown` is called. A client disconnect while held does not cancel the request: `TestAdmission` still records one completed call.
+- Target: `//services/foundation_echo:composition_tests`.
+
+**B3b-21 Trusted identity; spoofing ignored.**
+
+- P: the recorded `AdmissionContext` equals the configured tenant, environment, service identity and source descriptor digest.
+- N: headers `x-mindclade-tenant`, `x-mindclade-environment`, `x-mindclade-identity`, `authorization`, `forwarded`, `x-forwarded-for` and `cookie`, carrying other valid identities, produce byte-identical 200 responses and an identical recorded context. A body field `tenant` → 400. No public constructor for `AdmissionContext` exists (compile-fail).
+- Target: `//services/foundation_echo:composition_tests`.
+
+**B3b-22 Generated client against the real binary.**
+
+- P: the harness launches the Bazel-built binary, reads the `FoundationEchoReady@v1` receipt (missing within 10 s = failure, never a skip) and asserts `client.echo("composition-1", {message:"hello", urgent:false, tags:["fixture"]})` deep-equals `{message:"hello"}`.
+- N: `client.echo("bad/id", …)` rejects with `EchoValidationError`, and stderr shows no `accepted` event for it.
+- Target: `//services/foundation_echo:composition_tests` (a Node process test built from the generated compiled client module).
+
+**B3b-23 Invalid configuration and required dependency.**
+
+- P: the generated config starts normally.
+- N: isolated temporary mutations of the generated constructor (non-loopback listen, wrong tenant, body 65537, concurrency 0, a 1 ns timeout) each give exit code 3, one `config_error` line with the exact `code`, no ready receipt and nothing listening. A B3a descriptor with `dependencies.postgres.required: true` still fails before publication (existing corpus, re-run). No runtime type can express a required dependency or `Durable` mode (compile-fail).
+- Target: `//services/foundation_echo:composition_tests`, `//tests/conformance/vs001:service_driver`.
+
+**B3b-24 Process bounds matrix.**
+
+- Against the real binary (request_timeout 2000 ms, max_in_flight 8), raw `node:net` sockets repeat B3b-05/06/07/08/10/11 representatives with exact statuses/closures and stderr reasons: 413 before the body is read; 411 for chunked and 501 for other TE; 400 for bare LF; header trickle closed at 2000 ms; incomplete body closed at `Db`; mid-body disconnect; with 8 idle connections holding permits, the 9th request is served only after one closes.
+- Target: `//services/foundation_echo:composition_tests`.
+
+**B3b-25 Finite shutdown, no leftovers, idempotent supervisor signal.**
+
+- P: while one connection has sent its head and part of its body, write `shutdown\n` twice before drain ends; that connection closes without a handler call; the harness tolerates EPIPE on the second write. There is exactly one `FoundationEchoStopped@v1` receipt with `outcome: "drained"`, and exit code 0 within `5000 + 2000 ms`. The reported address then refuses connections.
+- P: stdin EOF alone gives the same drained outcome. N: the harness `finally` sends SIGKILL to any still-live child and records a **failure**, never a pass; afterwards no child PID remains.
+- Target: `//services/foundation_echo:composition_tests`.
+
+**B3b-26 Dependency direction before B4.**
+
+- Build-enforced: TestKit is `testonly = True`, so the RuntimeKit library, Echo library and Echo binary cannot depend on it.
+- Observed (parent checks C6/C7): `cargo metadata --locked` normal dependencies are exactly `mindclade-runtimekit` → {mindclade-core, httparse} and `mindclade-testkit` → {mindclade-core, mindclade-runtimekit}, and the Echo library and binary exclude testkit (dev-only). A query test asserts RuntimeKit's BUILD deps are exactly `//core:core` and `@crates//:httparse`; `somepath(//platform/runtimekit:runtimekit, //services/... + //codegen/... + //platform/testkit/...)` is empty; `filter("generated/", deps(//platform/runtimekit:runtimekit))` is empty; the service-binary→testkit path is empty. (`//generated/...` has no packages, visibility cannot exclude one package, and `//codegen` is public, so queries replace visibility here.)
+- N: a scratch BUILD edit adding testkit to the Echo binary fails analysis. The parent records the failure and reverts it.
+- Target: parent checks (§6), `//platform/runtimekit:tests` (static source scan as a supplement only).
+
+**B3b-27 Non-durable labelling and aggregate.**
+
+- P: the ready receipt says `"admission":"test"`; no source, receipt or log contains `durable` as a mode; the handoff records this milestone as **non-durable partial VS-001**. N: restarting the binary shows no retained state.
+- All targets above, plus `//tests/conformance/vs001:{client,types,dto}` and `just verify`, pass on Apple Silicon and Linux.
+- Target: aggregate.
+
+## 6. Checks the parent will run
+
+- **C1.** Independent criteria review of this file. Rob's decision on `httparse =1.10.1`: approved → (c); declined → (d), criteria unchanged.
+- **C1a.** Before any Stage B code, the parent runs std-only probes on both hosts: (i) `shutdown(Both)` on a `try_clone`d socket wakes a blocked `read` and a blocked `write`; (ii) an expired read timeout returns `WouldBlock` or `TimedOut`; (iii) a loopback self-connect wakes a blocked `accept`. Any failure is S1. C1 records exact-source review of httparse 1.10.1 (its `unsafe` and build.rs) and its Cargo.lock checksum.
+- **C2.** Stage-ordered RED: before each stage's implementation, run its new targets and record the relevant behavioural failures. Missing wiring is not RED.
+- **C3.** Run on both hosts: `nix develop --no-write-lock-file -c bazel test //platform/runtimekit:tests //platform/testkit:tests //services/foundation_echo:composition_tests //tests/conformance/vs001:all`. Repeat with `--runs_per_test=20`, and with 50 for B3b-19/20; zero flakes allowed.
+- **C4.** `cargo test --locked -p mindclade-runtimekit -p mindclade-testkit -p mindclade-foundation-echo -p mindclade-codegen`, plus `just fmt-check` and clippy.
+- **C5.** `just generate-foundation` before `just generate-vs001`; regenerate through Codegen in the new profile mode under the publisher lock; read-only drift; `python3 scripts/validate_repository.py --write-tree`; scaffold/manifest transitions reviewed.
+- **C6.** The `cargo metadata` dependency-set assertion (B3b-26).
+- **C7.** The `bazel cquery` somepath checks (B3b-26).
+- **C8.** After every test run: `pgrep -fl foundation_echo` is empty, and `lsof -nP -iTCP -sTCP:LISTEN` (macOS) or `ss -ltnp` (Linux) shows no listener owned by test binaries.
+- **C9.** Source scans: no `unsafe` in any new crate; no unallowlisted `thread::sleep`; no `/echo` or schema literals in the service; no RuntimeKit import in `rust/mod.rs`. The bans on `process::exit` and unjoined `JoinHandle` drops cover RuntimeKit only (the service `main` may `process::exit(5)` on overrun, §3.6).
+- **C10.** Fresh task review and whole-candidate review; then commit `feat(platform): compose generated Echo`.
+
+## 7. Stop conditions (stop and return to Rob with an amendment)
+
+- **S1.** On either host, `shutdown(Both)` on a cloned socket fails to wake a blocked read or write, or B3b-12 cannot return `Ok` with every worker joined. Prepare a transport amendment evaluating (b); never claim finality by detaching.
+- **S2.** Any need for a crate other than `httparse =1.10.1`, for `unsafe`, or for signal handling.
+- **S3.** B2b is unmerged, or its profile enum, catalog or CLI shape prevents adding one closed variant under the existing lock. Reconcile; never fork a publisher.
+- **S4.** Implementation would require changing frozen B2a DTOs, `EchoCapability`, the TS client, or the service-config-v1 ABI, including any new config knob.
+- **S5.** Cooperative cancellation cannot reach admission/test ports through the composition's `ShutdownLatch` (the `Lifecycle` signal) without an interface change.
+- **S6.** A domain interleaving can only be tested with sleeps.
+- **S7.** crate_universe re-splice or the lock delta fails on either host.
+
+## 8. Reviewer recommendations, pending Rob
+
+1. **Handler shape:** accept the HTTP/1.1-framing handler; "protocol-neutral means product-neutral" (written into §3.3). No transport-agnostic envelope.
+2. **Trusted identity:** use `config.service()` as a self-consistency check. A new principal would be a new config value (S4).
+3. **Transport constants:** accept as `pub const`s with the stated composite bound (permit held ≤ 2×`request_timeout` before the handler + handler time + `Dw`).
+4. **Backlog admission:** acceptable for loopback testing. Record that backlog waiting is unbounded server-side; B3b-11 caps concurrent clients at min(4×N, N+64) and asserts eventual success only.
+5. **Additive APIs:** accept, with `TelemetrySink` in RuntimeKit, `ShutdownLatch` implementing `ShutdownSignal`, and condvar re-check slices used only for liveness.
+
+Items marked **[reconcile after B2b merge]** remain open until B2b lands: the profile variant and label names, the CLI subcommand and the `generated_dto` module path.

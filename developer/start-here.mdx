@@ -1,0 +1,161 @@
+---
+title: "Start Here: Set Up and First Commands for Mindclade"
+sidebarTitle: "Start Here"
+description: "Learn how to clone the Mindclade vNEXT repository, enter the pinned Nix shell, and run your first local checks as an authorized contributor."
+---
+
+This guide takes an authorized contributor from repository access through the first local commands, then to the owner and edit map for a change. Local source work uses the committed toolchain. A local check does not approve a work packet, authorize publication, or qualify a release.
+
+For the whole architecture, read the [system design](/architecture/system-design). Use the [foundations reading guide](/architecture/foundations/overview) for component responsibilities, interactions, failure cases, and evidence boundaries. The [current handoff](/developer/agent-handoff) owns task status and next-task ordering. All commands below belong to the authorized integrator when execution is parent-owned; a worker does not acquire execution authority from this guide.
+
+<Steps>
+  <Step title="Check Nix and the experimental features">
+    Verify the prerequisite launcher is present and the correct version:
+
+    ```bash
+    command -v nix
+    nix --version
+    ```
+
+    The required launcher is Nix `2.35.1`. If either command is unavailable or the version differs, stop here and ask the operator for the approved Nix setup route. This repository does not approve an installer. An agent must not install Nix, change daemon configuration, or substitute host tools to continue.
+
+    `nix develop` also needs the `nix-command` and `flakes` experimental features. Without them it fails before doctor runs, with "experimental Nix feature 'nix-command' is disabled" (or `'flakes'`). A flake-level `nixConfig` cannot enable them, because Nix reads it only once flakes are on. Use one of two routes:
+
+    - The operator enables both in the Nix configuration (`nix.conf`). Agents never change daemon or host Nix configuration. CI does the same through `extra_nix_config` in `.github/workflows/foundation.yaml`.
+      ```text
+      experimental-features = nix-command flakes
+      ```
+    - Or the commands enable them. A flag prefix, `nix --extra-experimental-features 'nix-command flakes' develop --no-write-lock-file -c just doctor`, enters the shell, but it reaches only that one `nix` process. The recommended per-command route is the `NIX_CONFIG` environment variable: child processes inherit it, so the `nix` calls that recipes make inside the shell (such as `just flake-check`) see the features too. Export it for the terminal session, or prefix one command:
+      ```bash
+      export NIX_CONFIG='extra-experimental-features = nix-command flakes'
+      nix develop --no-write-lock-file -c just doctor
+      NIX_CONFIG='extra-experimental-features = nix-command flakes' nix develop --no-write-lock-file -c just doctor
+      ```
+
+    Supported execution baselines are Apple Silicon macOS and x86_64 Linux. Intel macOS has no development shell (the flake no longer lists `x86_64-darwin`, which is not evaluable on the locked nixpkgs) and is BLOCKED. Linux ARM and other hosts are also BLOCKED. On macOS the operator must supply the platform SDK and linker prerequisites expected by the locked Nix toolchain. Missing SDK or linker inputs require operator setup; do not substitute Homebrew or host `cc`.
+  </Step>
+  <Step title="Run the doctor">
+    Run the read-only diagnostic:
+
+    ```bash
+    nix develop --no-write-lock-file -c just doctor
+    ```
+
+    `just doctor` itself executes only `python3 -B scripts/doctor.py`; it never enters a shell or installs dependencies. For an already available Python 3.12 interpreter, `python3 -B scripts/doctor.py --repo PATH` can diagnose a missing Nix launcher or absent shell. `PATH` must be the selected checkout's actual Git top level.
+
+    Doctor emits one JSON document and exits `0` for PASS, `2` for FAIL, or `3` for BLOCKED. Any known mismatch takes precedence over a missing prerequisite. It supplies local remediation, never readiness, admission, or permission. Dirty source blocks a clean-candidate claim and remains untouched for the integrator to inventory.
+  </Step>
+  <Step title="Run the aggregate verification">
+    ```bash
+    nix develop --no-write-lock-file -c just verify
+    ```
+
+    This command runs the aggregate source checks, compilation, tests, generated-drift checks, and the host-scope dependency-boundary check (`just verify-boundaries`). See [toolchain authority](/architecture/toolchain) for individual recipes, version pins, and revision-scoped execution evidence. The [local verification runbook](/runbooks/local-verification) explains what each recipe runs, where receipts land, and how to triage host failures versus verdicts.
+
+    `nix develop --no-write-lock-file -c just` with no recipe lists every recipe with a one-line description and runs nothing. `just check` is the fast loop before pushing (no Bazel); `just verify` is the full aggregate CI runs. Bazel builds with the same process home share one local disk cache under `$HOME/.cache/mindclade-bazel-disk`; scratch-home captures and B4's collector use their own cache ([toolchain authority](/architecture/toolchain#bazel-configuration-and-the-shared-disk-cache)).
+  </Step>
+  <Step title="Run the compiler CLI">
+    ```bash
+    nix develop --no-write-lock-file -c cargo run --locked -q -p mindclade-codegen -- --help
+    ```
+
+    The final command discovers the compiler CLI; Cargo may compile the CLI before displaying help.
+  </Step>
+  <Step title="Set up the merge driver">
+    Once per clone, register the merge driver for the mechanical repository tree. Linked worktrees share it, and it changes no tracked file:
+
+    ```bash
+    nix develop --no-write-lock-file -c just git-setup
+    ```
+
+    After that, a merge keeps your side of `docs/architecture/REPOSITORY_TREE.md` instead of conflicting; run `just update-tree` after any merge that brings in new paths ([regeneration runbook](/runbooks/regenerate-generated-outputs#7-merging-branches-that-both-changed-the-tree)). Without it, Git's normal text merge applies.
+  </Step>
+</Steps>
+
+## Fresh-clone workflow verifier
+
+The DX2 verifier runs the fixed doctor, full verification, VS-001 tests, and boundary-check matrix against an explicitly owned standalone clone:
+
+```bash
+just verify-developer /absolute/owned-clone /absolute/new-evidence-leaf
+```
+
+The integrator first creates a separate `git clone --no-hardlinks`, checks out the reviewed SHA detached, removes its remote, and provisions a scratch process home with an empty Bazel disk cache. The evidence leaf must not already exist or be inside the clone. Linked worktrees, dirty candidates, and unsupported hosts are blocked. No command can be skipped; captured output is retained with digests. Run this inside the pinned shell after the ownership and evidence checks in the [DX2 criteria](/superpowers/specs/2026-09-24-dx2-criteria).
+
+The [contributor rehearsal record](/developer/contributor-rehearsal) distinguishes the implemented verifier and authentic source fixtures from the pending fresh-agent and human rehearsals. This recipe is separate from `just verify`; its result is local evidence and grants no admission or qualification.
+
+## Provisioning, caches, and expected cost
+
+Initial Nix shell entry and dependency provisioning may access the network and populate external Nix, Bazel, Cargo, and frontend caches. The locked frontend dependency closure is provisioned before offline build actions; the actions themselves do not install dependencies. Offline action design does not mean a fresh clone can build without already available inputs. Doctor only reads local declarations, metadata, Git state, and tool versions: it does not evaluate Nix, resolve dependencies, build, test, fetch, or contact a remote.
+
+Provisioning time and disk use depend on host, cache availability, and prior builds. Cold caches can require substantial downloads, storage, and compilation; warm runs reuse those inputs. No fixed duration, disk figure, or new cold-cache execution result is claimed here. The parent/integrator records actual duration, disk observations, and cache conditions with the candidate's receipts when measured. Shell provisioning effects must be recorded separately from a measured doctor run.
+
+If an approved cache is unavailable, stop the affected run and retain its sanitized failure. Ask the operator to restore approved network/cache access or provision the exact committed inputs through the approved route. Then retry under the same locks after the integrator reconciles the attempt. Do not rewrite locks, disable integrity checks, or substitute host packages. See [troubleshooting](/developer/troubleshooting) for owners and concrete recovery steps.
+
+## Optional: direnv or a GC root
+
+Both are opt-in, and the repository adds no file for either.
+
+- **direnv.** Keep an untracked `.envrc` at the checkout root that contains `use flake . --no-write-lock-file`, and add `/.envrc` to the clone's exclude file. `git rev-parse --git-path info/exclude` prints that file's path; linked worktrees share it. Without the entry, `.envrc` is untracked source: `just verify-tree` fails with `root file drift: ['.envrc']`, and doctor's dirty check blocks a clean-candidate claim. direnv's cache, `.direnv/`, is already ignored. Never commit `.envrc`.
+- **GC root without direnv.** Run `nix develop --no-write-lock-file --profile .direnv/dev -c true` once (with both features enabled, through `nix.conf` or an exported `NIX_CONFIG`). It records the development shell as a profile under the ignored `.direnv/` directory. The profile is a garbage-collection root, so garbage collection keeps the shell's packages and the next `nix develop` need not fetch them again. Delete `.direnv/dev*` to release them.
+
+## Find the owner before editing
+
+Find the current Linear work item and its linked reviewed specification and WorkPacket. Read its concrete implementation, review, integration, and acceptance owners and approved paths; see [supervised roles](https://github.com/Mindclade-org/mindclade-internal-monorepo/blob/main/.agents/roles/supervised.md). If no current assignment exists, ask the integration owner or Rob to establish it. Old handoff names and a packet's presence are not current permission or a lock.
+
+The integrator owns exactly one registered dispatch route, recorded in the operator records linked to Linear. All intake uses it, including manual requests.
+
+Before claiming work, the integrator inventories the actual branch, candidate, remotes, worktrees, dirty paths, locks, and existing attempts/jobs/receipts. Obtain the previous owner's handoff, confirm non-overlapping owned paths and scoped commands, and retire any former dispatch route before replacement. Under parent-owned execution, workers edit only assigned authored paths; the parent launches, waits for, and records checks, Git operations, and remote effects. Preserve concurrent work without reset, stash, overwrite, or cleanup.
+
+Review the actual changed candidate and its required checks with a fresh reviewer. Hand off changed paths, exact revisions/input digests, attempt and receipt links, unrun checks, findings, and unresolved blockers. Cancellation stops new dispatch; the parent reconciles running jobs and uncertain effects before recording it as complete. Resume only after reconciling the current inputs, owner, and retained receipts; changed inputs invalidate dependent evidence. A reporting-only retry uses the completed attempt's retained result and does not replay its work. Detailed procedure: [supervised development](/developer/supervised-development).
+
+## Edit map and implemented boundaries
+
+| Change | Authored source and boundary |
+| --- | --- |
+| Contract semantics | `contracts/` -> `codegen/` compiler and immutable graph -> owned generated products -> consumer tests. Review contracts and compiler together; regenerate through Codegen, never hand-edit generated products. |
+| Kernel or graph | `core/` owns semantic primitives; `codegen/` owns compilation and graph views. Adapters and inventory scripts are not compilers. |
+| Runtime or service | RuntimeKit supplies shared service infrastructure; a domain service supplies domain behavior. Wider runtime/service surfaces remain planned, not activated by scaffold presence. |
+| Architecture | `docs/architecture/model/architecture.yaml` owns architecture metadata. The layout model and mechanically refreshed `docs/architecture/REPOSITORY_TREE.md` describe inventory; neither activates a component or replaces semantic truth. |
+| Evidence or workflow | Local source checks are distinct from packet/policy admission, protected remote CI, independent acceptance, release, scientific, and deployment qualification. |
+| Recipes and build configuration | The `justfile` holds the local check, generation, and run commands, and CI runs `just doctor` and `just verify`. Give each recipe a one-line `#` description, which `just --list` shows. Some recipe bodies are pinned by `scripts/test_ci_policy.py` (`verify`, `verify-fast`, `verify-generated`, `generate-vs001`, `verify-boundaries`); change them only with their criteria. `.bazelrc` is a generator input and is pinned by `tools/build/bazel_policy_test.py`, so an edit also needs regeneration of both catalogs. |
+
+The [codebase map](/developer/codebase-map) shows how the implemented components connect. After changing generator inputs, follow the [regeneration runbook](/runbooks/regenerate-generated-outputs). To run the service, use the [Foundation Echo runbook](/runbooks/run-foundation-echo); to call it, use the [VS-001 Echo API reference](/api/vs001-echo).
+
+A1-A3 source is implemented and B1 remains partial. Expanded directional declaration comparison is implemented; unsupported relationships fail closed. B2 and B3 are integrated as non-durable partial VS-001, and B4 dependency enforcement is merged as a host-scope check in `just verify`. C1-C5 and D1-D4 remain unfinished. This guide accepts none of those future capabilities. Read the [current handoff](/developer/agent-handoff), [VS-001 checklist](/architecture/vs001-todo), and [maturity record](https://github.com/Mindclade-org/mindclade-internal-monorepo/blob/main/docs/architecture/maturity.yaml) before selecting a slice. The [governance status](/architecture/engineering/governance-status) and [operator runbook](/operations/github-governance) identify the connected publication/admission blockers. Follow their operator setup sequence; local credentials and source checks do not remove those gates.
+
+## Related
+
+<CardGroup cols={2}>
+  <Card title="Codebase map" icon="map" href="/developer/codebase-map">
+    Find where the implemented components live.
+  </Card>
+
+  <Card title="Troubleshooting" icon="wrench" href="/developer/troubleshooting">
+    Recover from failed prerequisites or checks.
+  </Card>
+
+  <Card title="Local verification" icon="check-circle" href="/runbooks/local-verification">
+    Run and triage the full verification aggregate.
+  </Card>
+
+  <Card title="Codex development workflow" icon="code" href="/developer/codex-development-workflow">
+    Make a scoped change and complete a protected PR.
+  </Card>
+
+  <Card title="Current handoff" icon="clipboard-list" href="/developer/agent-handoff">
+    See the current task register and ownership.
+  </Card>
+
+  <Card title="VS-001 Echo API" icon="terminal" href="/api/vs001-echo">
+    Reference for calling the Echo service.
+  </Card>
+
+  <Card title="System design" icon="sitemap" href="/architecture/system-design">
+    Read the target architecture beyond what is built.
+  </Card>
+
+  <Card title="Supervised development" icon="shield" href="/developer/supervised-development">
+    Understand parent-owned execution and roles.
+  </Card>
+</CardGroup>

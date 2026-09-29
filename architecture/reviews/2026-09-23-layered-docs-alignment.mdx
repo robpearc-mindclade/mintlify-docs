@@ -1,0 +1,69 @@
+---
+title: "Layered Design and Documentation Alignment (2026-09-23)"
+sidebarTitle: "Docs Alignment"
+description: "Bounded documentation reconciliation against the original greenfield blueprint, covering dispositions, external references and verification boundary."
+---
+
+This page records the 2026-09-23 authored source reconciliation for layered design and documentation alignment against baseline `784a88b2320fa1d2e9297394eb51bc7c088bd88d`. This record describes the bounded documentation change; it is not runtime or independent acceptance. Final checks and review must bind the resulting candidate, not this record's date. The [current handoff](/developer/agent-handoff) owns status.
+
+<Warning>
+  This is a documentation/terminology/status/navigation audit; it does not assert execution of every command or line-by-line validation of every proposed interface.
+</Warning>
+
+## Scope and authority
+
+The user supplied the exact original greenfield blueprint and layered image, requesting all relevant docs aligned, foundational system descriptions and usable agent/Claude files. The [original source](/architecture/sources/original-greenfield-blueprint) remains byte-identical (SHA-256 `c23d824ea6d2890bde8d1032ce4e0341cbd98ea4cc217c94eb0cec36c7665c38`). Accepted ADR-000-015, policy, schemas, source behavior and toolchain pins are unchanged by this documentation tranche. Later vertical implementation is a separate scope and needs its own criteria, source and evidence.
+
+The baseline inventory covers 111 Markdown files: 63 active documentation or instruction files, 16 accepted normative ADRs, 12 historical source/review records and 20 manifest-controlled Markdown placeholders.
+
+## Dispositions
+
+| Finding | Resolution in active documentation |
+| --- | --- |
+| Four-responsibility poster omitted the agreed layers | Main illustration now shows compilation, experience, planes, control, durable runtime, workloads, fabric/cloud and shared laws/delivery. [Editable/text view](/architecture/platform-diagram) and [asset provenance](/architecture/assets/overview) retain its meaning and limits. |
+| Ambiguous Protobuf authoring and broad generated labels | Default diagram now emits Protobuf from TypeSpec-owned APIs; [surface ledger](/architecture/generated-surface-ownership) separates optional disjoint Proto-first input, projections, handwritten helpers and mechanical/evidence outputs. |
+| Runtime and engineering packets could be conflated | Master blueprint and execution reliability distinguish semantic runtime admission design from non-semantic engineering WorkPacket@v1. No schema fields changed. |
+| Frontend README described only the initial subset | The adapter guide distinguishes original foundation compilation from partial B1 declaration/source-policy support; generated product/value gaps stay open. |
+| Removed handoff headings broke navigation | Active engineering/TODO links now target current handoff headings; parent verification includes Markdown heading fragments in addition to repository file-link checks. |
+| Old review, tracker and candidate wording appeared current | Planning checkpoints are labeled historical; active status routes to the common handoff. Tracker assignments must be refreshed. |
+| Review-thread source support was confused with live proof | Engineering blueprint separates implemented observation support from absent current/queue/independent evidence. |
+| Stub count would drift after index activation | Bootstrap status points to the manifest. Only `docs/README.md` retires from the stub inventory; no resealing or runtime activation. |
+| Old plans implied plugin dependence or repeated completed tasks | Historical execution/phase outlines point to current status, pinned checks and the provider-neutral workflow. Original requirements remain intact. |
+| ADRs could be mistaken for historical-only authority | Inventory classifies accepted decisions as normative, immutable in this task. |
+| Optional tracker wording contradicted current engineering authority | Scientific companion now preserves one current Linear work authority and a reviewed replacement transition. |
+| Full target context was spread across disconnected pages | [Foundations](/architecture/foundations/overview) and its [20-section/box coverage](/architecture/foundations/blueprint-coverage) provide one reading route; system design/master/agent entries link it. |
+
+Unchanged accepted ADRs remain governing. Historical reviews and original source retain their dated counts and observations. The other 19 Markdown placeholders remain sealed, including generated architecture views and package READMEs. The new foundation references are authored explanations outside generated paths. The full repository inventory is refreshed mechanically, not hand-edited.
+
+## External technical references
+
+The explicitly requested Context7 lookup checked two narrow public concepts:
+
+- Official TypeSpec [emitter basics](https://github.com/microsoft/typespec/blob/main/website/src/content/docs/docs/extending-typespec/emitters-basics.md) describe compiler `Program` and resolved types. The repository adapter/source and TypeSpec 1.16.0 pins govern actual behavior; current upstream examples do not select a new emitter framework or API.
+- PostgreSQL's [transaction tutorial](https://www.postgresql.org/docs/18/tutorial-transactions.html) explains atomic database updates. The PostgreSQL 18 reference does not choose the repository's future runtime version or prove exactly-once external effects.
+
+Two library resolutions and three documentation queries were used. Queries contained public conceptual questions, no private code or credentials. These references explain external concepts; accepted repository decisions remain the design authority and local pins remain unchanged.
+
+## Verification boundary
+
+The parent owns scaffold/tree/link checks, the pinned aggregate, image/rendered inspection, final candidate review and Git delivery. Render checks must cover legible labels, useful alt text, non-color status, narrow layouts and valid navigation. The illustration and authored Mermaid are not a Codegen-emitted atlas, and browser/Markdown rendering does not prove deployed architecture. A source review or passing aggregate cannot close planned compiler/products, RuntimeKit, dependency, queue, operational, scientific or release gates.
+
+## Related
+
+<CardGroup cols={2}>
+  <Card title="Foundations overview" icon="building-columns" href="/architecture/foundations/overview">
+    Aligned design coverage and 20-section blueprint reading route.
+  </Card>
+
+  <Card title="Agent handoff" icon="handshake" href="/developer/agent-handoff">
+    Common handoff for authorized next work and current status.
+  </Card>
+
+  <Card title="Platform diagram" icon="diagram-project" href="/architecture/platform-diagram">
+    Editable and text views of the main layered illustration.
+  </Card>
+
+  <Card title="Original blueprint" icon="scroll" href="/architecture/sources/original-greenfield-blueprint">
+    Original greenfield blueprint source, preserved byte-identical.
+  </Card>
+</CardGroup>

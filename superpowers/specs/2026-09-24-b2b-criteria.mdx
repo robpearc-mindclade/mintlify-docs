@@ -1,0 +1,493 @@
+---
+title: "B2b public protocol products: acceptance criteria"
+sidebarTitle: "B2b Public Protocols"
+description: "Frozen acceptance criteria for B2b public protocol products including OpenAPI, Proto, MCP, and README generation from field registries with stable numbering."
+---
+
+The B2b task defines acceptance criteria for public protocol conformance and stable proto numbering. These criteria establish the contract, interface, and exhaustive test matrix for generating four public protocol products from a protocol source bundle.
+
+**Task:** B2b of the [completion plan](../plans/2026-09-23-foundation-compiler-completion#task-b2b-public-protocol-conformance-and-stable-proto-numbering), as corrected by [foundation next steps §B2](../../developer/foundation-next-steps#b2b-public-protocol-products); see also the [descriptor/strict YAML contract](../../architecture/service-descriptor-v1), [output policy](../../architecture/generated-output-policy) and [ownership ledger](../../architecture/generated-surface-ownership). **Base revision:** `06a903f` (main, B3a merged); branch `claude/b2b-public-protocols`. **Status:** Frozen 2026-09-24. Independent criteria review returned APPROVE WITH CHANGES; all required changes are applied. Rob approved these criteria and approvals A1/A2 (protoc 36.1 and Python protobuf 7.36.1 from the already-locked nixpkgs; no lock change). A3 (contract-owner acceptance of the initial field numbers and identical previous registry) remains **pending Rob** and is not implied by any passing test (superseded on 2026-09-26: Rob accepted A3; see [§12](#12-amendment-2-2026-09-26-a3-accepted)). Reviewer recommendations in §10 are adopted except Q5. These criteria grant no operational admission.
+
+Not authorization for implementation, RED runs, dependency changes or execution; the author ran no builds, tests, Git or network operations. Where they conflict, foundation-next-steps overrides the external draft (`draft-protocol-criteria/`); §2 records each resolution. Every name below is **proposed** unless marked _existing_.
+
+## 1. Scope and non-goals
+
+In scope: one checked `TargetBundle` emits four more public products, `public/openapi.json`, `public/echo.proto`, `public/mcp.json` and `public/README.md`. The field numbers in the Proto come from explicit current and previous authored registries. The current registry must cover exactly the current public payload. The comparison checks only field numbering and reservation compatibility. Output is a 13-file publication profile with a downgrade guard.
+
+Non-goals (a candidate that includes any of these is out of scope):
+
+- Proto is **messages-only**: no `service`/`rpc`, HTTP annotations, imports, options or requestId envelope. It is not a runtime ingress validator; proto3 cannot express JSON requiredness, literal codes, Unicode length, `maxItems` or byte limits, and B2b must not claim it does.
+- `mcp.json` is tool **metadata**, not an MCP server, handler, transport or authorization.
+- No runtime validator, HTTP adapter or RuntimeKit work (B3b); no OpenAPI/JSON-Schema validator dependency (consumer checks are structural comparisons against an independent fixture).
+- **v1 only**: namespace `Mindclade.Public` at revision `v1`, mapped by a closed table to package `mindclade.public.v1`; other revisions are rejected, never relabelled.
+- The registry comparison proves neither semantic/HTTP compatibility nor owner acceptance of the previous registry.
+- No change to TypeSpec, SemanticInput@v1, the MindcladeGraph@v1 schema or `graph.json` bytes, the TS/Rust products, `contracts/protobuf/` (Proto-first), `generated/protobuf/` or `protocols/`; no Cargo or pnpm dependency.
+
+## 2. Draft conflicts resolved
+
+| Draft text | Frozen rule |
+| --- | --- |
+| Current/previous must not resolve to the same inode or file | Removed. The logical paths must differ as strings, and each byte buffer is bound by its digest. Identical bytes, copies and hard links are accepted. Bounded reads, confinement and declared inputs are unchanged. |
+| Reject a direct 7→13 upgrade; require 9 first | Removed. A fresh output directory and any valid complete 7- or 9-file predecessor upgrade directly to 13. |
+| `vs001: bool` + `Option<architecture>` driver flags | Replaced by one closed profile enum (§4). |
+| Error fields `code`/`message` "reserved" | They are **active** assignments `code=1` and `message=2`. |
+| `…fields.baseline.yaml` | Renamed `contracts/registries/vs001-proto-fields.previous.yaml`, matching the CLI term. |
+| Report carries digests and reasons | The digests live only in `proto_registry_inputs`. Report items have closed fields and carry no prose. |
+| Response descriptions from an unspecified source | Codegen derives error descriptions from the authored literal code (replace `_` with a space, upper-case the first ASCII letter); the success description is the constant `Success`. Tests compare against the B2a `expectations.json` literals `Invalid input`/`Idempotency conflict`/`Unavailable` and the fixture literal `Success`; they never re-derive them (§10 R1). |
+
+## 3. Ownership, shared paths and approvals
+
+**Implementer paths (after admission):** `codegen/src/proto_registry.rs` (new), `codegen/src/emit/{openapi,proto,mcp,docs}.rs` (new), `codegen/src/{emit/mod.rs,target_ir.rs,projection.rs,publication.rs,main.rs,lib.rs}` and `contracts/registries/vs001-proto-fields{,.previous}.yaml`. The implementer copies the contents of the two registry files exactly from §5.
+
+**Test-author paths:** `tests/conformance/vs001/{protocol_expectations.json,
+protocol_products_test.py,proto_descriptor_test.py,protocol_driver_test.py}` and `codegen/tests/cases/{proto_registry.rs,protocol_lowering.rs,protocol_projection.rs}` and `scripts/test_protocol_wrapper.py`. The test author also owns the additions to `codegen/tests/cases/publication.rs`. The test author must be distinct from the implementer, and the implementer must not edit any of these files. A test change after review needs another review.
+
+**Parent-owned shared paths:** `flake.{nix,lock}`, `MODULE.bazel{,.lock}`, `Cargo.{toml,lock}`, `tools/build/{foundation.bzl,vs001.bzl}`, all `BUILD.bazel` files, `codegen/src/generator.rs`, `scripts/{validate_generator_inputs,generate_foundation,generate_vs001,verify_foundation,test_projection}.py`, `justfile`, `.gitignore`, `generated/README.md`, `generated/vs001/**` and `generated/foundation/{graph,manifest}.json` (both regenerated only), ledger/output-policy docs, `docs/architecture/model/{repository-layout,blueprint-scaffold}.json`, `maturity.yaml` and `REPOSITORY_TREE.md` (only via `validate_repository.py --write-tree`).
+
+**Rob approval required:** **A1** two new tools from the **already-locked** nixpkgs, `pkgs.protobuf` (protoc) and `pkgs.python312.withPackages (ps: [ps.protobuf])` (descriptor decoder); **A2** their wiring: protoc as a flake package, devShell entry and `nix_protoc`; protobuf Python **only** as a flake package plus `nix_protobuf_python`, never a second `python3` on the devShell PATH (`python3` must still resolve to `pythonToolchain`, asserted by the parent); **A3** contract-owner acceptance of the initial numbers and of a `previous` registry initially identical to current, recorded as **pending Rob** with both registry sha256 digests from the parent's run; **A4** any lock-file change (none expected; the parent stops if one appears).
+
+**Verified by reading files, without evaluating anything:**
+
+- `flake.nix` has inputs `nixpkgs` and `rust-overlay` (which follows `nixpkgs`); no other nixpkgs. `flake.lock` pins nixpkgs `b6c98e9e6633ee64753b594ff4a5febf0367fc00` (narHash `sha256-QpXotokG…s7mc=`). Recomputing the store path gives `/nix/store/8vdpwi2yls679v4dnjcp3wynsq77jwhl-source`.
+- In that locked source, `all-packages.nix:6361` sets `protobuf = protobuf_36`, whose version is `36.1`. `python-packages.nix:14051` sets `protobuf = protobuf7`, version `7.36.1`, and that derivation asserts it is compatible with the C++ protoc.
+- **So protoc can come from the locked nixpkgs with NO flake.lock change.**
+- The root `foundation` extension is `reproducible = True` and does not appear in `MODULE.bazel.lock`. A new `nix_protoc`/`nix_protobuf_python` repository should therefore leave that lock unchanged. The parent confirms this with builds run under `--lockfile_mode=error`.
+- **Not verified by the author:** both-host builds and license/transitive review (parent records them). Parent probe (reported, not author-verified): protoc 36.1 is cached for `aarch64-darwin` and `x86_64-linux`; python312Packages.protobuf 7.36.1 is cached on `x86_64-linux` but **not** on `aarch64-darwin`, so a one-time local Mac build is expected (see §9 stop condition a).
+- `.gitignore` at `06a903f` has `entry-[0-6]`, so nine-file stages `entry-7`/`entry-8` are not ignored there (a pre-existing B3a gap); pending PR #12 changes it to `entry-[0-8]`. Whichever single line is on the base, §7 replaces it and covers `entry-0`..`entry-12`.
+
+## 4. Interfaces (all proposed)
+
+_Existing_, unchanged: `projection::{generate, generate_vs001, generate_vs001_services}` (pinned by `service_projection.rs`), `target_ir::lower`, `emit::emit(&TargetBundle)`, `publication::{publish, verify}`, `PublicationJournal@v1`, `compat` and its exit 2, and `yaml::parse_yaml_strict(bytes: &[u8], source: &str) -> Result<YamlDocument, Vec<Diagnostic>>` (`codegen/src/yaml.rs:69`, confirmed).
+
+```rust
+// codegen/src/projection.rs
+pub struct ProtocolSources<'a> {            // normalized repo-relative logical paths
+    pub architecture: &'a str,
+    pub proto_registry: &'a str,
+    pub previous_proto_registry: &'a str,
+}
+pub fn generate_vs001_protocols(input_bytes: &[u8], input_name: &str, sources: ProtocolSources<'_>,
+    source_root: &Path, out_dir: &Path, check: bool) -> Result<Generation, Vec<Diagnostic>>;
+enum Projection<'a> { Foundation, Vs001(Vs001Profile<'a>) } // replaces generate_profile's vs001/architecture args
+pub(crate) enum Vs001Profile<'a> {
+    Legacy,                               // 7 files; descriptor-free input
+    Service { architecture: &'a str },    // 9 files
+    Protocol(ProtocolSources<'a>),        // 13 files; requires the Service inputs too
+}
+// Vs001Profile::catalog(&self) -> &'static [&'static str]; ::label(&self) -> Option<&'static str>
+// label is Some("VS001ProtocolProducts@v1") only for Protocol.
+
+// codegen/src/proto_registry.rs (crate-private module)
+pub(crate) struct RegistrySource<'a> { pub(crate) path: &'a str, pub(crate) bytes: &'a [u8] }
+pub(crate) struct ProtoRegistry { /* private checked state + read-only accessors */ }
+pub(crate) fn parse_registry(source: RegistrySource<'_>) -> Result<ProtoRegistry, Vec<Diagnostic>>;
+        // must call crate::yaml::parse_yaml_strict(source.bytes, source.path) first; no second parser
+pub(crate) fn compare_registries(previous: &ProtoRegistry, current: &ProtoRegistry) -> RegistryReport;
+
+// codegen/src/target_ir.rs
+pub(crate) fn lower_protocols<'a>(graph: &'a MindcladeGraph, current: RegistrySource<'_>,
+    previous: RegistrySource<'_>) -> Result<TargetBundle<'a>, Vec<Diagnostic>>;
+// TargetBundle gains private `protocol: Option<ProtocolState>` (payload closure keyed by full
+// semantic Identity, checked current registry, report). Only lower_protocols sets it.
+
+// codegen/src/emit/mod.rs: emit(bundle) appends the four public protocol outputs iff
+// ProtocolState is present; openapi/proto/mcp/docs::emit(bundle, &ProtocolState)
+//     -> Result<OwnedOutput, Vec<Diagnostic>>.
+
+// codegen/src/publication.rs (private)
+enum ManifestProfile { Unlabelled, Protocol }
+fn manifest_profile(manifest: &serde_json::Value) -> Result<ManifestProfile>;
+fn check_profile_transition(prior: &Value, target: &Value) -> Result<()>;   // code projection-profile
+```
+
+The emitters never read files, YAML or environment variables, and never number fields by declaration order. If protocol emission is asked for without a checked `ProtocolState`, it fails. It never falls back to automatic numbering.
+
+**CLI** (`main.rs`):
+
+```text
+compile-vs001-protocols --input PATH --architecture REPO_PATH --proto-registry REPO_PATH
+  --previous-proto-registry REPO_PATH --source-root PATH --out-dir PATH [--check]
+```
+
+Each path option is required exactly once; missing, repeated, unknown or empty options fail `cli-argument` (_existing_ convention); `--help` is read-only, exit 0; every failure, including incompatible numbering, exits 1. **Wrapper:** `scripts/generate_vs001.py --services --architecture A --protocols --proto-registry P --previous-proto-registry Q` (all-or-none); `just generate-vs001`/`verify-generated` switch to protocol mode.
+
+**Manifest** (`Vs001Manifest@v1`, protocol profile only; legacy and service manifests gain no fields). Add these keys:
+
+```json
+"product_profile": "VS001ProtocolProducts@v1",
+"proto_registry_inputs": {"current": {"path": "<logical>", "digest": "sha256:<bytes>"},
+                          "previous": {"path": "<logical>", "digest": "sha256:<bytes>"}},
+"proto_registry_compatibility": {"schema": "ProtoRegistryCompatibilityReport@v1",
+  "policy": "preserve-field-numbers-and-reservations@v1", "result": "compatible", "changes": []}
+```
+
+## 5. Registry contract
+
+The current registry is `contracts/registries/vs001-proto-fields.yaml`. The previous registry is `contracts/registries/vs001-proto-fields.previous.yaml`. Initially both hold these **identical** bytes, which the implementer copies exactly:
+
+```yaml
+schema: ProtoFieldRegistry@v1
+messages:
+  Mindclade.Public.EchoRequest: {fields: {message: 1, urgent: 2, tags: 3}, reserved_names: [], reserved_numbers: []}
+  Mindclade.Public.EchoResponse: {fields: {message: 1}, reserved_names: [], reserved_numbers: []}
+  Mindclade.Public.IdempotencyConflict: {fields: {code: 1, message: 2}, reserved_names: [], reserved_numbers: []}
+  Mindclade.Public.InvalidInput: {fields: {code: 1, message: 2}, reserved_names: [], reserved_numbers: []}
+  Mindclade.Public.Unavailable: {fields: {code: 1, message: 2}, reserved_names: [], reserved_numbers: []}
+```
+
+Codegen never writes either file. Changing the previous registry requires a reviewed change. The diagnostics are located at the supplied logical path with a positive 1-based line and column. Their messages are fixed and redacted: they never echo scalars.
+
+| Rule | Code |
+| --- | --- |
+| Any strict-YAML violation (duplicate decoded key, anchor/alias, tag, merge key, multiple documents, non-string key, invalid UTF-8, NUL, any limit) | _existing_ `yaml-*` |
+| Container shape and non-number positions only: root must be a mapping with exactly `schema` and `messages`; `schema` must be the string `ProtoFieldRegistry@v1`; `messages` a non-empty mapping; each message a mapping with exactly `fields` (mapping), `reserved_names` (sequence of strings) and `reserved_numbers` (sequence). A wrong node type in any of these positions. | `proto-registry-schema` |
+| Message keys must be exactly `Mindclade.Public.<[A-Za-z_][A-Za-z0-9_]*>`, checked at structural parse before coverage. That rejects `Mindclade.Internal.RunReference`, package names, `@v1` suffixes and case conversion. Field and reserved names must be `[A-Za-z_][A-Za-z0-9_]*`. | `proto-registry-name` |
+| In a number position (a `fields` value or a `reserved_numbers` item), any non-Integer node fails here, whether quoted, float, bool or null; the strict adapter classifies plain `0x1`, `1e1` and `1.0` as String. An Integer must be spelled `0\|[1-9][0-9]*`, within 1..536870911 and outside 19000..19999. That rejects `0`, `-1`, `+1`, `01`, `"1"`, `1.0`, `1e1`, `0x1`, `true`, `null`, `536870912`, `19000` and `19999`. It accepts `1`, `18999`, `20000` and `536870911`. | `proto-registry-number` |
+| An active number may appear only once per message. Reserved names and reserved numbers may each appear only once. The same number in different messages is valid. | `proto-registry-duplicate` |
+| An active name may not also be a reserved name, and an active number may not also be a reserved number. | `proto-registry-reserved` |
+| The current registry's messages must equal the current payload closure (§6), and each field set must match exactly. This check applies only to the current registry. | `proto-registry-coverage` |
+| The current and previous logical path strings are equal. | `proto-registry-source` |
+| Read failures | _existing_ `source-path`/`source-root`/`source-type`/`source-size`/`source-io` |
+
+Both registries get full structural validation. The previous registry is **not** checked for coverage, because no historical SemanticInput exists to check it against. Reads use the _existing_ bounded Unix reader: normalized relative path, confinement to the root after resolution, a regular file, an `O_NOFOLLOW|O_NONBLOCK` open, and a limit of 1 MiB inclusive. There is **no inode or alias rule**.
+
+**Comparison** (runs after both parses and the current coverage check succeed; each rule is keyed by message):
+
+1. If a previous message is missing from current, the finding is `message-removed`, class _unsupported_. Whole-message removal is unsupported.
+2. A previous active field that is still active must keep its number. Otherwise the finding is `field-number-changed`.
+3. If a previous active field is gone, the current registry must reserve **both** its old name and its old number. If it does, the finding is `field-removed-reserved`. If either is missing, the finding is `removed-field-unreserved`.
+4. Every previous reserved name and number must still be reserved. Returning one to active use, or dropping it, gives `prior-reservation-lost`.
+5. A new field gives `field-added` and a new message gives `message-added`. A new reservation that rule 3 does not explain gives `reservation-added`.
+
+`field-added`, `field-removed-reserved`, `reservation-added` and `message-added` are _compatible_. `field-number-changed`, `removed-field-unreserved` and `prior-reservation-lost` are _incompatible_. An _unsupported_ finding takes precedence over an _incompatible_ one.
+
+Each change item is exactly `{message, field: string|null, number: int|null, code, class}`, with content fixed per code:
+
+| Code | `field` | `number` |
+| --- | --- | --- |
+| `message-added`, `message-removed` | null | null |
+| `field-added` | field name | new number |
+| `field-number-changed` | field name | previous number |
+| `field-removed-reserved`, `removed-field-unreserved` | removed field name | previous number (one item per removed field) |
+| `reservation-added`, `prior-reservation-lost` (one item per reserved name) | reserved name | null |
+| `reservation-added`, `prior-reservation-lost` (one item per reserved number) | null | reserved number |
+
+Items are sorted by message, then field (null first), then code, then number (null first). A report with any non-compatible item blocks generation. It then becomes a located `proto-registry-compatibility` diagnostic, or `proto-registry-unsupported` for a message removal, at the current registry.
+
+A rename is a removal plus an addition. Changing only the order of entries changes nothing.
+
+## 6. Product contracts
+
+**Payload closure.** The closure is built from the resolved request body, the success response and each error response body of the single public operation, following public named references transitively. Membership is decided by graph Identity, never by a list of names to exclude. For the base input it is exactly `Mindclade.Public.{EchoRequest, EchoResponse, InvalidInput, IdempotencyConflict, Unavailable}`. The envelopes `InvalidResponse`/`ConflictResponse`/`UnavailableResponse`, the scalar `Tag` (resolved and inlined) and the operation `echo` are not payload messages and get no registry entry, component or message.
+
+The supported field shapes form a closed set: required string or string literal, optional string, required bool, optional bool, and required array of string. Any other shape fails as `protocol-profile`. That includes int32, enums, unions, fields of named models, optional arrays, and a `format` on a payload string. `protocol-profile` also covers any package or payload declaration whose version is not `v1`, and any namespace other than `Mindclade.Public`.
+
+**Leakage rule.** An internal declaration reached from a public declaration, directly or transitively, fails compilation or lowering with the _existing_ located `public-internal-reference` diagnostic. It must not be silently pruned. None of the four products may contain `Mindclade.Internal`, or any internal declaration name from the actual input as an exact-case whole token.
+
+**Schema objects.** These are the independent expectation values, authored from `contracts/typespec/public/echo.tsp`. They are **not** copied from emitter output.
+
+- `EchoRequest` = `{"type":"object","properties":{"message":{"type":"string","maxLength":4096},"urgent":{"type":"boolean"},"tags":{"type":"array","maxItems":128,"items":{"type":"string","maxLength":64}}},"required":["message","tags"],"additionalProperties":false}`.
+- `EchoResponse` = `{"type":"object","properties":{"message":{"type":"string","maxLength":4096}},"required":["message"],"additionalProperties":false}`.
+- `InvalidInput`, `IdempotencyConflict` and `Unavailable` each = `{"type":"object","properties":{"code":{"type":"string","const":C},"message":{"type":"string"}},"required":["code","message"],"additionalProperties":false}`, where `C` is `invalid_input`, `idempotency_conflict` and `unavailable` respectively.
+
+In every schema, `required` is sorted and always present. Optional never means nullable.
+
+**`public/openapi.json`** is canonical JSON (_existing_ `canonical::to_bytes`).
+
+- Its top-level keys are exactly `openapi`, `jsonSchemaDialect`, `info`, `x-mindclade-transport-profile`, `paths` and `components`.
+- `openapi` is `3.1.0`.
+- `jsonSchemaDialect` is `https://json-schema.org/draft/2020-12/schema`.
+- `info` is `{title: "Mindclade.Public", version: "v1", description: <non-empty>}`.
+- `x-mindclade-transport-profile` is `{identity: "VS001TransportProfile@v1", max_body_bytes: 65536}`.
+- `components` has exactly `{schemas: {<the five objects above, keyed by short name>}}`.
+- `paths` has exactly `/echo/{requestId}` → `post`, which contains:
+  - `operationId: "echo"`.
+  - `parameters`: one entry, `{name:"requestId", in:"path", required:true, schema:{type:"string", pattern:"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"}}`.
+  - A `requestBody` that is required, with `application/json` → `$ref` `#/components/schemas/EchoRequest`.
+  - `responses` exactly `200/400/409/503`. Their descriptions are `Success`, `Invalid input`, `Idempotency conflict` and `Unavailable`. Each has `application/json` → a local `$ref` to `EchoResponse`, `InvalidInput`, `IdempotencyConflict` and `Unavailable` respectively.
+- A `$ref` has no sibling keys. The document has no servers, security, remote references or other operations.
+
+**`public/echo.proto`**:
+
+- UTF-8, LF, one trailing newline; `syntax = "proto3";` and `package mindclade.public.v1;`; no imports, options, services, enums or extensions; a do-not-edit header comment with no timestamp or host.
+- The five messages in order of full semantic identity, fields in ascending number: `message`/`code` are `string`, `urgent` is `optional bool` (proto3_optional), `tags` is `repeated string`.
+- Reservations: one `reserved` numbers statement (ascending), then one names statement (lexicographic); each omitted when empty.
+
+**`public/mcp.json`** is labelled custom metadata, canonical JSON, with exactly these top-level keys (each tool entry is a spec-valid MCP Tool; custom data lives only in the tool's `_meta`):
+
+- `schema: "McpToolCatalog@v1"`; `transport_profile` identical to the OpenAPI extension value.
+- `tools`: one tool with keys exactly `name` (`echo`), `description` (non-empty), `inputSchema`, `outputSchema`, `_meta`:
+  - `inputSchema` is `{$schema:<2020-12>, type:"object", properties:{requestId:<the path schema above>, body:<the EchoRequest object, inline>}, required:["body","requestId"], additionalProperties:false}`.
+  - `outputSchema` is the EchoResponse object plus `$schema`.
+  - `_meta` has exactly `http` = `{method:"POST", route:"/echo/{requestId}", media_type:"application/json"}` and `errors`, which maps `"400"`, `"409"` and `"503"` to `{code, description, schema:<the error object plus $schema>}`.
+- It contains no `$ref`.
+
+**`public/README.md`** has one H1 containing `Mindclade.Public`, `echo` and `v1`, followed by these H2 sections in this order:
+
+1. `Operation`: must contain `POST /echo/{requestId}`, `application/json` and the requestId pattern, plus links to `openapi.json`, `echo.proto` and `mcp.json`.
+2. `Request`: a table with the header `| Field | JSON type | Required | Constraints |` and exactly these rows, ordered by registry field number: `message | string | yes | maxLength 4096`, `urgent | boolean | no | none` and `tags | array of string | yes | maxItems 128; items maxLength 64`.
+3. `Responses`: a table with the header `| Status | Code | Body | Description |` and exactly these rows: `200 | none | EchoResponse | Success`, `400 | invalid_input | InvalidInput | Invalid input`, `409 | idempotency_conflict | IdempotencyConflict | Idempotency conflict` and `503 | unavailable | Unavailable | Unavailable`.
+4. `Validation`: must contain the phrases `Unicode scalar values`, `65536 bytes`, `malformed Unicode is rejected`, `unknown properties are rejected` and `omitted urgent is distinct from false`.
+5. `Projection limits`: must contain the phrases `messages-only`, `not a runtime ingress validator`, `requestId is carried by HTTP and MCP metadata`, `not an MCP server` and `no running service, deployment or qualification`.
+
+The tests compare the cells and phrases (case-sensitive) within each section. They do not snapshot other prose.
+
+## 7. Publication
+
+The protocol profile owns exactly **13** files under `SOURCE_ROOT/generated/vs001`: `graph.json`, `public/{README.md,client.ts,echo.proto,mcp.json,openapi.json}`, `rust/{internal,mod,public,wire}.rs`, `service/{config.rs,descriptor.json}` and `manifest.json`. The manifest hashes the **12** other outputs, never itself. The only new variable input is the registry bytes: registries are not TypeSpec sources or generator inputs, and `graph.json` does not change.
+
+These transitions are allowed: fresh → 13; any valid complete 7-file (legacy) or 9-file (service) predecessor → 13, directly; and 13 → 13.
+
+Downgrade guard: under the _existing_ writer lock, `check_ownership` calls `check_profile_transition(prior, new)` **before staging**. `recover` calls the same check **before any removal or replacement**. It takes the prior manifest from the journal's `prior_manifest` bytes if present. Otherwise it uses the on-disk manifest, while that manifest still matches the digest of the journal entry's `previous`. These fail `projection-profile`, preserving bytes, journal and stage: a Protocol prior with an Unlabelled target; an unknown `product_profile` on either side; a Protocol label whose output names are not exactly the 12 above. With no `prior_manifest` and the on-disk manifest already equal to the target, the transition is already committed and recovery completes (tested in B2b-19).
+
+The existing behaviour for legacy ↔ service transitions, stale-output cleanup and cross-catalog journal rejection (`publication-journal`) does not change. There is no second lock, publisher or journal schema.
+
+The stage entries for 13 files are `entry-0`..`entry-12`. Whatever single vs001 `entry-[…]` line is on the base (`entry-[0-6]` at `06a903f`; `entry-[0-8]` after pending PR #12) becomes exactly `/generated/vs001/.publication/stage-[0-9]*-[0-9]*/entry-[0-9]` and `/generated/vs001/.publication/stage-[0-9]*-[0-9]*/entry-1[0-2]`.
+
+## 8. Acceptance criteria
+
+Every negative case exits 1 with the named code, located as §5 specifies (a panic, traceback, signal, timeout or other code does **not** satisfy it), and leaves absent/existing output, any pending journal and receipts unchanged (snapshot-compared). Expected values come only from the authored fixture `protocol_expectations.json` and this document, never from emitter output or another generated product. Targets (proposed): **U** `//codegen:unit_tests` (crate-unit modules); **P** `//tests/conformance/vs001:protocol_products`; **D** `…:proto_descriptor`; **R** `…:protocol_driver` (real codegen binary, temporary checkouts); **S** `scripts/{test_projection,test_protocol_wrapper}.py` via `just verify-fast`.
+
+| ID | Criterion: positive control, then negatives | Pinned by |
+| --- | --- | --- |
+| B2b-01 | **Valid baseline.** The §5 registry bytes parse. The actual `vs001_services` frontend artifact, architecture and both registries (distinct paths, equal bytes) publish 13 files with exit 0. The manifest carries `product_profile`, both bindings (with the actual sha256 of each file) and `result: compatible, changes: []`. | U `proto_registry.rs`; R |
+| B2b-02 | **Registry structure.** Every row of the §5 table is tested: each rejected spelling listed; the message key `Mindclade.Internal.RunReference`, failing `proto-registry-name` at structural parse (before coverage); a duplicate escaped-equivalent key (plain `message` plus a double-quoted key spelling the final `e` with the YAML escape backslash-`u0065`, expecting `yaml-duplicate-key`); all four accepted boundary numbers; and a number reused across messages (accepted). The full matrix runs on in-memory bytes. At least one case per code family then runs through R, **once for the current registry and once for the previous**, to prove the wiring. | U `proto_registry.rs`; R |
+| B2b-03 | **Coverage.** Each of these fails `proto-registry-coverage`: a missing message; an extra message (`Mindclade.Public.InvalidResponse`, `Mindclade.Public.Tag`); a missing field; an extra field. A previous registry that holds a field absent from current is accepted when both of its reservations exist. | U `protocol_lowering.rs`; R |
+| B2b-04 | **Comparison matrix.** `compare_registries` returns the exact report literal for each case: unchanged; reordered map and sequence entries; added field; rename with both reservations; removal missing the name reservation; removal missing the number reservation; number change; swapping two numbers (two `field-number-changed`); a prior reserved name dropped; a prior reserved number returned to active use; message added; message removed (_unsupported_ wins over _incompatible_); renaming `tags`→`labels` reusing `labels: 3` without reservations yields `removed-field-unreserved` (`tags`/3, alongside `field-added` `labels`/3; result incompatible). Item contents follow the §5 per-code table. | U `proto_registry.rs` |
+| B2b-05 | **Blocking.** Incompatible and unsupported comparisons, run through R, fail with `proto-registry-compatibility` or `proto-registry-unsupported` at the current registry path. They write nothing and do not recover a valid pending journal. | R |
+| B2b-06 | **Source identity.** The same logical path for current and previous fails `proto-registry-source`. Distinct copies with identical bytes are accepted, and so is a hard link (no inode rule). These fail with the existing source codes: an escaping path, an absolute path, a symlink out of the root, a directory, a FIFO (the read must not block), a missing file, and 1 MiB + 1 byte. Exactly 1 MiB is not a size failure. | R |
+| B2b-07 | **Closure and v1.** Renaming an envelope, or adding an unused public model, leaves the four products byte-identical. Giving the unused model a registry entry fails coverage. A package version of `v2`, or a payload declaration version of `v7`, fails `protocol-profile`. So does each of these, added to a payload model along with its registry entry and located at that field or declaration: an int32 field; an enum field; a union field; a named-model field; an optional array; a `format` on a payload string; and a payload namespace other than `Mindclade.Public`. | U `protocol_lowering.rs`; R |
+| B2b-08 | **Leakage.** A public EchoRequest reaching internal RunReference through a public bridge model and an array fails `public-internal-reference` at the authored location, with no output. A direct internal reference fails the same way. The valid control (a bridge referencing only public models) passes `target_ir::lower` in service mode; in protocol mode it fails `protocol-profile` (named-model field). Every leaking variant reports `public-internal-reference`, never `protocol-profile`. P tokenizes all four products and the descriptor's names, and finds none of the internal names from the actual input and no `Mindclade.Internal`. | U `protocol_lowering.rs`; R; P; D |
+| B2b-09 | **OpenAPI** matches every §6 property exactly. Local `$ref` resolution is done by the test. There are no envelope components, no `Tag` component and no extra operation. | P |
+| B2b-10 | **Proto descriptor.** The test runs the actual declared protoc (`protoc --version` = `libprotoc 36.1`): `--descriptor_set_out` into a temporary directory, with a 30 s timeout. It decodes the bytes with `google.protobuf.descriptor_pb2` from the declared Nix Python, asserting `google.protobuf.__version__ == "7.36.1"` and that the interpreter path is under `/nix/store`. The descriptor must show: `name` = `echo.proto`; `syntax` = `proto3`; package `mindclade.public.v1`; no dependency, service or enum; the five message names; the exact `(name, number, type, label)` for each field; `urgent` with `proto3_optional` and one synthetic oneof; empty `reserved_range` and `reserved_name`. Each of these is a failure, not a skip: the tool is missing, it exits nonzero, it times out, the descriptor is missing, or decoding fails. No checked-in descriptor, emitter JSON or mock is used. | D |
+| B2b-11 | **Numbering stability.** Reordering fields in both the input and the registry gives identical `echo.proto` bytes. Renaming `tags`→`labels`, with `labels: 4` and reservations for `tags` and 3, gives a descriptor showing `message=1`, `urgent=2` and `labels=4`, `reserved_range [3,4)` and `reserved_name tags`. The manifest `changes` equals the fixture literal for that rename. Assigning `labels: 3` while 3 is reserved fails `proto-registry-reserved`. Renaming `tags`→`labels` reusing `labels: 3` without reservations fails generation as `proto-registry-compatibility` because the report contains `removed-field-unreserved`. A new input field with no registry entry fails coverage, so nothing is numbered automatically. | R + D (run protoc on R's temporary output) |
+| B2b-12 | **MCP** matches every §6 property exactly. It has one tool and no `$ref`. | P |
+| B2b-13 | **README** has the headers, table rows and phrases from §6, section by section. | P |
+| B2b-14 | **Catalog and manifest.** The file set is exactly 13 names with 12 digests, and every digest equals the sha256 of its file. The other eight non-manifest outputs (`graph.json`, client, rust, service) are byte-identical to a service-mode run on the same input. The service and legacy manifests contain no `product_profile`, `proto_registry_inputs` or `proto_registry_compatibility`. | R |
+| B2b-15 | **Determinism.** Two clean generations, including one in a relocated root, give byte-identical outputs and manifest. The JSON products are canonical: compact, key-sorted, with one LF at the end. The Proto and README files are UTF-8 with LF only, one trailing newline, no tabs and no trailing spaces. No output contains a host, a time, or the absolute root. | R |
+| B2b-16 | **Drift.** `--check` passes on fresh output and is read-only. Each of these makes `--check` fail with no mutation: one protocol product changed; one protocol product deleted; an active journal (`publication-active`). A registry change that touches only comments leaves the four products byte-identical while both the manifest and its digest change. `--check` against the older output then fails. | R |
+| B2b-17 | **Upgrade.** These all succeed: fresh → 13; a legacy 7-file publication (built from the actual `vs001` artifact) → 13, directly; 9 → 13, directly; and 13 → 13 (`changed=false`). If an unowned file already sits at `public/openapi.json` on a 7- or 9-file predecessor, the run fails `output-ownership` and the file is preserved. | R |
+| B2b-18 | **Downgrade under lock.** After a 13-file publication, both service mode and legacy mode fail `projection-profile`, and the 13 files, the manifest, the lock inode and the absence of a journal and stage are unchanged. A legacy or service `--check` in that state is read-only and fails `output-drift`. Each of these also fails `projection-profile`: an on-disk manifest carrying an unknown `product_profile`, and a Protocol label on a manifest whose outputs are the 8 service outputs (not the 12 protocol names). A direct call to `publication::publish` with a Protocol-to-Unlabelled manifest pair fails before a stage directory exists. | R; U `publication.rs` |
+| B2b-19 | **Recovery preflight.** Case one: a service-catalog journal whose `prior_manifest` is the protocol manifest, with removals listing the four protocol products. Case two: a journal with no `prior_manifest` whose manifest entry `previous` equals the on-disk protocol manifest. Each fails `projection-profile`, with no unlink, no rename, and the journal and stage preserved. Positive controls: a protocol publication interrupted at each replacement boundary from 0 to 13 recovers exactly in protocol mode, and so do interrupted 7→13 and 9→13 journals at every boundary; a journal with no `prior_manifest` whose on-disk manifest already equals the target is treated as committed and recovery completes. A 13-name journal met by service mode, and a 9-name journal met by protocol mode, each fail `publication-journal` and are preserved. | R; U `publication.rs` |
+| B2b-20 | **Ignore rules.** `git check-ignore` treats `entry-0`, `entry-7`, `entry-8`, `entry-9`, `entry-10` and `entry-12` as ignored. It treats `entry-13` (the first visible index), `entry-20`, `entry-12.unowned` and `unknown.txt` as visible. If the base asserts `entry-9` visible, flip exactly that assertion to ignored; the other existing foundation and vs001 cases do not change. _`entry-13` superseded 2026-09-26; see §11._ | S |
+| B2b-21 | **CLI.** Each of these is `cli-argument` with no mutation: any of the six path options (`--input`, `--architecture`, `--proto-registry`, `--previous-proto-registry`, `--source-root`, `--out-dir`) missing, repeated, empty, or given a value starting `--`; or an unknown option. `compile-vs001-protocols --help` is read-only and exits 0. The `generate_vs001_protocols` signature is pinned. | R; `//codegen:protocol_projection_tests` |
+| B2b-22 | **Inventory, toolchain and regression.** Every new `codegen/src` file is in `GENERATOR_INPUTS`, and `validate_generator_inputs.py` passes. `toolchainInfo` records protoc `36.1` and python-protobuf `7.36.1`. After the full run, `git diff --exit-code` is empty for `flake.lock`, `Cargo.lock`, `MODULE.bazel.lock` and `pnpm-lock.yaml`. All pre-existing targets pass without edits to their assertions, except the B2b-20 `entry-9` flip. The 7-file list in `expectations.json` stays attached to the legacy profile. | S; `just verify` |
+| B2b-23 | **Both hosts.** B2b-01..22 and B2b-25 pass on Apple Silicon (`aarch64-darwin`, local) and on Linux CI (`x86_64-linux`) at the same candidate revision. The 13 manifest output digests are identical across the two hosts. | Parent receipts |
+| B2b-24 | **Ownership authority (parent).** The Proto, OpenAPI, MCP and API-docs rows of `docs/architecture/generated-surface-ownership.md` and the output-policy text name `generated/vs001/public/*` as the single owned VS-001 inventory. The other reserved destinations (`generated/protobuf/`, `protocols/`, `generated/openapi/`, `generated/mcp/`) stay untouched. `maturity.yaml` records owner acceptance as pending. | Parent review; `just verify-tree` |
+| B2b-25 | **Wrapper.** `scripts/test_protocol_wrapper.py` (patterned on `test_service_wrapper.py`): every partial subset of `--protocols`/`--proto-registry`/`--previous-proto-registry` (and protocol flags without `--services --architecture`) fails before any external command; the full set yields exactly the `compile-vs001-protocols` argv with all six path options and the declared `vs001_services` build. | S |
+
+## 9. Parent checks and stop conditions
+
+**RED:** after wiring the test targets and before implementation, the parent runs U/P/D/R/S. The only acceptable RED is failure because the proposed items (module, command or products) are missing. A compile error that names exactly those items counts as RED. Missing protoc, Python or runfiles is a **setup blocker, not RED**.
+
+**GREEN** (inside `nix develop --no-write-lock-file`):
+
+1. `cargo test --locked -p mindclade-codegen -- proto_registry protocol_lowering` (filters after `--`; cargo rejects a second positional filter)
+2. `bazel test //codegen:unit_tests //codegen:tests //codegen:vs001_projection_tests //codegen:service_projection_tests //codegen:protocol_projection_tests //tests/conformance/vs001:{protocol_products,proto_descriptor,protocol_driver,service_driver,client,types,dto} --lockfile_mode=error`
+3. `python3 scripts/validate_generator_inputs.py`, and `scripts/test_projection.py` plus `scripts/test_protocol_wrapper.py` through `just verify-fast`
+4. `just generate-foundation` **first** (`flake.nix`, `MODULE.bazel`, `tools/build/*.bzl` and `codegen/src` are GENERATOR_INPUTS bound in the foundation manifest), then `just generate-vs001`, `just verify-generated`, `python3 scripts/validate_repository.py --write-tree` and `just verify-tree`
+5. `nix develop --no-write-lock-file -c just verify` (with the new targets added to `verify_foundation.py`)
+6. `nix eval --raw .#protocToolchain.version`, expecting `36.1`
+7. The lock-diff check from B2b-22.
+
+The parent repeats all of this on Linux CI.
+
+**Stop conditions** (stop and escalate to Rob): protoc or python-protobuf cannot be obtained or built on either host without a `flake.lock`/`MODULE.bazel.lock` change or a different version; any lock-file change; any new Cargo or pnpm crate; a need to change TypeSpec, SemanticInput, the graph schema or `expectations.json`; existing 7/9-file behaviour or assertions would change beyond §7 and the B2b-20 `entry-9` flip; an implementer edits test or fixture files. Also stop for:
+
+- **(a)** a binary-cache miss that forces a local source build of protobuf/abseil for **protoc**: record host and duration, and escalate if it exceeds 30 min. Parent probe: protoc 36.1 is cached for `aarch64-darwin` and `x86_64-linux`; python312Packages.protobuf 7.36.1 is cached on `x86_64-linux` but not on `aarch64-darwin`, so a one-time local Mac build of it is expected and acceptable within the same 30-min budget.
+- **(b)** any overlay, override, `allowBroken` or `allowUnsupportedSystem` needed to obtain either tool.
+- **(c)** a runtime `protoc --version` other than `libprotoc 36.1`.
+
+If Linux CI cannot run, B2b-23 is BLOCKED ("not run"), never a pass.
+
+## 10. Reviewer recommendations, pending Rob
+
+- **R1 (was Q1): accept.** Codegen derives the error descriptions and uses the constant `Success`; tests compare against the B2a `expectations.json` literals `Invalid input`/`Idempotency conflict`/`Unavailable` and the literal `Success`, never re-deriving them. Authored `@doc` text remains a later frontend/SemanticInput task.
+- **R2 (was Q2): approve** python312Packages.protobuf `7.36.1` as the descriptor decoder (A1/A2).
+- **R3 (was Q3): keep** service→legacy (9→7) permissive in B2b; record rejecting it as a follow-up.
+- **R4 (was Q4): accept** `McpToolCatalog@v1` as labelled custom metadata, with `http`/`errors` under each tool's `_meta` so entries are spec-valid MCP Tools (adopted in §6).
+- **R5 (was Q5): Rob-only decision.** Record A3 as "pending Rob" with both registry sha256 digests; no test or passing check implies contract-owner acceptance.
+
+## 11. Amendment 1 (2026-09-26): B2b-20 superseded for `entry-13` (K1-21)
+
+Recorded by the parent as [K1-21](2026-09-26-k1-codegen-contracts-hardening-criteria#parent) requires. It changes no B2b result at its own revision.
+
+- **What changed.** B3b Stages C/D (`af1066b`, merged through PR #18 as main `72b762d`) added the 14-file composition catalog, whose stage entries are `entry-0`..`entry-13`. As the [B3b criteria](2026-09-24-b3b-criteria) allow (shared paths and B3b-17), the vs001 `.gitignore` line `/generated/vs001/.publication/stage-[0-9]*-[0-9]*/entry-1[0-2]` became `…/entry-1[0-3]`.
+- **Superseded.** B2b-20's "`entry-13` (the first visible index)" and §7's "exactly … `entry-1[0-2]`". `entry-13` is now ignored and `entry-14` is the first visible index. `entry-20`, `entry-12.unowned` and `unknown.txt` stay visible, and every other B2b-20 case is unchanged.
+- **Current assertion.** `scripts/test_projection.py` (`test_only_owned_operational_state_is_hidden_from_git`) asserts `entry-13` ignored under its B3b-17 comment. K1 also ignores the transient lock marker `/generated/*/.publication/lock-[0-9]*-[0-9]*.tmp`, which is outside the stage directories, so no B2b-20 case changes because of it.
+
+## 12. Amendment 2 (2026-09-26): A3 accepted
+
+Rob decided A3 in chat on 2026-09-26, after the pre-migration closeout, by answering explicit option questions (Rob, 2026-09-26, chat). The [agent handoff](/developer/agent-handoff#owner-decisions-recorded-2026-09-26-after-the-closeout) records it as D-4. This amendment adds to the criteria above and rewrites none of them.
+
+- **Accepted.** The initial Proto field numbers and the identical previous registry, both `sha256:d00a255596fcd6ac8bc10ad8b4e366db931c66b00a147459254c9a218ee2794d`, are the accepted numbering baseline.
+- **Unchanged.** The acceptance is Rob's decision as contract owner, not a test result: no passing test, drift check or review implies it (§10 R5). The registry comparison still proves numbering compatibility only (§1).
+
+## Related
+
+<CardGroup cols={2}>
+  <Card title="B3b Criteria" icon="code" href="/superpowers/specs/2026-09-24-b3b-criteria">
+    RuntimeKit/TestKit composition criteria that build on B2b products.
+  </Card>
+
+  <Card title="G3 Criteria" icon="shield" href="/superpowers/specs/2026-09-24-g3-criteria">
+    Governance boundary consumption criteria.
+  </Card>
+
+  <Card title="Foundation Compiler Completion Plan" icon="list-checks" href="/superpowers/plans/2026-09-23-foundation-compiler-completion">
+    The parent plan containing Task B2b.
+  </Card>
+
+  <Card title="Service Descriptor v1" icon="file-code" href="/architecture/service-descriptor-v1">
+    Descriptor/strict YAML contract referenced by B2b.
+  </Card>
+</CardGroup>
+
+A rename is a removal plus an addition. Changing only the order of entries changes nothing.
+
+## 6. Product contracts
+
+**Payload closure.** The closure is built from the resolved request body, the success response and each error response body of the single public operation, following public named references transitively. Membership is decided by graph Identity, never by a list of names to exclude. For the base input it is exactly `Mindclade.Public.{EchoRequest, EchoResponse, InvalidInput, IdempotencyConflict, Unavailable}`. The envelopes `InvalidResponse`/`ConflictResponse`/`UnavailableResponse`, the scalar `Tag` (resolved and inlined) and the operation `echo` are not payload messages and get no registry entry, component or message.
+
+The supported field shapes form a closed set: required string or string literal, optional string, required bool, optional bool, and required array of string. Any other shape fails as `protocol-profile`. That includes int32, enums, unions, fields of named models, optional arrays, and a `format` on a payload string. `protocol-profile` also covers any package or payload declaration whose version is not `v1`, and any namespace other than `Mindclade.Public`.
+
+**Leakage rule.** An internal declaration reached from a public declaration, directly or transitively, fails compilation or lowering with the _existing_ located `public-internal-reference` diagnostic. It must not be silently pruned. None of the four products may contain `Mindclade.Internal`, or any internal declaration name from the actual input as an exact-case whole token.
+
+**Schema objects.** These are the independent expectation values, authored from `contracts/typespec/public/echo.tsp`. They are **not** copied from emitter output.
+
+- `EchoRequest` = `{"type":"object","properties":{"message":{"type":"string","maxLength":4096},"urgent":{"type":"boolean"},"tags":{"type":"array","maxItems":128,"items":{"type":"string","maxLength":64}}},"required":["message","tags"],"additionalProperties":false}`.
+- `EchoResponse` = `{"type":"object","properties":{"message":{"type":"string","maxLength":4096}},"required":["message"],"additionalProperties":false}`.
+- `InvalidInput`, `IdempotencyConflict` and `Unavailable` each = `{"type":"object","properties":{"code":{"type":"string","const":C},"message":{"type":"string"}},"required":["code","message"],"additionalProperties":false}`, where `C` is `invalid_input`, `idempotency_conflict` and `unavailable` respectively.
+
+In every schema, `required` is sorted and always present. Optional never means nullable.
+
+**`public/openapi.json`** is canonical JSON (_existing_ `canonical::to_bytes`).
+
+- Its top-level keys are exactly `openapi`, `jsonSchemaDialect`, `info`, `x-mindclade-transport-profile`, `paths` and `components`.
+- `openapi` is `3.1.0`.
+- `jsonSchemaDialect` is `https://json-schema.org/draft/2020-12/schema`.
+- `info` is `{title: "Mindclade.Public", version: "v1", description: <non-empty>}`.
+- `x-mindclade-transport-profile` is `{identity: "VS001TransportProfile@v1", max_body_bytes: 65536}`.
+- `components` has exactly `{schemas: {<the five objects above, keyed by short name>}}`.
+- `paths` has exactly `/echo/{requestId}` → `post`, which contains:
+  - `operationId: "echo"`.
+  - `parameters`: one entry, `{name:"requestId", in:"path", required:true, schema:{type:"string", pattern:"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"}}`.
+  - A `requestBody` that is required, with `application/json` → `$ref` `#/components/schemas/EchoRequest`.
+  - `responses` exactly `200/400/409/503`. Their descriptions are `Success`, `Invalid input`, `Idempotency conflict` and `Unavailable`. Each has `application/json` → a local `$ref` to `EchoResponse`, `InvalidInput`, `IdempotencyConflict` and `Unavailable` respectively.
+- A `$ref` has no sibling keys. The document has no servers, security, remote references or other operations.
+
+**`public/echo.proto`:**
+
+- UTF-8, LF, one trailing newline; `syntax = "proto3";` and `package mindclade.public.v1;`; no imports, options, services, enums or extensions; a do-not-edit header comment with no timestamp or host.
+- The five messages in order of full semantic identity, fields in ascending number: `message`/`code` are `string`, `urgent` is `optional bool` (proto3_optional), `tags` is `repeated string`.
+- Reservations: one `reserved` numbers statement (ascending), then one names statement (lexicographic); each omitted when empty.
+
+**`public/mcp.json`** is labelled custom metadata, canonical JSON, with exactly these top-level keys (each tool entry is a spec-valid MCP Tool; custom data lives only in the tool's `_meta`):
+
+- `schema: "McpToolCatalog@v1"`; `transport_profile` identical to the OpenAPI extension value.
+- `tools`: one tool with keys exactly `name` (`echo`), `description` (non-empty), `inputSchema`, `outputSchema`, `_meta`:
+  - `inputSchema` is `{$schema:<2020-12>, type:"object", properties:{requestId:<the path schema above>, body:<the EchoRequest object, inline>}, required:["body","requestId"], additionalProperties:false}`.
+  - `outputSchema` is the EchoResponse object plus `$schema`.
+  - `_meta` has exactly `http` = `{method:"POST", route:"/echo/{requestId}", media_type:"application/json"}` and `errors`, which maps `"400"`, `"409"` and `"503"` to `{code, description, schema:<the error object plus $schema>}`.
+- It contains no `$ref`.
+
+**`public/README.md`** has one H1 containing `Mindclade.Public`, `echo` and `v1`, followed by these H2 sections in this order:
+
+1. `Operation`: must contain `POST /echo/{requestId}`, `application/json` and the requestId pattern, plus links to `openapi.json`, `echo.proto` and `mcp.json`.
+2. `Request`: a table with the header `| Field | JSON type | Required | Constraints |` and exactly these rows, ordered by registry field number: `message | string | yes | maxLength 4096`, `urgent | boolean | no | none` and `tags | array of string | yes | maxItems 128; items maxLength 64`.
+3. `Responses`: a table with the header `| Status | Code | Body | Description |` and exactly these rows: `200 | none | EchoResponse | Success`, `400 | invalid_input | InvalidInput | Invalid input`, `409 | idempotency_conflict | IdempotencyConflict | Idempotency conflict` and `503 | unavailable | Unavailable | Unavailable`.
+4. `Validation`: must contain the phrases `Unicode scalar values`, `65536 bytes`, `malformed Unicode is rejected`, `unknown properties are rejected` and `omitted urgent is distinct from false`.
+5. `Projection limits`: must contain the phrases `messages-only`, `not a runtime ingress validator`, `requestId is carried by HTTP and MCP metadata`, `not an MCP server` and `no running service, deployment or qualification`.
+
+The tests compare the cells and phrases (case-sensitive) within each section. They do not snapshot other prose.
+
+## 7. Publication
+
+The protocol profile owns exactly **13** files under `SOURCE_ROOT/generated/vs001`: `graph.json`, `public/{README.md,client.ts,echo.proto,mcp.json,openapi.json}`, `rust/{internal,mod,public,wire}.rs`, `service/{config.rs,descriptor.json}` and `manifest.json`. The manifest hashes the **12** other outputs, never itself. The only new variable input is the registry bytes: registries are not TypeSpec sources or generator inputs, and `graph.json` does not change.
+
+These transitions are allowed: fresh → 13; any valid complete 7-file (legacy) or 9-file (service) predecessor → 13, directly; and 13 → 13.
+
+Downgrade guard: under the _existing_ writer lock, `check_ownership` calls `check_profile_transition(prior, new)` **before staging**. `recover` calls the same check **before any removal or replacement**. It takes the prior manifest from the journal's `prior_manifest` bytes if present. Otherwise it uses the on-disk manifest, while that manifest still matches the digest of the journal entry's `previous`. These fail `projection-profile`, preserving bytes, journal and stage: a Protocol prior with an Unlabelled target; an unknown `product_profile` on either side; a Protocol label whose output names are not exactly the 12 above. With no `prior_manifest` and the on-disk manifest already equal to the target, the transition is already committed and recovery completes (tested in B2b-19).
+
+The existing behaviour for legacy ↔ service transitions, stale-output cleanup and cross-catalog journal rejection (`publication-journal`) does not change. There is no second lock, publisher or journal schema.
+
+The stage entries for 13 files are `entry-0`..`entry-12`. Whatever single vs001 `entry-[…]` line is on the base (`entry-[0-6]` at `06a903f`; `entry-[0-8]` after pending PR #12) becomes exactly `/generated/vs001/.publication/stage-[0-9]*-[0-9]*/entry-[0-9]` and `/generated/vs001/.publication/stage-[0-9]*-[0-9]*/entry-1[0-2]`.
+
+## 8. Acceptance criteria
+
+Every negative case exits 1 with the named code, located as §5 specifies (a panic, traceback, signal, timeout or other code does **not** satisfy it), and leaves absent/existing output, any pending journal and receipts unchanged (snapshot-compared). Expected values come only from the authored fixture `protocol_expectations.json` and this document, never from emitter output or another generated product. Targets (proposed): **U** `//codegen:unit_tests` (crate-unit modules); **P** `//tests/conformance/vs001:protocol_products`; **D** `…:proto_descriptor`; **R** `…:protocol_driver` (real codegen binary, temporary checkouts); **S** `scripts/{test_projection,test_protocol_wrapper}.py` via `just verify-fast`.
+
+| ID | Criterion: positive control, then negatives | Pinned by |
+| --- | --- | --- |
+| B2b-01 | **Valid baseline.** The §5 registry bytes parse. The actual `vs001_services` frontend artifact, architecture and both registries (distinct paths, equal bytes) publish 13 files with exit 0. The manifest carries `product_profile`, both bindings (with the actual sha256 of each file) and `result: compatible, changes: []`. | U `proto_registry.rs`; R |
+| B2b-02 | **Registry structure.** Every row of the §5 table is tested: each rejected spelling listed; the message key `Mindclade.Internal.RunReference`, failing `proto-registry-name` at structural parse (before coverage); a duplicate escaped-equivalent key (plain `message` plus a double-quoted key spelling the final `e` with the YAML escape backslash-`u0065`, expecting `yaml-duplicate-key`); all four accepted boundary numbers; and a number reused across messages (accepted). The full matrix runs on in-memory bytes. At least one case per code family then runs through R, **once for the current registry and once for the previous**, to prove the wiring. | U `proto_registry.rs`; R |
+| B2b-03 | **Coverage.** Each of these fails `proto-registry-coverage`: a missing message; an extra message (`Mindclade.Public.InvalidResponse`, `Mindclade.Public.Tag`); a missing field; an extra field. A previous registry that holds a field absent from current is accepted when both of its reservations exist. | U `protocol_lowering.rs`; R |
+| B2b-04 | **Comparison matrix.** `compare_registries` returns the exact report literal for each case: unchanged; reordered map and sequence entries; added field; rename with both reservations; removal missing the name reservation; removal missing the number reservation; number change; swapping two numbers (two `field-number-changed`); a prior reserved name dropped; a prior reserved number returned to active use; message added; message removed (_unsupported_ wins over _incompatible_); renaming `tags`→`labels` reusing `labels: 3` without reservations yields `removed-field-unreserved` (`tags`/3, alongside `field-added` `labels`/3; result incompatible). Item contents follow the §5 per-code table. | U `proto_registry.rs` |
+| B2b-05 | **Blocking.** Incompatible and unsupported comparisons, run through R, fail with `proto-registry-compatibility` or `proto-registry-unsupported` at the current registry path. They write nothing and do not recover a valid pending journal. | R |
+| B2b-06 | **Source identity.** The same logical path for current and previous fails `proto-registry-source`. Distinct copies with identical bytes are accepted, and so is a hard link (no inode rule). These fail with the existing source codes: an escaping path, an absolute path, a symlink out of the root, a directory, a FIFO (the read must not block), a missing file, and 1 MiB + 1 byte. Exactly 1 MiB is not a size failure. | R |
+| B2b-07 | **Closure and v1.** Renaming an envelope, or adding an unused public model, leaves the four products byte-identical. Giving the unused model a registry entry fails coverage. A package version of `v2`, or a payload declaration version of `v7`, fails `protocol-profile`. So does each of these, added to a payload model along with its registry entry and located at that field or declaration: an int32 field; an enum field; a union field; a named-model field; an optional array; a `format` on a payload string; and a payload namespace other than `Mindclade.Public`. | U `protocol_lowering.rs`; R |
+| B2b-08 | **Leakage.** A public EchoRequest reaching internal RunReference through a public bridge model and an array fails `public-internal-reference` at the authored location, with no output. A direct internal reference fails the same way. The valid control (a bridge referencing only public models) passes `target_ir::lower` in service mode; in protocol mode it fails `protocol-profile` (named-model field). Every leaking variant reports `public-internal-reference`, never `protocol-profile`. P tokenizes all four products and the descriptor's names, and finds none of the internal names from the actual input and no `Mindclade.Internal`. | U `protocol_lowering.rs`; R; P; D |
+| B2b-09 | **OpenAPI** matches every §6 property exactly. Local `$ref` resolution is done by the test. There are no envelope components, no `Tag` component and no extra operation. | P |
+| B2b-10 | **Proto descriptor.** The test runs the actual declared protoc (`protoc --version` = `libprotoc 36.1`): `--descriptor_set_out` into a temporary directory, with a 30 s timeout. It decodes the bytes with `google.protobuf.descriptor_pb2` from the declared Nix Python, asserting `google.protobuf.__version__ == "7.36.1"` and that the interpreter path is under `/nix/store`. The descriptor must show: `name` = `echo.proto`; `syntax` = `proto3`; package `mindclade.public.v1`; no dependency, service or enum; the five message names; the exact `(name, number, type, label)` for each field; `urgent` with `proto3_optional` and one synthetic oneof; empty `reserved_range` and `reserved_name`. Each of these is a failure, not a skip: the tool is missing, it exits nonzero, it times out, the descriptor is missing, or decoding fails. No checked-in descriptor, emitter JSON or mock is used. | D |
+| B2b-11 | **Numbering stability.** Reordering fields in both the input and the registry gives identical `echo.proto` bytes. Renaming `tags`→`labels`, with `labels: 4` and reservations for `tags` and 3, gives a descriptor showing `message=1`, `urgent=2` and `labels=4`, `reserved_range [3,4)` and `reserved_name tags`. The manifest `changes` equals the fixture literal for that rename. Assigning `labels: 3` while 3 is reserved fails `proto-registry-reserved`. Renaming `tags`→`labels` reusing `labels: 3` without reservations fails generation as `proto-registry-compatibility` because the report contains `removed-field-unreserved`. A new input field with no registry entry fails coverage, so nothing is numbered automatically. | R + D (run protoc on R's temporary output) |
+| B2b-12 | **MCP** matches every §6 property exactly. It has one tool and no `$ref`. | P |
+| B2b-13 | **README** has the headers, table rows and phrases from §6, section by section. | P |
+| B2b-14 | **Catalog and manifest.** The file set is exactly 13 names with 12 digests, and every digest equals the sha256 of its file. The other eight non-manifest outputs (`graph.json`, client, rust, service) are byte-identical to a service-mode run on the same input. The service and legacy manifests contain no `product_profile`, `proto_registry_inputs` or `proto_registry_compatibility`. | R |
+| B2b-15 | **Determinism.** Two clean generations, including one in a relocated root, give byte-identical outputs and manifest. The JSON products are canonical: compact, key-sorted, with one LF at the end. The Proto and README files are UTF-8 with LF only, one trailing newline, no tabs and no trailing spaces. No output contains a host, a time, or the absolute root. | R |
+| B2b-16 | **Drift.** `--check` passes on fresh output and is read-only. Each of these makes `--check` fail with no mutation: one protocol product changed; one protocol product deleted; an active journal (`publication-active`). A registry change that touches only comments leaves the four products byte-identical while both the manifest and its digest change. `--check` against the older output then fails. | R |
+| B2b-17 | **Upgrade.** These all succeed: fresh → 13; a legacy 7-file publication (built from the actual `vs001` artifact) → 13, directly; 9 → 13, directly; and 13 → 13 (`changed=false`). If an unowned file already sits at `public/openapi.json` on a 7- or 9-file predecessor, the run fails `output-ownership` and the file is preserved. | R |
+| B2b-18 | **Downgrade under lock.** After a 13-file publication, both service mode and legacy mode fail `projection-profile`, and the 13 files, the manifest, the lock inode and the absence of a journal and stage are unchanged. A legacy or service `--check` in that state is read-only and fails `output-drift`. Each of these also fails `projection-profile`: an on-disk manifest carrying an unknown `product_profile`, and a Protocol label on a manifest whose outputs are the 8 service outputs (not the 12 protocol names). A direct call to `publication::publish` with a Protocol-to-Unlabelled manifest pair fails before a stage directory exists. | R; U `publication.rs` |
+| B2b-19 | **Recovery preflight.** Case one: a service-catalog journal whose `prior_manifest` is the protocol manifest, with removals listing the four protocol products. Case two: a journal with no `prior_manifest` whose manifest entry `previous` equals the on-disk protocol manifest. Each fails `projection-profile`, with no unlink, no rename, and the journal and stage preserved. Positive controls: a protocol publication interrupted at each replacement boundary from 0 to 13 recovers exactly in protocol mode, and so do interrupted 7→13 and 9→13 journals at every boundary; a journal with no `prior_manifest` whose on-disk manifest already equals the target is treated as committed and recovery completes. A 13-name journal met by service mode, and a 9-name journal met by protocol mode, each fail `publication-journal` and are preserved. | R; U `publication.rs` |
+| B2b-20 | **Ignore rules.** `git check-ignore` treats `entry-0`, `entry-7`, `entry-8`, `entry-9`, `entry-10` and `entry-12` as ignored. It treats `entry-13` (the first visible index), `entry-20`, `entry-12.unowned` and `unknown.txt` as visible. If the base asserts `entry-9` visible, flip exactly that assertion to ignored; the other existing foundation and vs001 cases do not change. _`entry-13` superseded 2026-09-26; see §11._ | S |
+| B2b-21 | **CLI.** Each of these is `cli-argument` with no mutation: any of the six path options (`--input`, `--architecture`, `--proto-registry`, `--previous-proto-registry`, `--source-root`, `--out-dir`) missing, repeated, empty, or given a value starting `--`; or an unknown option. `compile-vs001-protocols --help` is read-only and exits 0. The `generate_vs001_protocols` signature is pinned. | R; `//codegen:protocol_projection_tests` |
+| B2b-22 | **Inventory, toolchain and regression.** Every new `codegen/src` file is in `GENERATOR_INPUTS`, and `validate_generator_inputs.py` passes. `toolchainInfo` records protoc `36.1` and python-protobuf `7.36.1`. After the full run, `git diff --exit-code` is empty for `flake.lock`, `Cargo.lock`, `MODULE.bazel.lock` and `pnpm-lock.yaml`. All pre-existing targets pass without edits to their assertions, except the B2b-20 `entry-9` flip. The 7-file list in `expectations.json` stays attached to the legacy profile. | S; `just verify` |
+| B2b-23 | **Both hosts.** B2b-01..22 and B2b-25 pass on Apple Silicon (`aarch64-darwin`, local) and on Linux CI (`x86_64-linux`) at the same candidate revision. The 13 manifest output digests are identical across the two hosts. | Parent receipts |
+| B2b-24 | **Ownership authority (parent).** The Proto, OpenAPI, MCP and API-docs rows of `docs/architecture/generated-surface-ownership.md` and the output-policy text name `generated/vs001/public/*` as the single owned VS-001 inventory. The other reserved destinations (`generated/protobuf/`, `protocols/`, `generated/openapi/`, `generated/mcp/`) stay untouched. `maturity.yaml` records owner acceptance as pending. | Parent review; `just verify-tree` |
+| B2b-25 | **Wrapper.** `scripts/test_protocol_wrapper.py` (patterned on `test_service_wrapper.py`): every partial subset of `--protocols`/`--proto-registry`/`--previous-proto-registry` (and protocol flags without `--services --architecture`) fails before any external command; the full set yields exactly the `compile-vs001-protocols` argv with all six path options and the declared `vs001_services` build. | S |
+
+## 9. Parent checks and stop conditions
+
+**RED:** after wiring the test targets and before implementation, the parent runs U/P/D/R/S. The only acceptable RED is failure because the proposed items (module, command or products) are missing. A compile error that names exactly those items counts as RED. Missing protoc, Python or runfiles is a **setup blocker, not RED**.
+
+**GREEN** (inside `nix develop --no-write-lock-file`):
+
+1. `cargo test --locked -p mindclade-codegen -- proto_registry protocol_lowering` (filters after `--`; cargo rejects a second positional filter)
+2. `bazel test //codegen:unit_tests //codegen:tests //codegen:vs001_projection_tests //codegen:service_projection_tests //codegen:protocol_projection_tests //tests/conformance/vs001:{protocol_products,proto_descriptor,protocol_driver,service_driver,client,types,dto} --lockfile_mode=error`
+3. `python3 scripts/validate_generator_inputs.py`, and `scripts/test_projection.py` plus `scripts/test_protocol_wrapper.py` through `just verify-fast`
+4. `just generate-foundation` **first** (`flake.nix`, `MODULE.bazel`, `tools/build/*.bzl` and `codegen/src` are GENERATOR_INPUTS bound in the foundation manifest), then `just generate-vs001`, `just verify-generated`, `python3 scripts/validate_repository.py --write-tree` and `just verify-tree`
+5. `nix develop --no-write-lock-file -c just verify` (with the new targets added to `verify_foundation.py`)
+6. `nix eval --raw .#protocToolchain.version`, expecting `36.1`
+7. The lock-diff check from B2b-22.
+
+The parent repeats all of this on Linux CI.
+
+**Stop conditions** (stop and escalate to Rob): protoc or python-protobuf cannot be obtained or built on either host without a `flake.lock`/`MODULE.bazel.lock` change or a different version; any lock-file change; any new Cargo or pnpm crate; a need to change TypeSpec, SemanticInput, the graph schema or `expectations.json`; existing 7/9-file behaviour or assertions would change beyond §7 and the B2b-20 `entry-9` flip; an implementer edits test or fixture files. Also stop for:
+
+- **(a)** a binary-cache miss that forces a local source build of protobuf/abseil for **protoc**: record host and duration, and escalate if it exceeds 30 min. Parent probe: protoc 36.1 is cached for `aarch64-darwin` and `x86_64-linux`; python312Packages.protobuf 7.36.1 is cached on `x86_64-linux` but not on `aarch64-darwin`, so a one-time local Mac build of it is expected and acceptable within the same 30-min budget.
+- **(b)** any overlay, override, `allowBroken` or `allowUnsupportedSystem` needed to obtain either tool.
+- **(c)** a runtime `protoc --version` other than `libprotoc 36.1`.
+
+If Linux CI cannot run, B2b-23 is BLOCKED ("not run"), never a pass.
+
+## 10. Reviewer recommendations, pending Rob
+
+- **R1 (was Q1): accept.** Codegen derives the error descriptions and uses the constant `Success`; tests compare against the B2a `expectations.json` literals `Invalid input`/`Idempotency conflict`/`Unavailable` and the literal `Success`, never re-deriving them. Authored `@doc` text remains a later frontend/SemanticInput task.
+- **R2 (was Q2): approve** python312Packages.protobuf `7.36.1` as the descriptor decoder (A1/A2).
+- **R3 (was Q3): keep** service→legacy (9→7) permissive in B2b; record rejecting it as a follow-up.
+- **R4 (was Q4): accept** `McpToolCatalog@v1` as labelled custom metadata, with `http`/`errors` under each tool's `_meta` so entries are spec-valid MCP Tools (adopted in §6).
+- **R5 (was Q5): Rob-only decision.** Record A3 as "pending Rob" with both registry sha256 digests; no test or passing check implies contract-owner acceptance.
+
+## 11. Amendment 1 (2026-09-26): B2b-20 superseded for `entry-13` (K1-21)
+
+Recorded by the parent as [K1-21](2026-09-26-k1-codegen-contracts-hardening-criteria.md#parent) requires. It changes no B2b result at its own revision.
+
+- **What changed.** B3b Stages C/D (`af1066b`, merged through PR #18 as main `72b762d`) added the 14-file composition catalog, whose stage entries are `entry-0`..`entry-13`. As the [B3b criteria](2026-09-24-b3b-criteria.md) allow (shared paths and B3b-17), the vs001 `.gitignore` line `/generated/vs001/.publication/stage-[0-9]*-[0-9]*/entry-1[0-2]` became `…/entry-1[0-3]`.
+- **Superseded.** B2b-20's "`entry-13` (the first visible index)" and §7's "exactly … `entry-1[0-2]`". `entry-13` is now ignored and `entry-14` is the first visible index. `entry-20`, `entry-12.unowned` and `unknown.txt` stay visible, and every other B2b-20 case is unchanged.
+- **Current assertion.** `scripts/test_projection.py` (`test_only_owned_operational_state_is_hidden_from_git`) asserts `entry-13` ignored under its B3b-17 comment. K1 also ignores the transient lock marker `/generated/*/.publication/lock-[0-9]*-[0-9]*.tmp`, which is outside the stage directories, so no B2b-20 case changes because of it.
+
+## 12. Amendment 2 (2026-09-26): A3 accepted
+
+Rob decided A3 in chat on 2026-09-26, after the pre-migration closeout, by answering explicit option questions (Rob, 2026-09-26, chat). The [agent handoff](../../developer/agent-handoff.md#owner-decisions-recorded-2026-09-26-after-the-closeout) records it as D-4. This amendment adds to the criteria above and rewrites none of them.
+
+- **Accepted.** The initial Proto field numbers and the identical previous registry, both `sha256:d00a255596fcd6ac8bc10ad8b4e366db931c66b00a147459254c9a218ee2794d`, are the accepted numbering baseline.
+- **Unchanged.** The acceptance is Rob's decision as contract owner, not a test result: no passing test, drift check or review implies it (§10 R5). The registry comparison still proves numbering compatibility only (§1).

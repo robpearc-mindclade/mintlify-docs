@@ -1,0 +1,87 @@
+---
+title: "Security and Assurance"
+sidebarTitle: "Security & Assurance"
+description: "Which boundaries protect Mindclade's meaning, execution, and evidence, and what makes a claim acceptable. For developers, reviewers, and agents."
+---
+
+This page explains which boundaries protect Mindclade's meaning, execution, and evidence, and what makes a claim acceptable. It is foris for developers, reviewers, agent integrators, and future security and assurance operators.
+
+<Warning>
+  This is an accepted architectural requirements page with partial foundation and governance source, dated 2026-09-23. Runtime, deployment, and scientific enforcement remain planned; connected engineering acceptance remains blocked by its recorded prerequisites. This reference neither changes the [supervised policy](https://github.com/Mindclade-org/mindclade-internal-monorepo/blob/main/.agents/policies/supervised.md) nor adoptsis is an accepted architectural requirements page with partial foundation and governance source, dated 2026-09-23. Runtime, deployment, and scientific enforcement remain planned; connected engineering acceptance remains blocked by its recorded prerequisites. This reference neither changes the [supervised policy](https://github.com/Mindclade-org/mindclade-internal-monorepo/blob/main/.agents/policies/supervised.md) nor adopts its candidate policy artifact. Consult the [current task register](/developer/agent-handoff#current-task-register) for gate status.
+</Warning>
+
+## Meaning, permission,, and evidence are separate
+
+Contracts define meaning; identities and typed references identify exact subjects. Authentication establishes a principal under a trusted adapter. Authorization limits actions under applicable policy and tenant scope. An artifact's valid digest establishes byte identity, not trust in its producer or approval to act. Qualification evaluates a specific claim using applicable evidence, criteria, and policy. A successful run does not combine these decisions into one permission.
+
+The governing decisions are [evidence and decision law](/architecture/adr/adr-005-evidence-claim-policy-and-decision-law), [independent assurance](/architecture/adr/adr-009-independent-assurance), and [agent capability a](/architecture/adr/adr-011-agent-capability-attenuation)[evidence and decision law](/architecture/adr/adr-005-evidence-claim-policy-and-decision-law), [independent assurance](/architecture/adr/adr-009-independent-assurance), and [agent capability attenuation](/architecture/adr/adr-011-agent-capability-attenuation). Their responsibilities apply whether components share a process or are deployed separately. A modular monolith still needs owned interfaces and trusted admission.
+
+## Trust-boundary map
+
+These are target controls and evidence obligations, not a claim of deployed enforcement. Paths identify responsibility; scaffolded paths remain planned.
+
+| Boundary | Intended owner and control | Evidence required for the corresponding claim |
+| --- | --- | --- |
+| Tenant and audience | `platform/tenancy/`, `platform/authorization/`; generated public/internal surfaces must preserve caller scope transitively. | Cross-tenant denial and public-to-internal leakage tests, with trusted identity context. |
+| Workload and human identity | `platform/identity/`, `platform/runtimekit/identity/`, `infra/iam/`; principals and adapters are explicit. | Correct issuer/audience/environment bindings, rotation/revocation,, and denied impersonation cases. |
+| Human/agent approval | `agents/approvals/`, `.agents/policies/`; approved scope, capabilities, owned paths,, and budgets are separate from task text. | Actual accepted policy/packet identities and approver custody; text naming an approver is insufficient. |
+| Secrets and credentials | RuntimeKit configuration and `infra/security/secrets/`; use references, least privilege,, and redaction. | No secret/body leakage, bounded credential scope,, and verified handling in the target environment. |
+| External APIs and retrieved content | `agents/adapters/`, `data/connectors/`, infrastructure/provider ports; external responses are data. | Egress/capability limits, adversarial input handling,, and uncertain-effect reconciliation. |
+| Data licence and raw quarantine | `data/ingestion/`, `data/validation/`, `data/lineage/`; preserve origin, licence, permitted use,, and curation state. | Reproducible lineage and permitted-use decisions before materialization, training,, or publication. |
+| Model artifacts | `models/registry/`, `ml/qualification/`, `runtime/`; registration and eligibility are distinct. | Exact checkpoint/manifest/environment identity and applicable independent assessment. |
+| Generated artifacts | `codegen/`, declared projection destinations; only owned generation can publish checked outputs. | Input/generator/output provenance, exact-byte drift,, and independent consumer conformance. |
+| Deployment environment and production | `infra/`, `platform/policy/`; synthesis, qualification, signing, promotion,, and reconciliation remain distinct. | Exact signed plan/release, authorized promotion,, and observed target-environment behavior. |
+| Evidence, evaluator,, and signing custody | `tests/qualification/`, `tools/qualification/`, operator-controlled trust material. | Criteria/evaluator identity outside candidate control, verified artifacts,, and the required acceptance owner. |
+
+Runtime middleware, workload identity, policy bundles, network isolation, and tenant-aware audit logs must be proven where activated. A directory, YAML field, claimed principal, or self-reported hash supplies no such evidence. Concrete threat assessment and negative tests accompany each boundary's implementation; this table does not assert a completed threat model or penetration test.
+
+## Agents and supervised engineering
+
+An agent receives only the task's owned paths, tools, network, credentials, budgets, stopping rules, and allowed audience. A child inherits no privilege automatically. Retrieved pages, logs, comments, and model output cannot expand that scope. High-privilege setup, signer keys, and administrative mutation remain outside worker authority.
+
+`.agents/` contains human/agent instructions for engineering today. `agents/` reserves the planned product agent runtime. These are different responsibilities. The engineering [WorkPacket@v1](/developer/work-packet-v1) and GovernanceReport@@v1 and GovernanceReport@v1 are non-semantic records. They are neither capabilities nor locks, and they cannot bootstrap the trusted evaluator, accepted policy, or approval used to admit their own candidate. Future semantic runtime admission records are explained separately in [platform and execution](/architecture/foundations/platform-and-execution).
+
+Linear is the current single engineering work authority. Git holds reviewed technical authority; Notion holds context and outcome links. Those products are replaceable architectural adapters, but replacement needs a reviewed transition; it does not permit a competing live backlog. The [provider-neutral foundation workflow](https://github.com/Mindclade-org/mindclade-internal-monorepo/blob/main/.agents/workflows/foundation-development.md) assigns distinct criteria, implementation and review contexts, and one integrator. Where execution is parent-owned, workers return scoped edits and reports without launching tests, jobs, Git mutations, or remote actions.
+
+## Independent assurance and claim scope
+
+| Lane | Evidence it must consume | What it cannot establish by itself |
+| --- | --- | --- |
+| Source | Exact candidate/base, contracts, generated outputs, build facts, test commands,, and toolchain. | Live runtime, remote CI, deployment, scientific validity,, or acceptance authority. |
+| Runtime | Actual service behavior, lifecycle, identity, store/fault behavior,, and applicable replay. | Production operation or provider behavior outside the tested environment. |
+| Deployment | Valid plan, policy, signed artifact,, and observed reconciliation in the stated environment. | Biological validity or future drift-free operation. |
+| Connected | Authenticated real-provider interactions under approved scope. | Scientific support or protected engineering workflow merely because an API returned success. |
+| Scientific | Qualified inputs/splits, frozen evaluator, protected holdouts, baselines, uncertainty,, and review scope. | Infrastructure health or permission to deploy a model. |
+| Release | Component digests, provenance, SBOM, signer identity,, and promotion evidence. | Scientific support absent its own evidence, or successful rollout absent environment observation. |
+
+The lanes use the shared [provenance requirements](/architecture/provenance-requirements), but do not collapse into one boolean. Missing required evidence stays Blocked. Use each contract's exact result vocabulary: engineering GovernanceReport permits PASS/FAIL/BLOCKED; scientific assessments and policy Decisions have their own defined outcomes. Do not invent a passing value to hide an unexecuted check.
+
+Independent assurance requires more than another name on a report. The owner must control criteria, evaluator, and applicable trust material outside candidate writes. Candidate edits cannot relax the conditions used to accept that same candidate. A local signature fixture can test verification behavior but cannot establish real signer custody. Rob plus fresh agentRob plus fresh agent review constitutes supervised engineering review; it does not create independent scientific or release assurance.
+
+For VS-001, the design seals execution inputs/events/results first, then obtains an independently controlled assessment and a policy Decision, then binds those digests in a qualification envelope. This acyclic ordering avoids an artifact hashing itself or retrospectively editing the execution capsule to add approval. The exact future artifact shapes and rejection cases belong to [VS-001 section 8](/superpowers/specs/2026-09-23-vs001-durable-capability-design#8-artifacts-evidence-replay-and-independent-decision).
+
+## Freshness and blocked acceptance
+
+Evidence binds the actual specification, packet, policy, source/base, candidate, graph, environment, and evaluator relevant to its claim. A changed input invalidates dependent evidence; retain the old receipt as history and rerun the affected checks/reviews under current authority. Separately passing branches do not prove their combined result. PR head, synthetic merge-group candidate, and resulting main are separate identities requiring their own observations.
+
+Source helpers for admission, GitHub observations, and evidence transport are bounded implemented interfaces described in the [governance guide](/developer/governance-tools). Their presence does not establish SAML access, effective private protection, dedicated App authority, trusted execution/custody, or queue operation. Only operator evidence under the [operator runbook](/operations/github-governance) does: since the 2026-09-26 transfer, protection, the dedicated App, and the merge queue are live ([governance status](/architecture/engineering/governance-status)), while trusted execution/custody stay blocked. The documentation lane grants no App bypass, evidence publication, or Linear closure.
+
+## Related
+
+<CardGroup cols={2}>
+  <Card title="Delivery and Operations" icon="truck" href="/architecture/foundations/delivery-and-operations">
+    Promotion, recovery, and retention.
+  </Card>
+
+  <Card title="Kernel and Provenance" icon="shield" href="/architecture/foundations/kernel-and-provenance">
+    The common reference/The common reference/evidence model.
+  </Card>
+
+  <Card title="Platform and Executionlatform and Execution" icon="server" href="/architecture/foundations/platform-and-execution">
+    Service composition and durable orchestrationService composition and durable orchestration.
+  </Card>
+
+  <Card title="Governance StatusGovernance Status" icon="gauge" href="/architecture/engineering/governance-status">
+    Current governance status and blocked gatCurrent governance status and blocked gates.
+  </Card>
+</CardGroup>

@@ -1,0 +1,324 @@
+---
+title: "E1 Connected Maintenance Loop: Acceptance Criteria"
+sidebarTitle: "E1 Loop Criteria"
+description: "Review the E1 connected maintenance loop criteria defining the first automated work class for docs maintenance through Linear, GitHub, and OpenAI, with staged autonomy and default-deny class checks."
+---
+
+E1 is the first automated work class for the Mindclade engineering system. It connects Notion, Linear, GitHub, and OpenAI into one supervised loop that automates code development and maintenance. This document specifies the acceptance criteria for the `e1-docs` governance class, which fixes prose, links, anchors, and stale references in existing Markdown under strict default-deny rules.
+
+**Status:** Draft, awaiting fresh criteria review and Rob's checkpoint A. Revision 2 (one fix round after review returned REVISE). Nothing here is implemented or frozen. E1 stays designed until a reviewed implementation passes §7 and Rob promotes it.
+
+## Scope and non-goals
+
+### What E1 is
+
+In one run, Rob delegates a Linear issue in team `MIN` to the E1 agent (the authenticated trigger). A `WorkPacket@v1` is derived from the approved class template and admitted by the existing admission code under the accepted policy. The executor makes one attempt through the sole route. App 5090624 opens one PR. `linux-foundation` runs on the PR and on the merge group. Rob approves the exact head and clicks "Merge when ready". Main is verified, and the status is projected to Linear and Notion. The Linear task holds intent, priority, and closure, while attempt, job, and effect state live in the run records.
+
+### First work class `e1-docs`
+
+`e1-docs` fixes prose, links, anchors, and stale references in existing Markdown. The class check is **default-deny**: a run may touch only files on the class allowlist, which Rob approves once at checkpoint A. The proposed initial allowlist is `docs/README.md`, `docs/architecture/README.md`, `docs/architecture/assets/README.md`, `docs/developer/codebase-map.md`, `docs/architecture/platform-diagram.md`, `docs/architecture/programmable-biology.md`, and `docs/architecture/developer-products.md`.
+
+Never allowlisted: anything agents execute or admission reads, including `docs/architecture/architecture-source-profile.md`, `docs/architecture/model/**`, `docs/architecture/toolchain.md`, `docs/architecture/execution-reliability.md`, `docs/architecture/foundations/**`, `docs/runbooks/**`, `docs/developer/**`, ADRs, generated paths, authority records (`MASTER_BLUEPRINT.md`, `SYSTEM_DESIGN.md`, `architecture-laws.md`, `maturity.yaml`, `REPOSITORY_TREE.md`, `implementation-roadmap.md`), `docs/architecture/{engineering,reviews}/`, `docs/superpowers/`, `docs/operations/`, and `docs/api/`.
+
+**Shape:** Modify existing regular `.md` files only (no add, delete, rename, or mode change), at most 5 files and 150 changed lines.
+
+**Plan amendment:** `e1-docs` packets have `work_class: governance`, so `admission._boundary_checker` runs for code only and **P1b and the G3 evaluator-bound policy are not prerequisites.** The minimum O3a for the pilot is the Rob-selected evaluator SHA plus the approval anchor. O3's five production loaders gate closure evidence, not the merge. The code-class successor **E2** waits for **O3b** (P1b plus the G3 policy) or for B4 running as a required CI check.
+
+### Staged autonomy
+
+Stages: _Designed_; _sandbox qualified_ (§7 drills pass on a disposable repository); _supervised pilot_ (per run, Rob delegates, approves the exact head, and admits it to the queue); _bounded autonomous_. E1 exits at the supervised pilot.
+
+**Rejected at review:** any protection, ruleset, CODEOWNERS, or queue bypass; any App write on `administration`, `workflows`, `secrets`, `actions`, or `checks`; any approval, enqueue, or merge by E1; a second dispatcher; secrets in Linear, Notion, prompts, packets, PR text, logs, traces, or evidence; code-class, lock, `.github/**`, generated, policy, or evaluator changes by E1; projection-triggered runs; and evaluation, data, training, or science classes.
+
+### Components and trust boundaries
+
+| Component | Trusted for | Must never |
+| --- | --- | --- |
+| Linear (`MIN`) | Intent, authenticated trigger, Rob's closure | Dispatch execution; carry approval as text |
+| Intake relay | Authenticating events and Rob as actor | Build packets; hold the App key |
+| Class template | The approval anchor for every packet | Change without a new checkpoint-A approval |
+| Job 0, resolver | Input validation, work identity, duplicate check, packet derivation | Interpolate or interpret untrusted text |
+| Job A, executor | A diff, transcript, and usage (data only) | Hold the App key or any GitHub write |
+| Job B, publisher | Re-validation, class check, admission, canary scan, token mint, push, PR | Run candidate code; merge, enqueue, or approve |
+| Fresh reviewer | A task review distinct from implementation | Write or approve |
+| GitHub protected path | Checks, Rob's approval, and queue admission | Be bypassed |
+| Projection | Reflecting run state | Trigger runs; be read back as state |
+
+All retrieved text is untrusted data: Linear, Notion, repository files, the diff, the transcript, and PR comments. It never supplies scope, permission, budget, or approval, and it never reaches a trusted job except as validated data (E1-22).
+
+## Paths
+
+**Implementer-owned:** `tools/engineering/integration/**` (resolver, class template and check, publisher, reconciler, projections, relay source, replay runner, prompt file) excluding `tests/`; `docs/runbooks/run-e1-maintenance-loop.md`.
+
+**Reserved for the independent test author:** `tools/engineering/integration/tests/**`, including the frozen replay set and injection fixtures. It sits inside the existing `tools/engineering/` governance path.
+
+**Parent-owned, with Rob's approval:** `.github/workflows/e1-docs.yaml`; `justfile` (a `verify-fast` discovery line); `scripts/test_ci_policy.py`; `docs/architecture/model/blueprint-scaffold.json`; `docs/architecture/REPOSITORY_TREE.md` (through `just update-tree`); `docs/architecture/maturity.yaml`; `docs/developer/agent-handoff.md`; and index rows in `docs/superpowers/specs/README.md` and `docs/runbooks/README.md`.
+
+**Rob-owned:** The runbook's App-key custody text and AGENTS' packet-approval wording.
+
+**Operator-owned, outside Git:** The Linear agent app and settings, relay hosting, GitHub environments and secrets, Actions allowlist, App installation, evidence store, OpenAI project, and Notion database.
+
+**Excluded:** every lock; `generated/**`, `protocols/**`, `infra/generated/**`, `docs/architecture/generated/**`; `.agents/policies/**`; `tools/engineering/{admission,github_audit,github_binding,evidence}.py`; `agents/**`; `services/**`, `platform/**`, `infra/**`; `CODEOWNERS`.
+
+## Interfaces
+
+### Existing in source
+
+**Admission** (`admission.py`): exits 0 PASS, 2 FAIL, 3 BLOCKED, with checks `packet`, `policy`, `policy-constraints`, `changed-paths`, `committed-modes`, `ownership`, and `working-state` (plus `boundary-checker` for code only). `PROFILE_PATH` is `docs/architecture/architecture-source-profile.md`. Public helpers: `read_packet(path) -> bytes`, `packet_bindings(raw, expected_digest, base, policy) -> dict`, `validate_packet(value) -> dict`.
+
+**WorkPacket@v1:** exactly `schema id linear_issue objective non_goals spec base_sha policy_sha work_class owners owned_paths generated_paths acceptance stop_conditions allowed_actions budget`. `work_class` in {`governance`, `code`}; `allowed_actions` subset of {`local-edit`, `local-check`, `propose-pr`}; budget ceiling is 3 attempts and 30 minutes; acceptance is `robpearc-mindclade`. Policy `required_checks` is exactly `[{linux-foundation, 15368}]`; `dedicated_app` is `{5090624, mindclade-monorepo-engineer}`.
+
+**Audit** (`github_audit.py`): checks `policy`, `packet`, `repository`, `main-protected-flag`, `main-protection`, `main-head`, `pull-request`, `codeowners`, `app-identity`, `approval`, `required-checks`, `review-conversations`, `execution-transport`, `execution-binding`, `queue-capture`, `queue-binding`, and `supervised-readiness` (always BLOCKED). `queue_binding` and `execution_binding` call `_execution_trust`, which needs loaders that O3 supplies.
+
+### External facts
+
+| Source | Fact |
+| --- | --- |
+| Codex for Linear | Assigning Codex creates a cloud chat. Under triage rules it runs as the issue creator. |
+| openai/codex-action@v1 | Installs CLI, starts Responses API proxy, runs `codex exec`. `safety-strategy` defaults to `drop-sudo`. `sandbox` in {`read-only`, `workspace-write`, `danger-full-access`}. |
+| create-github-app-token | Requires `private-key`. Takes `owner`, `repositories`, `permission-<name>`. Revokes token in post step. |
+| Linear agent interaction | AgentSession states: `pending`, `active`, `error`, `awaitingInput`, `complete`, `stale`. Agent must respond within 10 s. |
+| Actions concurrency | One run per group. A newly queued run cancels the existing pending one. |
+
+### Proposed
+
+**Identities:** Work identity is `sha256("mindclade" | linear_issue_uuid | "e1-docs")`, keyed by issue UUID, never by `MIN-NN`. Branch: `e1/<work_id[:12]>/<run_id>`. PR body carries `E1-Effect-Key:`, packet digest, Linear URL, run URL.
+
+**Packet derivation:** Pure function of approved template digest, issue UUID, base SHA, and structured file field. `owned_paths` = files in `git ls-files` at base that are on the class allowlist and named in that field, never parsed from free text. `objective` is templated and cites the issue by UUID.
+
+**Workflow:** `e1-docs.yaml` takes `linear_issue_uuid` and `trigger_event_id`, regex-validated in Job 0. Concurrency group `e1-docs-${linear_issue_uuid}` (`cancel-in-progress: false`) and job-level group `e1-docs-publish`. Jobs: Job 0 (resolver); Job A (`e1-exec`, OpenAI key only); Job B (`e1-publish`, App key only); review; projection.
+
+### The ledger
+
+**Target (E1-L):** Port C1-C4 semantics onto engineering work, attempt, effect, and reservation records in PostgreSQL with an outbox.
+
+**Interim store:** CI-native records for the supervised pilot: Actions run and attempt IDs; per-issue concurrency; deterministic branch and PR marker; AgentSession states as projection only; per-run evidence bundle written outside Actions. E1-L is required for more than one concurrent publication, E2 autonomy, and long campaigns; it is not required for the one-publication docs lane.
+
+## Acceptance criteria
+
+Tests are `test_e1_NN_*` under `tools/engineering/integration/tests/`, using counting fakes. When a guard is written with its test, RED is a recorded scratch mutation that removes the guard. Process duties are §7 read-backs, not tests.
+
+### E1-01 Trigger authentication and eligibility
+
+**Positive:** a signed Linear AgentSession event in which Rob delegates a `MIN` issue to E1 dispatches exactly once. **Negatives:** bad or absent signature; delegator other than Rob; another team; E1's own actor; label or mention without delegation; structured file field naming a path off the allowlist. Each yields zero dispatches and one reason code, projected once. **RED:** a relay that dispatches all six. **Check:** `test_e1_01_*`.
+
+### E1-02 Duplicate trigger resolves to existing work identity
+
+**Positive:** Job 0 looks up the work identity before deriving a packet. **Negatives:** redelivered event; unassign and re-delegate mid-run; relay retry after timeout; dispatch arriving while concurrency cancels a pending run. Each yields zero new Job A runs and a `duplicate-observed` note. **RED:** concurrency alone lets a second run execute after the first. **Check:** `test_e1_02_*`, plus a redelivery drill.
+
+### E1-03 Deterministic packet from approved class template
+
+**Positive:** Same template digest, issue UUID, base, and structured file field always yield the same packet bytes: `owned_paths` as in §3.3; `work_class: governance`; `spec` = this file frozen at base; `budget` ≤ `{3, 30}`; `allowed_actions: [local-edit, propose-pr]`. Distinct reviewer and `acceptance: robpearc-mindclade`. **Negatives:** free text naming paths, budget, owners, or class changes nothing; field naming more than 5 files, a file absent from `git ls-files`, or a file off the allowlist makes the run ineligible; template digest differs from checkpoint-A approval, or moved base, BLOCKs. **RED:** a derivation that parses paths from the description. **Check:** `test_e1_03_*`.
+
+### E1-04 One dispatch route
+
+**Positive:** exactly one workflow references `codex-action`, and it triggers only on `workflow_dispatch` from the relay identity. **Negatives:** a second workflow or job invoking the executor; `push`, `schedule`, `issue_comment`, or `pull_request` trigger on the executor workflow. **RED:** a second workflow that invokes the executor passes. **Check:** `test_e1_04_*`.
+
+### E1-05 Executor containment (Job A)
+
+**Positive:** `contents: read`, `persist-credentials: false`, `drop-sudo`, `sandbox: workspace-write` with `network_access` false, `timeout-minutes` ≤ 30, no App key, no environment but `e1-exec`; outputs are diff artifact, transcript, and usage only. **Negatives:** `git push` or `gh` from sandboxed command, `sudo`, reading another job's secret, sandbox network access, writes outside workspace. **RED:** a `contents: write` job pushes. **Check:** `test_e1_05_*` on the YAML, plus a five-probe drill.
+
+### E1-06 Candidate admission in the trusted job
+
+**Positive:** Before any token exists, Job B checks out the evaluator at the accepted SHA into a separate directory, applies re-validated diff to clean base, passes default-deny class check (allowlist, `.md`, modify-only, ≤5 files, ≤150 lines), and gets admission exit 0. **Negatives** (each giving no token and no push): path outside `owned_paths`; symlink or mode change; generated path; added or renamed file; more than 150 lines; evaluator loaded from candidate; dirty checkout; another run's diff. **RED:** pushing on exit 2. **Check:** `test_e1_06_*`.
+
+### E1-07 Stale ownership rejection
+
+**Positive:** Job B checks that its run is the current run for the work identity, `main` equals `base_sha`, and template digest still matches approval. **Negatives:** old run re-run after newer one exists; attempt 2 publishing attempt 1's diff; moved base; Job B re-run after effect confirmed. **RED:** Job B publishes any diff it is handed. **Check:** `test_e1_07_*`.
+
+### E1-08 Token scope and publisher operations
+
+**Positive:** Only Job B mints, in `e1-publish` on `main`, with `repositories: mindclade-internal-monorepo`, `permission-contents: write`, `permission-pull-requests: write`; token revoked in post step, expires within an hour. Publisher calls allowlist: push to its own `e1/` branch, create PR, comment, close. **Negatives:** another job reading the key; token for another repository or for `workflows`, `administration`, `actions`, `checks`, `secrets`; creating tag or release; dismissing review; resolving thread; use after expiry. **RED:** with `permission-*` inputs omitted, token carries every installation permission. **Check:** `test_e1_08_*`.
+
+### E1-09 Ambiguous publication effect reconciled, never blindly re-created
+
+**Positive:** Before pushing, Job B looks up `e1/<work_id[:12]>/*` and open PRs with the marker: found, adopt and confirm; absent, create; timeout, mark `uncertain` and look up again; branch at another SHA, two PRs, or failed lookup, pause BLOCKED. **Negatives:** timeout after PR created, lost push response, cancellation between request and log, 422 "already exists", Job B re-run. **RED:** a naive retry opens a second PR. **Check:** `test_e1_09_*`, plus a dropped-response drill.
+
+### E1-10 Projection and closure state follow the audit
+
+**Positive:** State moves to `awaiting review` only when PR-stage audit passes `policy`, `packet`, `repository`, `main-protected-flag`, `main-protection`, `pull-request`, `codeowners`, `app-identity`, `required-checks`, `review-conversations`; to `queued` only when `approval` names that head; to `merged, awaiting archive` only when `queue-capture`, `main-head`, and main `required-checks` pass. `execution-binding` and `queue-binding` are deferred: BLOCKED until O3's loaders exist; they gate closure, not merge. **Negatives:** head change after approval; `linux-foundation` skipped, cancelled, stale, or from wrong App; failed merge group; unresolved thread; non-App author; overall exit 3. **RED:** advancing on overall exit code. **Check:** `test_e1_10_*`.
+
+### E1-11 Fresh review
+
+**Positive:** A review job records findings on the exact head before Rob is requested. Different identity means: `owners.review` differs from `owners.implementation`, review runs as its own job with its own model session ID and prompt-file digest, holds no write token, receives only diff and this spec. **Negatives:** review reusing Job A's session ID or prompt digest; review of older head; executor's summary offered as review. **RED:** requesting Rob with no review record. **Check:** `test_e1_11_*`.
+
+### E1-12 Cancellation confirmation
+
+**Positive:** When Rob unassigns the agent or cancels the issue, the relay cancels the workflow run and no new job starts; run stays `cancel-pending` until Actions reports cancelled or completed and every effect reconciled; open E1 PR closed with comment, branch kept. **Negatives:** unconfirmed runner stays pending; PR already queued or merged returns `AlreadyTerminal` and escalates to Rob; cancellation racing Job B reconciles effect first. **RED:** marking the run cancelled on request. **Check:** `test_e1_12_*`, plus a live-cancel drill.
+
+### E1-13 Retrieved text cannot widen permission
+
+**Positive:** Instructions injected into issue, Notion page, repository file, or transcript leave packet, route, token, and budget unchanged; out-of-scope diff FAILs E1-06. **Negatives:** fixtures plus diffs touching `CODEOWNERS`, `.agents/policies/`, or a lock. **RED:** a derivation that reads paths from the body. **Check:** `test_e1_13_*`.
+
+### E1-14 Budget exhaustion
+
+**Positive:** Job 0 counts runs for the work identity and refuses a fourth; `timeout-minutes` caps each attempt; day counter in evidence store refuses dispatch once Rob's envelope is reached or usage unknown. **Negatives:** fourth attempt or minute 31 ends `failed: budget` with no retry; two issues racing the day cap are serialized by class group. **RED:** unlimited re-dispatch. **Check:** `test_e1_14_*`.
+
+### E1-15 Projection failure retries only the projection
+
+**Positive:** Failed AgentSession, Linear, or Notion write after confirmed effect is retried by projection job alone, with backoff; each write carries `seq`, `source_revision`, and freshness. **Negatives:** outage causes zero executor jobs and zero pushes; out-of-order write rejected; E1's own writes never trigger relay; human edits never read back; missed 10 s AgentSession acknowledgement marks projection `stale`. **RED:** a retry that re-dispatches. **Check:** `test_e1_15_*`.
+
+### E1-16 Record integrity and recovery
+
+**Positive:** Every state change and effect intent written to out-of-run evidence store before action; re-run first reconciles against GitHub and Linear (E1-09). **Negatives:** missing or truncated bundle, digest mismatch, unreadable record, or run logs deleted through relay identity. **RED:** resuming from job memory. **Check:** `test_e1_16_*`.
+
+### E1-17 Secret hygiene gates publication
+
+**Positive:** Canary values planted in Job A's environment and filesystem; Job B scans diff, commit message, PR body, and transcript before pushing, and any canary match stops push and PR. Logs, projections, traces, and evidence hold only references. **Negatives:** canary in diff, PR body, or echoed by transcript. **RED:** publisher scans only at archive time. **Check:** `test_e1_17_*`.
+
+### E1-18 Class pause and stale inputs
+
+**Positive:** Repository variable that only Rob can set pauses the class, and in-flight runs finish or cancel (E1-12); change to accepted policy, evaluator SHA, App identity, class-template digest, or this spec's digest pauses the class automatically. **Negatives:** dispatch while paused. **RED:** ignoring the pause. **Check:** `test_e1_18_*`.
+
+### E1-19 Closure only after verified evidence
+
+**Positive:** Projection never shows issue `Done` before weekly batch records `archive-verified` and Rob's acceptance, and `execution-binding` and `queue-binding` PASS once O3's loaders exist. **Negatives:** merge event, stale bundle, or BLOCKED binding leaves run `merged, awaiting archive`. **RED:** closing on merge. **Check:** `test_e1_19_*`.
+
+### E1-20 Metrics counted once
+
+**Positive:** Metrics computed from run records for a stated window, counting each outcome once, including failures, retries, cancellations, exclusions, interventions, and cost. **Negatives:** re-run counted twice; exclusions dropped; cost omitting failed attempts. **RED:** successes divided by successes. **Check:** `test_e1_20_*`.
+
+### E1-21 Replay evaluation and trace grading
+
+**Positive:** A frozen, test-author-owned set of 20-50 `e1-docs` issues in the style of SWE-bench, each with pinned `base_sha`, structured file field, and oracle, including injection cases and holdouts, runs through Job 0, Job A, and Job B's checks in the sandbox without publishing. An independent grader scores outcome (oracle, scope, shape) and trace (no injection followed, no forbidden command, bounded retries). Traces stay private and canary-scanned; holdouts never shown to prompt or rubric authors. **Negatives:** grader sharing executor's session; oracle derived from executor output; leaked holdout. **RED:** a trivial empty-diff executor must score FAIL. **Check:** `test_e1_21_*`.
+
+### E1-22 Untrusted data never reaches trusted jobs
+
+**Positive:** In Job 0 and Job B, no `run:` step interpolates `${{ }}` carrying issue text, dispatch inputs, or Job A outputs; `linear_issue_uuid` and `trigger_event_id` match fixed regexes; packet and digest reach Job B only as Job 0 outputs; Job B recomputes digest; no candidate hooks, no `just`, no repository scripts from candidate; Job A artifacts are data only, size-bounded, re-validated. **Negatives:** fixture workflow with `run: echo "${{inputs.linear_issue_uuid}}"`; malformed UUID; packet supplied by Job A; digest mismatch; candidate `.git/hooks` or `justfile` invoked by Job B; artifact carrying extra files. **RED:** a naive workflow with input interpolation passes. **Check:** `test_e1_22_*`.
+
+## Metrics
+
+| Metric | Definition |
+| --- | --- |
+| Coverage | Eligible issues reaching a run ÷ eligible triggers, broken down by reason. |
+| Autonomy rate | Runs merged to verified main with no human edit to the candidate ÷ eligible admitted runs. |
+| Intervention effort | Actions beyond the required approvals, with minutes. |
+| Escaped defects | A revert, a fix citing an E1 PR, or an attributable `linux-foundation` failure on main, within 14 days. |
+| Recovery time | p50 and p95, from detecting a failure or uncertain effect to a terminal or resumed state. |
+| Full cost per accepted outcome | Model usage, Actions minutes, and hosting, including every retry, failure, and cancellation. |
+| Replay score | E1-21 outcome and trace grades, per executor revision. |
+
+## Dependencies
+
+```text
+O3a  Rob-selected evaluator SHA + approval anchor (class template approved at checkpoint A)
+  └─ O4 documentation lane, performed manually once (first accepted loop)
+       └─ E1 implementation (governance class, supervised parent route) + Rob's operator actions
+            └─ sandbox qualification (§7 drills, E1-21 replay) ─→ E1 supervised pilot
+                 └─ E1-U exit bar + authority amendment (§9 Q4) ─→ unattended docs lane, one publication
+O3 loaders (queue/execution/custody) ─→ closure evidence (E1-19)
+C1–C4 ─→ E1-L ledger ─→ concurrency above one publication, E2 autonomy, long campaigns
+O3b  P1b + G3 policy, or B4 as a required CI check ─→ E2 code class
+```
+
+**Rob's operator actions** (each BLOCKED until recorded):
+
+1. Key custody per §9 Q2, with runbook text amended.
+2. Confirm App 5090624 stays installed on repository 1382446493 only.
+3. Remove this repository from chatgpt-codex-connector and linear-code installations or prove neither has a write path; disable Codex for Linear.
+4. Register E1 as a Linear agent OAuth app with agent-session webhooks and turn off GitHub auto-close on merge for `MIN`.
+5. Host the relay with the dispatch identity of §9 Q10.
+6. Allow `openai/codex-action` and `actions/create-github-app-token`, pinned by SHA, and create environments `e1-exec` and `e1-publish`.
+7. Provision the out-of-run evidence store, the Notion outcomes database and token, the budget envelope, and the disposable probe repository.
+
+**New dependencies for checkpoint A:** No Python, Nix, or lock change. Named: Actions `openai/codex-action` and `actions/create-github-app-token`, pinned by SHA, and the Codex CLI pinned through `codex-version`.
+
+## Checks the parent runs
+
+1. Focused RED then GREEN per criterion, retaining both receipts; then `just verify-fast`, `just verify-scaffold`, `just verify-tree`.
+2. Apple Silicon `nix develop --no-write-lock-file -c just verify` and Linux `linux-foundation` on the exact head; one host alone is BLOCKED.
+3. Sandbox qualification: drills for E1-02, 05, 07, 08, 09, 12, 16, and 22 on the probe repository, and E1-21 replay without publication.
+4. Read-backs at pilot entry and weekly: evaluator SHA and class-template digest; Codex for Linear disabled; App installation and permissions; provider project limit; Linear's auto-close off.
+5. Per pilot run: admission exit code, audit reports at each stage, evidence-store bundle; weekly: batch archive, download verification, Rob's acceptance.
+6. A fresh task review, then a fresh whole-candidate review.
+
+## Stop conditions
+
+Stop and report to Rob, with no workaround, on: a new dependency, action, Nix input, or lock change; any edit to policy, `CODEOWNERS`, or evaluator; vendor behaviour differing from §3.2; a secret or canary in any output; any bypass, or any approval, enqueue, or merge by E1; scaffold or maturity disagreement; a C, O3, or audit interface differing from the one cited; a purchase or entitlement need; an ownership conflict; or an uncertain effect that cannot be reconciled.
+
+## Open questions for Rob
+
+**Q1. Where the executor's tools run.** Recommend `openai/codex-action` in Actions for `e1-docs`; then `codex exec` self-hosted for E2. Reject Copilot coding agent; do not wire Codex for Linear.
+
+**Q2. App key custody.** Recommend an `e1-publish` environment secret restricted to `main`, amending the runbook's key-custody text. Keyless minting comes before any unattended lane.
+
+**Q3. Interim ledger.** CI-native records with an out-of-run evidence store. E1-L follows C4 for concurrency above one, E2 autonomy, long campaigns.
+
+**Q4. The unattended lane (E1-U).** Enter only when: at least 20 consecutive runs over at least 3 weeks, including at least 3 seeded live injections, all contained; zero scope, containment, or canary violations, duplicate PRs, or reverts within 14 days; Rob requested changes on at most 1 of last 15; every drill passes; replay bar met on holdouts. Then authority amendment and kill switch (E1-18).
+
+**Q5. Class allowlist and file field.** Approve the default-deny allowlist (seven pages; extend only by new checkpoint-A approval). Structured file field via Linear custom field if available.
+
+**Q6. Budget envelope.** At most US$$15 per run including retries, US$$60 per day, US\$400 for the pilot.
+
+**Q7. Human touchpoints.** Once at checkpoint A: Rob approves class-template digest and allowlist, evaluator SHA, budget, key custody. Per run: Rob delegates issue, approves exact head, clicks "Merge when ready". Weekly: batch archive, acceptance, closure.
+
+**Q8. Evidence store.** Write-once store written only by Job B, read by weekly archive.
+
+**Q9. Source and test location.** `tools/engineering/integration/` and its `tests/`, inside existing governance path.
+
+**Q10. Relay dispatch identity.** Separate dispatch-only GitHub App (not App 5090624) installed on this repository alone, named in `codex-action`'s `allow-users`/`allow-bots`.
+
+## Source conflicts with the north star
+
+- C1: Codex for Linear dispatches from the tracker, a second route bypassing admission.
+- C2: C1-C4 exclude deployment, credentials, TCP listener, and external effects; not yet a ledger.
+- C3: "Automates" meets Rob's approval and queue admission on every merge; unattended lane amends AGENTS and policy.
+- C4: AGENTS requires Rob's approval of each exact packet digest; class-level approval needs wording amended.
+- C5: "O3 is E1's prerequisite" over-scopes docs; P1b and G3 are not needed for `e1-docs`.
+- C6: The governance ceiling admits all of `docs/`; the class check narrows by default-deny.
+- C7: The runbook keeps the App key with Rob; the CI route amends that text.
+- C8: The blueprint's no-purchase rule versus relay hosting, evidence store, and API spend.
+- C9: `agents/adapters/{codex,openai}` are product-runtime scaffolding, not the engineering factory.
+
+## Amendment 1 (2026-09-27): checkpoint A approved
+
+Rob decided checkpoint A in chat on 2026-09-27 ("Approve all"). Every recommendation in §9 is approved as written:
+
+- Q1: `openai/codex-action` for `e1-docs`, then `codex exec` self-hosted for E2. Codex for Linear is not wired.
+- Q2: `e1-publish` environment secret restricted to `main`, amending runbook key-custody text.
+- Q3: CI-native records plus out-of-run evidence store.
+- Q4: E1-U is a later gate with the stated exit bar; GitHub team containing Rob created for required-reviewer rule.
+- Q5: Default-deny allowlist, Linear custom field if available.
+- Q6: US$$15 per run, US$$60 per day, US\$400 for the pilot.
+- Q7: Class-level approval once at checkpoint A; per-run delegation plus head approval plus "Merge when ready"; weekly closure.
+- Q8: Write-once evidence store written only by Job B.
+- Q9: `tools/engineering/integration/`.
+- Q10: Separate dispatch-only GitHub App.
+
+**Authority amendments required:** AGENTS.md bootstrap-admission wording; runbook App-key custody text; §1.2 class allowlist record.
+
+**Owner actions:** create Rob team; create and install dispatch-only App; add Linear custom field; set provider project limit; provision `e1-publish` environment secret.
+
+**Order:** Minimum O3a subset and authority amendments first, then E1 implementation, sandbox drills and replay, then supervised pilot. E2 waits for O3b.
+
+## Integration review clarification (2026-09-27)
+
+**Implementation BLOCKED pending reviewed criteria resolution.**
+
+E1-14's per-issue concurrency group serializes runs for one issue; it does not serialize different issues against the US\$60 daily cap. The owner must specify a race-safe reservation and recovery rule before the budget check is treated as enforceable.
+
+E1-10 describes advancement using a named subset of audit checks while `supervised-readiness` is always BLOCKED. The owner must define the exact required and deferred check sets at each transition, and how the report's overall BLOCKED status is interpreted.
+
+E1-16 requires an out-of-run durable state record before every action, including Job 0 and Job A actions. The approved Q8 design allows only Job B to write that store, after Job 0 and Job A have run. The owner must reconcile the writer, ordering, and trust boundary before claiming durable pre-action records.
+
+Rob's 2026-09-27 checkpoint-A decisions remain recorded above; this note neither changes those approvals nor authorizes implementation. Nothing is implemented, and the stop conditions still apply.
+
+## Related
+
+<CardGroup cols={2}>
+  <Card title="C Durability Criteria" icon="database" href="/superpowers/specs/2026-09-26-c-durability-criteria">
+    Review the C criteria that provide the ledger substrate for E1-L.
+  </Card>
+
+  <Card title="G3 Policy Proposal" icon="shield" href="/superpowers/specs/2026-09-26-g3-accepted-policy-proposal">
+    Review the accepted G3 policy that governs E1's admission context.
+  </Card>
+
+  <Card title="GitHub Governance Runbook" icon="lock" href="/operations/github-governance">
+    Read the runbook covering the dedicated GitHub App and acceptance loop.
+  </Card>
+
+  <Card title="Execution Reliability" icon="activity" href="/architecture/execution-reliability">
+    Review the execution reliability requirements that adapt the Notion Execution Kernel.
+  </Card>
+</CardGroup>

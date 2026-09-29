@@ -1,0 +1,149 @@
+---
+title: "Contributor Troubleshooting"
+sidebarTitle: "Troubleshooting"
+description: "Route a failed prerequisite, doctor check, or repository validator to its owner and recovery. Symptom-gated recovery for the current foundation."
+---
+
+Begin with [start here](/developer/start-here). Preserve the candidate, dirty files and sanitized diagnostics; include the exact revision, host, command and existing attempt reference in the handoff. Doctor never installs, rewrites locks or cleans work. Its JSON is a local diagnostic, not a GovernanceReport or admission grant. Build and test failures inside `just verify` are triaged in the [local verification runbook](/runbooks/local-verification#5-if-it-fails-host-failure-or-verdict).
+
+<AccordionGroup>
+  <Accordion title="Private clone or SAML access denied">
+    **Owner:** Repository operator.
+
+    The operator verifies the account, organization authorization and correct private clone URL. Agents do not mint tokens.
+  </Accordion>
+
+  <Accordion title="Nix missing or not 2.35.1">
+    **Owner:** Operator.
+
+    Stop before shell entry. Ask the operator for the approved Nix setup route; no installer is approved by this guide.
+  </Accordion>
+
+  <Accordion title="nix develop fails with 'experimental Nix feature 'nix-command' is disabled' (or 'flakes')">
+    **Owner:** Operator.
+
+    Both features must be enabled before shell entry; a flake `nixConfig` cannot do it. The operator adds `experimental-features = nix-command flakes` to `nix.conf` (agents never change daemon or host Nix configuration). Per command, prefer the environment, which child processes (and so the `nix` calls recipes make inside the shell) inherit:
+
+    ```bash Terminal
+    NIX_CONFIG='extra-experimental-features = nix-command flakes' nix develop --no-write-lock-file -c just doctor
+    ```
+
+    Or `export NIX_CONFIG='extra-experimental-features = nix-command flakes'` for the session. The prefix `nix --extra-experimental-features 'nix-command flakes' develop --no-write-lock-file -c just doctor` also enters the shell, but reaches only that one `nix` process.
+  </Accordion>
+
+  <Accordion title="Shell metadata missing">
+    **Owner:** Operator.
+
+    After approved provisioning, run `nix develop --no-write-lock-file -c just doctor`. The doctor does not launch this outer shell itself.
+  </Accordion>
+
+  <Accordion title="Tool resolves outside /nix/store/, or version/metadata mismatch">
+    **Owner:** Integrator.
+
+    Re-enter the committed pinned shell. The integrator inspects `flake.nix`, four locks and toolchain declarations; do not repair by installing host tools or silently updating pins.
+  </Accordion>
+
+  <Accordion title="Intel macOS, Linux ARM or other unsupported host">
+    **Owner:** Operator / Integrator.
+
+    Use Apple Silicon macOS or x86_64 Linux. The integrator scopes and reviews any future host qualification separately.
+  </Accordion>
+
+  <Accordion title="macOS SDK or linker prerequisite unavailable">
+    **Owner:** Operator.
+
+    Operator supplies the prerequisite required by the locked Nix package set. Keep Nix linker paths; do not replace them with host/Homebrew compilers.
+  </Accordion>
+
+  <Accordion title="Cache unavailable or offline input missing">
+    **Owner:** Operator.
+
+    Operator restores approved cache/network access or provisions the exact committed inputs. Preserve failure and locks; the integrator reconciles the attempt before retry. Build actions remain offline once inputs exist.
+  </Accordion>
+
+  <Accordion title="Timeout or excessive/malformed tool output">
+    **Owner:** Integrator.
+
+    Integrator inspects the local tool and host load using separately authorized commands; rerun the bounded diagnostic after recovery. Do not share raw stderr containing secrets.
+  </Accordion>
+
+  <Accordion title="Bazel cache failure: No space left on device, Permission denied, or digest mismatch">
+    **Owner:** Contributor (self-service).
+
+    The shared disk cache at `~/.cache/mindclade-bazel-disk` is corrupt, unwritable or full. It is a cache, never evidence ([toolchain authority](/architecture/toolchain#bazel-configuration-and-the-shared-disk-cache)), so record the attempt as BLOCKED (host failure), not FAIL. Run `bazel shutdown` in each checkout or worktree that uses it, then `rm -rf ~/.cache/mindclade-bazel-disk`, and rerun. Clearing costs only rebuild time. Do not change the `.bazelrc` bounds or move the cache into the checkout to get past it.
+  </Accordion>
+
+  <Accordion title="Missing, empty, changed, staged or deleted lock">
+    **Owner:** Integrator.
+
+    Integrator inventories and reviews the lock against the intended candidate. Restore or amend it only through a separately scoped reviewed change, never dependency resolution by doctor.
+  </Accordion>
+
+  <Accordion title="Dirty source / clean-candidate BLOCKED">
+    **Owner:** Integrator.
+
+    Integrator inventories all owners and changes, obtains handoff and selects a clean candidate for measurements. Preserve work; never reset, stash, restore, clean or auto-commit to make doctor pass. Ignored caches alone are excluded.
+  </Accordion>
+
+  <Accordion title="Wrong --repo, nested directory or unsafe required path">
+    **Owner:** Contributor.
+
+    Select the actual Git top-level directory. Integrator repairs escaped or symlinked required files; a valid linked worktree with a `.git` file is supported.
+  </Accordion>
+
+  <Accordion title="Repository validation failed: undeclared source roots or undeclared directory">
+    **Owner:** Contributor (self-service for tool state) or Component owner (for real new roots).
+
+    `scripts/validate_repository.py` inventories untracked files that Git does not ignore, and every top-level directory that is not ignored must be a layout-model component. Usually local tool state: `.gitignore` ignores Claude Code's `/.claude/`; add another tool's directory to your local `.git/info/exclude`. A real new root needs a reviewed change to `docs/architecture/model/repository-layout.json` by its owner. Do not delete other people's files to pass.
+  </Accordion>
+
+  <Accordion title="Merge conflict in docs/architecture/REPOSITORY_TREE.md">
+    **Owner:** Contributor.
+
+    The file is a mechanical inventory. Take either side, finish the merge, then run `just update-tree` and `just verify-tree`. Run `just git-setup` once per clone so later merges keep your side automatically ([regeneration runbook](/runbooks/regenerate-generated-outputs#7-merging-branches-that-both-changed-the-tree)).
+  </Accordion>
+
+  <Accordion title="Generator inventory mismatch: missing=[...], extra=[...]">
+    **Owner:** Codegen owner.
+
+    `scripts/validate_generator_inputs.py`: a build-bound generator input was added, removed or renamed without updating the sorted `source!(…)` list in `codegen/src/generator.rs`. The related errors are `Generator inventory must be sorted and unique` and `Missing generator input: <path>`. Update the list with the Codegen change, then regenerate both catalogs ([regeneration runbook](/runbooks/regenerate-generated-outputs)).
+  </Accordion>
+
+  <Accordion title="Scaffold validation failed: stub contents changed">
+    **Owner:** Integrator for transitions; author for accidental edits.
+
+    `scripts/validate_scaffold.py`: a manifest-listed stub's bytes no longer match `stub_sha256`. An accidental edit is reverted by its author. A real activation is a reviewed transition in `docs/architecture/model/blueprint-scaffold.json` owned by the parent: remove the path from `stub_files` and `stub_sha256` and add it to `activated_files`. The replacement must not contain the stub marker, or the check fails with `activated file retains stub: <path>`. Never reseal the stub hashes.
+  </Accordion>
+
+  <Accordion title="cargo fmt --all --check fails">
+    **Owner:** The change's author.
+
+    The candidate's Rust is not rustfmt-formatted. Its author runs `nix develop --no-write-lock-file -c cargo fmt --all` and commits the result with the change. `rustfmt.toml` is deliberately default so the check is host-independent. Generated modules are included with `#[rustfmt::skip]`, so formatting never touches `generated/`; a diff in a generated file means fixing the Codegen emitter and regenerating.
+  </Accordion>
+
+  <Accordion title="Packet/policy approval, protection, evaluator or archive missing">
+    **Owner:** Rob and the operator.
+
+    Stop connected publication and closure. Rob and the operator resolve the specific gate in the [GitHub runbook](/operations/github-governance); local source success does not supply it.
+  </Accordion>
+</AccordionGroup>
+
+The integrator retains passing, failed, superseded and abandoned attempt evidence with exact candidate/input bindings. A missing or unexecuted check is BLOCKED (not run), not a pass. Reconcile uncertain effects and cancellation before replay; a reporting retry refers to retained results.
+
+<CardGroup cols={2}>
+  <Card title="Local verification" icon="terminal" href="/runbooks/local-verification#5-if-it-fails-host-failure-or-verdict">
+    For build and test failures.
+  </Card>
+
+  <Card title="Supervised development" icon="shield-halved" href="/developer/supervised-development">
+    For recovery context and its dated evidence limits.
+  </Card>
+
+  <Card title="Agent handoff" icon="list-check" href="/developer/agent-handoff">
+    Current task register for recovery context.
+  </Card>
+
+  <Card title="Start here" icon="play" href="/developer/start-here">
+    Entry point for prerequisites and commands.
+  </Card>
+</CardGroup>

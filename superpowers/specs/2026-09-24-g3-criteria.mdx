@@ -1,0 +1,230 @@
+---
+title: "G3 Criteria: Consume Independently Regenerated B4 Evidence"
+sidebarTitle: "G3 Criteria"
+description: "Frozen acceptance criteria for G3, which consumes independently regenerated B4 boundary evidence without a policy-flag bypass, including interfaces, negative tests, and policy-proposal rules."
+---
+
+G3 is the task to consume independently regenerated B4 evidence without a policy-flag bypass. These criteria define the trusted boundary tools, the `verify_boundaries` adapter, CI-attested other-host facts, accepted-policy shapes, and the full acceptance matrix. They were frozen on 2026-09-24 after an independent review returned APPROVE WITH CHANGES.
+
+<Warning>
+  These criteria grant no admission, execution, or remote authority. The parent integrator owns every command, test, Git operation, and network effect.
+</Warning>
+
+## Attributes
+
+| Attribute | Value |
+| --- | --- |
+| Task | G3: "Consume independently regenerated B4 without a policy flag bypass" |
+| Status | Frozen 2026-09-24 |
+| Base | `4af79df` (main) |
+| Branch | `claude/g3-trusted-boundaries` |
+| Review outcome | APPROVE WITH CHANGES (Rob approved) |
+
+## Scope, non-goals, and decisions
+
+### In scope
+
+1. `TrustedBoundaryTools`, `load_trusted_boundary_tools`, and `verify_boundaries` in `admission.py`. Together they form a trusted adapter that regenerates B4 facts from the candidate with operator-pinned tools and gets the decision from Codegen's `check-boundaries`.
+2. Code-class admission wiring behind two accepted-policy shapes, with the old `pending` shape still BLOCKED.
+3. `verify_attested_facts` and a bounded facts-artifact decoder in `github_binding.py`, for CI-attested other-host facts.
+4. Audit acceptance of both policy shapes through admission's validator; documentation; and a separate accepted-policy proposal PR, left open.
+
+### Non-goals
+
+If any of these becomes necessary, stop (see [stop conditions](#stop-conditions)):
+
+- **No in-candidate policy adoption.** The code PR leaves `.agents/**` byte-identical, and the shipped policy stays `pending`.
+- **No live admission.** No sandbox provisioning, trusted runner, CI dispatch, GitHub call, or network access. Every production loader, runner, and reader defaults to BLOCKED, naming O3 or P1b.
+- **No second semantic checker.** Python may hash `architecture.yaml` but never parses it or evaluates ownership, allow, deny, or visibility (B4 criteria, section 1). Codegen decides.
+- **No other changes.** Nothing changes in B4 paths (`codegen/**`, `tools/validation/**`, `tools/build/**`, `docs/architecture/**`), the WorkPacket@v1 or GovernanceReport@v1 top-level shapes, the admission or audit CLI flags, or `admission.GOVERNANCE_PATHS`. Packet acceptance `argv` is never executed; it stays data.
+
+### Decisions
+
+- **D1 Attempt ID (G2 Q4).** G3 does not need one: evidence binds to the exact candidate, inventory, locks, model, graph, configurations, and the returned `report_sha256`, which the parent's attempt record references. An attempt ID would be a packet or report field, which `supervised.md` section Effects forbids, so it is deferred to O3 operator records.
+- **D2 Governance path gap (G2 Q7).** Both `allowed_governance_paths` and `admission.GOVERNANCE_PATHS` omit `scripts/test_governance_binding.py`. Neither G3 PR changes this. `_validate_policy` enforces the path ceiling, so adding the path to the policy alone would invalidate the proposal. The fix is recorded as an O3 follow-up: a coordinated, separately reviewed change to both the ceiling and the policy. Until then, a governance packet that owns that path stays non-passing: FAIL at `policy-constraints` (`admission.py:426-434`). This supersedes the "BLOCKED" wording in G2 section 7 item 7.
+- **D3 Configurations.** Only B4's six frozen IDs are used (`{cargo,bazel,typescript}.{aarch64-darwin,x86_64-linux}`, B4 criteria section 4.3), never illustrative strings. They are pinned in `boundary_evaluator.configurations` and the evaluator config and cross-checked against Codegen's `covered_configurations`; only Codegen ties them to the model (B4-01; section 6 stage 4). No B4 command outputs the configuration list; Python never parses YAML.
+- **D4 Model self-relaxation.** A code candidate may not change `docs/architecture/model/architecture.yaml` or `docs/architecture/architecture-source-profile.md` relative to base. A model change is a separately admitted governance change (R1 in [reviewer recommendations](#reviewer-recommendations)).
+- **D5 Pinned collectors.** A candidate that edits a pinned collector (`dependency_facts.{py,bzl}`, `typescript_facts.mjs`) stays BLOCKED (section 4.3 steps 5-6) until O3 refreshes the pins through a new accepted config.
+
+## Paths
+
+| Class | Paths |
+| --- | --- |
+| Implementer-owned | `tools/engineering/admission.py`, `tools/engineering/github_binding.py`, `tools/engineering/github_audit.py` |
+| Test author (not the implementer; any change after review needs re-review) | `scripts/test_governance_admission.py` (the `PolicyArtifactTests` pin stays unchanged), `scripts/test_governance_binding.py`, `scripts/test_governance_github.py` |
+| Parent-serialized docs | `docs/developer/work-packet-v1.md`, `docs/developer/governance-tools.md` |
+| Separate policy PR only (section 6) | `.agents/policies/supervised.v1.json`, `.agents/policies/supervised.md`, and the `PolicyArtifactTests` pin in `scripts/test_governance_admission.py` |
+| Excluded; must stay byte-identical to main after B4 | `.agents/**`, `.github/**`, `justfile`, `codegen/**`, `tools/validation/**`, `tools/build/**`, `docs/architecture/**`, `tools/engineering/evidence.py`, `scripts/{test_ci_policy,capture_workflow_binding,evidence_bundle}.py`, all other paths |
+
+## Current behaviour at `4af79df`
+
+- `admission._validate_policy` (:244-274) requires exact fields and `boundary_checker_status == "pending"` (:252). `admit` appends a `boundary-checker` BLOCKED check for every code-class packet, after all other checks (:517-518). Policy is read only at the operator's policy revision, which must be an ancestor of base (:490-498).
+- `github_audit.accepted_policy` (:352-372) pins `pending` through `known`, so any other value is BLOCKED. `supervised-readiness` is always BLOCKED (:888).
+- The following tests pin the block and must keep passing: `test_code_admission_is_blocked_until_b4_exists`, `test_code_b4_block_does_not_mask_a_path_violation`, `test_candidate_cannot_supply_a_boundary_receipt`, `test_candidate_policy_cannot_claim_b4_implementation`, `test_invalid_cli_arguments_still_produce_json_fail_report`, and `PolicyArtifactTests` (:899), which pins the shipped policy to `pending`.
+- G1 archive decoding is bounded at 1 MiB per archive and 64 KiB per record, and requires the artifact name `workflow-binding-{run}-{attempt}` (`github_binding.py:21-22`, :415-425). That is too small for B4 facts (up to 32 MiB).
+- `foundation.yaml:4-9` triggers on `workflow_dispatch`. `push` runs only on `main` and `codex/**`, and a `pull_request` run checks out a merge ref (B4 criteria section 10 step 5).
+
+## Interfaces
+
+### `TrustedBoundaryTools` and its loader (`admission.py`)
+
+`load_trusted_boundary_tools(root: Path, binding: dict, *, runner=None, attested_facts=None) -> TrustedBoundaryTools` is the only constructor. `binding` is the accepted policy's `boundary_evaluator` object (section 4.5). The returned object is immutable and has no field that can be populated from a packet, a candidate file, an environment variable, or a CLI flag. `verify_boundaries` rejects (`Invalid`) any `TrustedBoundaryTools` that the loader did not create, for example one built directly or copied with `dataclasses.replace`.
+
+The loader works as follows:
+
+- `root` must be absolute, and resolving it must return the same path (no symlink component). It must be a directory.
+- It reads `root/boundary-evaluator.json` through the `read_packet` discipline: O_NOFOLLOW, a regular file, at most 1 MiB. It parses with strict `load_json`. The sha256 of those exact bytes must equal `binding["config_sha256"]`.
+- The config has exactly these keys; any unknown or missing key, including `argv` or `command`, is `Invalid`. Keys: `schema` (`"mindclade.boundary-evaluator.v1"`); `host` (`aarch64-darwin` or `x86_64-linux`); `configurations` (the six IDs, sorted, equal to `binding["configurations"]`); `codegen` (`{path, sha256}`); `collectors` (exactly `dependency_facts.py`, `dependency_facts.bzl`, `typescript_facts.mjs`, each `{path, sha256}`); `runtimes` (exactly `python`, `node`, `typescript`, `cargo`, `rustc`, `bazel`, `git` **[R: every executable B4 collect/check invokes]**, each `{path, sha256}`); `ts_options_sha256`; `provisioned` (`{cargo_home, repository_cache}`, filled by the operator's separate network-on step, B4 R4); `work_root` (parent of disposable outputs); `sandbox` (`{profile, sha256}` or `null`); `limits` (`{step_timeout_seconds, max_stdout_bytes, max_processes}`).
+- Every path is relative to `root` under the admission `_path` rules. Each pinned file must be a regular non-symlink file whose sha256 equals its pin; otherwise the loader raises `Invalid`.
+- Omitted `runner` or `attested_facts` resolve to production defaults that raise `Blocked("P1b/O3: no accepted sandboxed boundary runner")` and `Blocked("O3 has not adopted independent CI facts custody")`.
+
+### `expected`
+
+`expected` must have exactly these keys, validated before any I/O (otherwise `Invalid`): `candidate` (40 lowercase hex); `source_inventory_digest` and `graph_digest` (`sha256:<64 hex>`); `lock_digests` (exactly `Cargo.lock`, `MODULE.bazel.lock`, `pnpm-lock.yaml`, `flake.lock`, each mapped to a digest); `model` (`{path: "docs/architecture/model/architecture.yaml", digest}`); `required_configurations` (equal to `trusted_tools.configurations`); `scope` (exactly `"matrix"`); and `other_host` (`{provenance, host, repository_id, repository, run_id, run_attempt, artifact_id, artifact_sha256, workflow_digest, verifier_digest}` or `null`). `provenance` is `"ci-attested"` or `"regenerated"`. G3 implements only `"ci-attested"`; `"regenerated"` (a second trusted runner, R2 in [reviewer recommendations](#reviewer-recommendations)) raises `Blocked("O3 has not adopted a second trusted runner")`.
+
+The anchors must come from a record that is independent of the candidate run. O3 defines that record. An anchor derived from the same trusted run proves consistency only, and the docs must say so.
+
+### `verify_boundaries(candidate_root: Path, expected: dict, trusted_tools: TrustedBoundaryTools) -> dict`
+
+It raises `Invalid` for an observed contradiction (FAIL) and `Blocked` for unavailable or incomplete evidence (BLOCKED). It never returns a partial result. The steps run in this order:
+
+1. Validate `expected` (section 4.2). Resolve `candidate_root` and `trusted_tools.root`. If either contains the other, `Invalid`.
+2. **Candidate preflight.** Use admission `Git(candidate_root)`: `root()`, then `working_state`. The result must say that HEAD equals `expected.candidate` and the tree is clean. A dirty or historical tree is `Blocked`.
+3. **Isolation.** If `sandbox` is `null` or the runner is the production default, raise `Blocked` before any runner call.
+4. **Re-hash** every pinned file immediately before the first invocation and again after the last. A change is `Blocked`.
+5. **Other host.** If `other_host` is `null`, `Blocked` ("host-scope evidence cannot satisfy matrix"). If `other_host.host` equals `tools.host`, `Blocked` before any call. Otherwise call `trusted_tools.attested_facts(...)`, then `github_binding.verify_attested_facts` (section 4.4). Map `Unknown` to `Blocked` and `Violation` to `Invalid`. The candidate's committed collector files must equal the trusted pins byte for byte; otherwise `Blocked` ("CI facts came from candidate-modified collectors").
+6. **Runner steps.** Run exactly these four step kinds, in this order, in a fresh exclusive-create directory under `work_root`, outside `candidate_root`:
+   - build the descriptor-free semantic input `//codegen/frontend/typespec:vs001`;
+   - `dependency_facts.py collect --host <tools.host> --out DIR --hermetic …` using the trusted copy;
+   - `merge` with the attested facts;
+   - trusted `codegen check-boundaries --input --architecture --facts --out` (B4 criteria section 4.4).
+
+   Exact flags are **[R]** against the merged B4 section 4.4/section 7. Every call uses list argv built only from pinned paths and fixed B4 flags, `cwd` = `candidate_root`, an environment from an explicit allowlist (never `os.environ`), and the configured timeout, output and process-count limits. No Bazel server outlives its step. The runner must return an isolation record equal to `{profile, sha256, network: "none", credentials: "none", writable: [<that directory>]}`. Anything else is `Blocked`, and later steps do not run.
+
+   After `collect`, the regenerated facts' `configurations` must equal the three IDs of `tools.host`; otherwise `Blocked`, naming each missing ID.
+
+   The adapter never provisions: no `cargo fetch`, no `bazel fetch`, no download flags. If B4's aspect label cannot use the trusted `dependency_facts.bzl`, the candidate's committed copy must equal the pin; otherwise `Blocked`. Unless B4's `--hermetic` ignores workspace rc files **[R]**, the candidate `.bazelrc` must equal base; otherwise `Blocked`. After the last step, `working_state` runs again; a changed candidate tree is `Blocked`.
+7. **Parse** the check result. Exit 0 or 2 must come with a report. The report bytes must be canonical, use `schema: "BoundaryReport@v1"`, and have exactly B4's key set **[R]**. The stdout line must be consistent with the digests computed from those bytes. Anything else, including exit 1, a timeout or a missing report, is `Blocked`.
+8. **Bindings.** A mismatch between the report and `expected` in any of these is `Invalid` (stale field): `candidate`, `source_inventory_digest`, each lock digest, `model_digest`, `graph_digest`. These are `Blocked`: `covered_configurations` not equal to `required_configurations`, or `scope` not equal to `"matrix"`. Report or facts `collectors` that differ from the pins are `Invalid`.
+9. **Violations.** If the report has any violations (exit 2), raise `Invalid`. Its detail lists the sorted unique violation codes and never includes host data. Only an exit 0 report with zero violations passes.
+
+   Order for steps 8-9: binding mismatches (`Invalid`), then violations (`Invalid`), then scope/coverage (`Blocked`). A correctly bound report with violations is FAIL at any scope.
+
+The return value has exactly these keys:
+
+- `report_sha256`, `scope`, `candidate`, `source_inventory_digest`, `lock_digests`, `model_digest`, `graph_digest`, `covered_configurations`, `collectors`, `facts_digest`, `evaluator_config_sha256`;
+- `hosts`: `{<tools.host>: {provenance: "regenerated", facts_digest}, <other>: {provenance: "ci-attested", facts_digest, run_id, run_attempt, artifact_id, artifact_sha256}}`.
+
+The return value is a report identity, not a capability.
+
+### `github_binding.verify_attested_facts(expected: dict, observed: dict) -> dict`
+
+This function is pure. It does no I/O and never mutates its inputs. It reuses G1/G2 helpers **[R]**: `repository`, `completed`, `validate_receipt`, `_identities`, strict JSON, and the ZIP rules from `decode_artifact`.
+
+**`observed`.** Its exact key set is frozen at fixture time **[R]**: repository, run, `run_after`, receipt artifact and receipt, facts artifact, facts archive bytes, facts custody `(opaque_id, sha256, bytes)`, accepted identity and executed identity. Every one of the following must hold:
+
+- The run event is `workflow_dispatch`. `pull_request`, `merge_group` and `push` are each a `Violation`, because their tested checkout is not the candidate.
+- The run is completed with `success`. `run_id` and `run_attempt` match, and no newer attempt exists (G1 semantics).
+- The run `head_sha`, the receipt `tested_sha` and the facts `candidate` all equal the candidate. The receipt event is `workflow_dispatch` with null PR anchors.
+- The facts artifact's name **[R: B4-20 upload name]**, id, run, repository and `head_sha` all match.
+- The archive's optional API digest and the custody sha256 both equal `artifact_sha256`.
+- The archive holds exactly B4's uploaded entries **[R]**. Only `facts.json` is read, with at most 32 MiB expanded. An uploaded `report.json` is never parsed.
+- The facts `configurations` are exactly the three IDs of `expected.host`; otherwise `Violation`.
+
+The return value has exactly these keys: `run_id`, `run_attempt`, `artifact_id`, `artifact_sha256`, `facts_sha256` and `facts_bytes`.
+
+Dependency direction: audit → admission → binding, and audit → binding. Admission loads `github_binding.py` by its resolved sibling path. It reuses an already-loaded module only when that module's resolved `__file__` matches. The binding module imports neither the audit nor admission. When both are loaded, admission and the audit use the same `github_binding` module object, so `Unknown` and `Violation` are the same classes everywhere.
+
+### Accepted-policy shapes, admission and audit wiring
+
+`_validate_policy` accepts exactly two shapes; anything else is `Invalid`:
+
+- **Legacy:** `boundary_checker_status: "pending"`, and no `boundary_evaluator` key.
+- **Bound:** `boundary_checker_status: "evaluator-bound"` plus `boundary_evaluator` with exactly `config_sha256` (64 hex), `configurations` (the six IDs, sorted), `required_scope` (`"matrix"`), `model_path` (`"docs/architecture/model/architecture.yaml"`), `facts_schema` (`"DependencyFacts@v1"`) and `report_schema` (`"BoundaryReport@v1"`). No status word authorizes anything on its own.
+
+`admission.main(argv=None, *, boundary_inputs=None)` and `admit(args, *, boundary_inputs=None)` get an injected `boundary_inputs(binding) -> (expected, tools)`. The production default raises `Blocked("O3 has not adopted trusted boundary evaluator inputs")`. No CLI flag or environment variable is added.
+
+For a code-class packet, the `boundary-checker` check is:
+
+- **Prerequisites not met.** If any earlier check is not PASS: BLOCKED, "prerequisite admission checks did not pass; candidate code was not executed". Zero runner calls.
+- **Legacy policy.** BLOCKED, and the detail matches `B4|boundary`. `boundary_inputs` is never called.
+- **Bound policy.** Admission cross-checks the inputs before calling `verify_boundaries(Path(args.repo), expected, tools)`. Each of these must hold, or the check is FAIL: `expected.candidate` equals `--candidate`; `expected.model.path` equals `model_path`; `expected.model.digest` equals the `sha256:` of the model blob at base, and that blob equals the one at the candidate; the source profile is unchanged between base and candidate (D4); `required_configurations` equals the policy's `configurations`; and `scope` equals `required_scope`. On PASS, admission records `bindings["boundary"]` as the result, plus `bindings["boundary_observation_kind"] = "fixture"` if `boundary_inputs` was injected.
+
+Governance-class packets never call `boundary_inputs` or the runner.
+
+The audit's `accepted_policy` validates through the loaded admission `_validate_policy`, so an invalid policy is BLOCKED as today. The repository-name checks, including G2's letter-case detail **[R]**, stay unchanged, and `supervised-readiness` stays BLOCKED. The limitations text may change, but it must keep `B4` and `O3`.
+
+## Acceptance criteria
+
+**How to read results.** `Invalid` or `Violation` means FAIL. `Blocked` or `Unknown` means BLOCKED.
+
+**How negative tests work.**
+
+- Each negative changes exactly one fact of the positive control. It reseals any digest that the change affects, so a digest mismatch can never be why a semantic negative fails.
+- It asserts the exception class and a detail substring frozen in the test module.
+- The planted candidate files live under the fixture's ignored `target/`, so dirty state never explains a result.
+
+### Fixture and positive control
+
+- **G3-01 Fixture.** `boundary_admission_case()` is frozen before implementation, and the parent keeps the RED result. It returns fresh `(candidate, expected, tools)` objects:
+  - `candidate`: a temporary Git repository. It has one committed candidate over a committed base. It contains opaque model and profile bytes, the four locks, the three collector files equal to the pins, and a `.gitignore` for `target/`. It exposes `root` and `write_candidate_receipt(dict)`, which writes both `target/foundation-verification/boundaries/report.json` and `facts.json`.
+  - `tools`: loaded through `load_trusted_boundary_tools` from a separate temporary evaluator root, with `host: aarch64-darwin`, `sandbox: {profile: "fixture-sandbox", sha256}`, an injected recording runner and an injected `attested_facts`.
+  - `expected`: literal anchors, and an `other_host` for `x86_64-linux` with run 910, attempt 1, artifact 920.
+
+  The fixture runner performs no real dispatch. It emits deterministic B4-shaped outputs, and its `observed_configurations` attribute (reached as `tools.runner.observed_configurations`) defaults to the six IDs. `verify_boundaries` never reads that attribute. The six IDs are a single test-module constant that equals B4 section 4.3. The parent computes every digest literal before implementation.
+- **G3-02 Positive control.** `verify_boundaries` returns exactly the section 4.3 keys, all equal to literals, with `hosts.x86_64-linux.provenance == "ci-attested"`. The inputs still equal their pre-call deep copies.
+  - The runner log shows exactly the four step kinds in section 4.3 order. Every executable is under the evaluator root, and every isolation record matches.
+  - A wrapper lets only admission's Git transport launch processes; any other `subprocess`, `socket` or `urlopen` use raises.
+  - A path-recording `open`/`os.open` wrapper shows that no path under `candidate_root/target/` is opened.
+- **G3-03 Plan test.** The plan's Step 1 test is added verbatim except: the list literal becomes the four non-TypeScript IDs from the constant, and the assignment target becomes `tools.runner.observed_configurations` (the injected fixture runner). It expects `Blocked`, and the detail names a `typescript.` ID. Subtests omit each of the six IDs in turn, each giving `Blocked`. The planted `{"status": "PASS"}` receipt bytes are unchanged afterwards.
+
+### Negative matrix
+
+| ID | Change from the positive control | Expected |
+| --- | --- | --- |
+| G3-04 | **Forbidden edge.** P: an allowed `services.foundation_echo → platform.runtimekit` production edge gives PASS, even with a planted violations report. N: `runtimekit → service` as production, build and test edges each exit 2, with a planted PASS report. | P PASS; N `Invalid` naming `forbidden-dependency` |
+| G3-05 | **Omitted test/build edges.** The candidate plants facts and a PASS report that lack a forbidden Cargo `dev` edge and a Bazel `tools` edge, which the regenerated facts contain. No argv carries a kind filter or a facts path under `candidate_root`. | `Invalid` |
+| G3-06 | **Stale inputs.** The regenerated report differs from `expected` in `candidate`, `source_inventory_digest`, each of the four lock digests, `model_digest` or `graph_digest` (one subtest each). A dirty tracked or untracked tree, or HEAD not equal to `expected.candidate`, is `Blocked`. | `Invalid` stale field, except as stated |
+| G3-07 | **Model self-relaxation (D4).** A code candidate edits `architecture.yaml`, adding an allow, or edits the source profile. The runner is never called. | `boundary-checker` FAIL |
+| G3-08 | **Wrong compiler, collector or runtime digest.** Each pinned file's bytes differ at load. The report or facts `collectors` differ from the pins. | `Invalid` |
+| G3-08b | A pinned file is replaced after load (TOCTOU). | `Blocked` |
+| G3-09 | **Failed collector or check.** Any of: a nonzero collect, a timeout, no facts file, stdout over the limit, malformed facts, check exit 1, exit 0 without a report, exit 0 with violations, exit 2 with no violations, a stdout line inconsistent with the report bytes, a non-canonical report, an unknown or missing report key, or a wrong `schema`. | `Blocked`, never PASS |
+| G3-10 | **Unknown activated component.** A new Cargo member or Bazel package outside every component exits 2 with `ownerless-endpoint`. A declared but unobserved membership exits 1. | `Invalid`; exit 1 gives `Blocked` |
+| G3-11 | **External trust-file substitution.** Config bytes not equal to `config_sha256` (`Invalid`). The evaluator root is inside `candidate_root` or the reverse, or the root, config or a tool is a symlink (`Invalid`). An unknown config key, including `argv` or `command`, is `Invalid`. Results are unchanged when `MINDCLADE_CODEGEN_BIN`, `MINDCLADE_BOUNDARY_TOOLS` or `PYTHONPATH` is set, or when the candidate plants `boundary-evaluator.json` at its root. A candidate `.bazelrc` adding `--disk_cache=target/c` is `Blocked` or leaves the result unchanged. A `TrustedBoundaryTools` not created by the loader is `Invalid`. A new admission CLI flag gives `inputs` FAIL. | as stated |
+| G3-12 | **A policy word cannot self-authorize.** (a) The accepted legacy policy plus injected passing inputs: `boundary_inputs` is never called. (b) A candidate commit rewrites the policy to the bound shape with its own digest, and admission still reads the accepted revision. Both (a) and (b) are BLOCKED. (c) These accepted-revision policies FAIL: status `implemented`, `accepted`, `pass`, `PASS` or `evaluator-bound` without `boundary_evaluator`; `pending` with `boundary_evaluator`; a `boundary_evaluator` with an unknown key, five or seven configurations, or `required_scope` not equal to `matrix`. | as stated |
+| G3-13 | **Packet argv never executed.** A code packet whose acceptance argv touches a sentinel file, under the bound policy with injected inputs. The sentinel does not exist afterwards. No recorded runner argv element equals a packet argv element. An `argv` key in `expected` is `Invalid`. | sentinel absent |
+| G3-14 | **Missing isolation (P1b).** `sandbox: null`, or the production default runner, gives `Blocked` with zero runner calls, and the detail matches `P1b\|O3`. A runner isolation record with network, credentials, a writable path outside the step directory, or a profile digest mismatch gives `Blocked`, and later steps do not run. With `GH_TOKEN`, `GITHUB_TOKEN`, `SSH_AUTH_SOCK`, `AWS_ACCESS_KEY_ID`, `NODE_OPTIONS` and `RUSTFLAGS` set in `os.environ`, none of them reaches the runner. No argv contains a fetch or download step. | `Blocked` |
+| G3-15 | **Host scope does not satisfy matrix.** `other_host: null` with a passing host-scope check; a report whose `scope` is `host:aarch64-darwin` with zero violations; `other_host.host` equal to the trusted host; `other_host.provenance: "regenerated"`. | `Blocked` |
+
+### CI attestation, admission, audit and docs
+
+- **G3-16 CI-attested other-host facts** (`scripts/test_governance_binding.py`). The positive fixture passes and returns the six section 4.4 keys as literals.
+  - `Unknown`: any missing binding (`run_id`, `run_attempt`, `artifact_id` or `artifact_sha256`); an incomplete or newer attempt; an archive whose entries are not exactly B4's upload set; the production custody or identity readers.
+  - `Violation`: an API or custody digest different from `artifact_sha256`; the wrong repository ID or name; a `pull_request`, `merge_group` or `push` event; a run, receipt or facts candidate other than the candidate (for example a PR merge ref or a queue head); an accepted or executed identity contradiction; facts for the wrong host.
+  - A candidate-modified collector is `Blocked` (section 4.3 step 5). An uploaded `report.json` that says PASS is ignored.
+- **G3-17 Admission integration.** These tests call `admission.main(argv, boundary_inputs=…)` in process over the existing Git harness. A code packet under the accepted bound policy with passing injected inputs gives `boundary-checker` PASS, with `boundary` and `boundary_observation_kind: "fixture"` in the bindings. An ownership FAIL gives overall FAIL, with `boundary-checker` BLOCKED and zero runner calls. A governance packet makes zero `boundary_inputs` calls. Under the bound policy, production defaults give BLOCKED with a detail matching `O3`. A mismatch between `expected.candidate` and `--candidate` gives FAIL. An `Unknown` raised through `verify_boundaries` yields `boundary-checker` BLOCKED, never FAIL. Binding `Unknown` subclasses `ValueError`, and `_record` maps `ValueError` to FAIL, so admission must handle it explicitly. Admission and the audit share one `github_binding` module object (a test asserts identity).
+- **G3-18 Audit policy shapes** (`scripts/test_governance_github.py`). The bound fixture policy gives `policy` PASS, with `supervised-readiness` and the overall report BLOCKED. A status word `implemented`, or a malformed `boundary_evaluator`, gives `policy` BLOCKED. The legacy shape keeps its current outcomes.
+- **G3-19 Regression.** Every existing admission, binding, github and evidence test passes with unchanged expectations, including every test named in [current behaviour at `4af79df`](#current-behaviour-at-4af79df). Only two changes are allowed: `LIMITATIONS` text may change if it keeps `B4`/`boundary` and `O3`, and the legacy detail may change if it still matches `b4|boundary`. `GOVERNANCE_PATHS` equals its `4af79df` literal, and the shipped policy is still `pending`.
+- **G3-20 Real B4 contract** (parent-run). A test gated on `MINDCLADE_CODEGEN_BIN` runs the merged, parent-built `codegen check-boundaries` on B4's committed fixture facts **[R]**, through the section 4.3 step 7-9 parser. Passing facts give the parsed identity, violation facts give `Invalid`, and a coverage failure gives `Blocked`. If the binary is unset, the test skips, and the parent records "BLOCKED — not run", never PASS.
+- **G3-21 No second checker.** A fixture runner exit 0 over a candidate whose fixture metadata describes a forbidden edge gives PASS: only Codegen's decision counts. The G3 code has no YAML import. It opens the model only in binary mode, only to hash it, and computes no violation codes.
+- **G3-22 Documentation.** `work-packet-v1.md` and `governance-tools.md` document both policy shapes; `boundary_inputs`, the loader, `verify_boundaries` and `verify_attested_facts`; that production is BLOCKED pending O3 and P1b; decisions D1-D5 and the D2 O3 follow-up; that CI attests only Linux facts, because CI runs only on Linux ([reviewer recommendations](#reviewer-recommendations) R2); and that anchors must be independent. They state that code admission requires a matrix B4 pass whose trusted-host facts that evaluator regenerated, and whose other-host facts are regenerated or CI-attested, as the result's `hosts` provenance records. CI-attested facts come from a candidate-branch `workflow_dispatch` run; they show consistency, not independent regeneration. The docs claim no operational code admission, trusted run or matrix acceptance.
+
+## Related
+
+<CardGroup cols={2}>
+  <Card title="B4 Criteria" icon="shield" href="/superpowers/specs/2026-09-24-b4-criteria">
+    Boundary checker B4 frozen criteria defining the six configurations and collector contracts.
+  </Card>
+
+  <Card title="G2 Criteria" icon="lock" href="/superpowers/specs/2026-09-24-g2-criteria">
+    Governance G2 criteria for policy validation and ancestry checks.
+  </Card>
+
+  <Card title="E1 Connected Loop" icon="refresh-cw" href="/superpowers/specs/2026-09-26-e1-connected-loop-criteria">
+    Criteria for the first automated maintenance work class.
+  </Card>
+
+  <Card title="T1 Transport Engine" icon="cpu" href="/superpowers/specs/2026-09-27-t1-transport-engine-criteria">
+    RuntimeKit hyper 1.x transport swap criteria.
+  </Card>
+</CardGroup>

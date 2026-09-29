@@ -1,0 +1,110 @@
+---
+title: "Delivery and Operations"
+sidebarTitle: "Delivery & Operations"
+description: "The path from reviewed deployment intent to observed operation, and the requirements for safe recovery and retained evidence. For developers, release reviewers, and future operators."
+---
+
+This page explains the path from reviewed deployment intent to observed operation, and the requirements for safe recovery and retained evidence. It is for developers, release reviewers, and future operators.
+
+<Warning>
+  This is a target operational design, dated 2026-09-23. Infrastructure, deployment synthesis, live runtime telemetry, and production operation are planned. Current foundation build/CI and evidence utilities provide bounded source observations. This page supplies no deploy command, adopted service-level objective, retention duration, cloud provisioning, or production permission. The [current task register](/developer/agent-handoff#current-task-register) owns remaining gates; the [GitHub runbook](/operations/github-governance) owns operator procedures.
+</Warning>
+
+## From intent to an observed environment
+
+[ADR-012](/architecture/adr/adr-012-synthesis-qualification-signing-promotion-gitops) defines the delivery sequence:
+
+```text
+authored contracts + descriptors + environment intent
+  -> Codegen synthesis and typed deployment projection
+  -> immutable DeploymentPlan
+  -> applicable independent qualification
+  -> signing -> promotion decision
+  -> GitOps reconciliation
+  -> environment observations and provenance
+```
+
+Contracts and service descriptors own meaning and composition. Authored `infra/` modules and reviewed environment parameters express topology and configuration. Codegen owns semantic lowering; Terraform/CDK and GitOps material are projections or adapters in that path. A generated manifest, synthesized plan, or accepted source PR is not live mutation authority. Valid manifest bytes are not evidence that a cluster reconciled them.
+
+The target execution abstraction is Kubernetes with CPU/GPU resources over GCP/Azure substrate. `infra/clusters/`, `infra/gpu/`, `infra/networking/`, `infra/storage/`, `infra/iam/`, and `infra/security/` reserve these responsibilities. They are scaffolded design intent, not connected environments. The modular monolith remains the initial service posture; service splits, distributed state, and dedicated accelerators require measured need and operational evidence.
+
+| Stage | Required handoff | Failure boundary |
+| --- | --- | --- |
+| Synthesis | Exact input/descriptor/environment identities, plan, generated inventory, and provenance. | Invalid or stale source prevents a usable plan. |
+| Qualification | Candidate, plan, criteria, evaluator, and applicable evidence. | Missing/untrusted or failing required evidence prevents approval. |
+| Signing and promotion | Approved artifact digests, real signer custody, and a target-scoped decision. | A signature alone is not a promotion decision; absent authority blocks mutation. |
+| Reconciliation | Exact promoted version and observed target state. | Controller submission alone does not prove rollout. |
+| Post-deployment assessment | Health, behavior, policy, and provenance for the actual environment/version. | A source pass does not suppress environment failure or uncertainty. |
+
+Use independently versioned component digests in a compatible release set. Partial publication is reconciled without replacing immutable versions or moving discovery pointers before required members exist. Rollback and migration compatibility must be designed before rollout; restoring an old binary does not automatically restore compatible persisted state. Detailed product-release requirements remain in [developer products](/architecture/developer-products).
+
+## Observability and operational questions
+
+OpenTelemetry is the target observability contract. RuntimeKit supplies planned structured logging, metrics, traces, and health hooks; descriptors bind service metadata and required observations. `platform/telemetry/`, `runtime/telemetry/`, and `infra/observability/` retain their distinct platform, model-execution, and infrastructure roles. No connected monitoring stack is claimed here.
+
+An activated workload must let its operator answer:
+
+- Which source, graph, descriptor, runtime, policy, model, and artifact versions served this request or ran in this environment?
+- Was work admitted, dispatched, executing, terminal, cancellation-pending, or uncertain, and which Attempt/provider identity owns the current observation?
+- Did dependency health, saturation, latency, resource usage, or a policy denial cause the failure, and which input/output/effect identities allow reconciliation?
+- Which observations are missing or stale, and what is the last confirmed state?
+
+Correlation should preserve tenant/audience restrictions and distinguish logical Run, Attempt, request, provider job/effect, and artifact identity. Routine logs must not expose credentials, DSNs, or request bodies. Telemetry is evidence with scope and limitations, not an authorization channel or a substitute for retained qualification artifacts. Redaction and observability behavior need tests.
+
+Before an environment is accepted, its owner must propose workload-specific availability, latency, throughput, concurrency, capacity, recovery, and cost objectives; measure the intended workload; and obtain the applicable review. Sampling policy, cardinality limits, alert thresholds, escalation contacts, and observation windows also need explicit ownership. This guide sets none of those values and claims no performance improvement.
+
+## Persistence, recovery, and retention
+
+Durable platform state uses the PostgreSQL/outbox baseline. The [PostgreSQL transaction tutorial](https://www.postgresql.org/docs/18/tutorial-transactions.html) explains the database all-or-nothing commit property underlying that design. This PostgreSQL 18 page is a conceptual reference retrieved through Context7; it does not select a runtime version or alter repository pins. Atomic database updates do not make arbitrary external effects exactly once. Mindclade's [execution reliability](/architecture/execution-reliability) requirements govern stable effect keys, repeatable delivery, fencing, and uncertain-result reconciliation.
+
+| Information class | Target responsibility | Required handling before operational acceptance |
+| --- | --- | --- |
+| Runs, attempts, events, outbox, and ownership state | `platform/persistence/` and control packages | Durable transactions, versioned migrations, tested restart/recovery, backup ownership, and actual restore verification. |
+| Raw data, curated snapshots, and scientific lineage | `data/` and artifact ports | Access/licence scope, quarantine, immutable snapshot identities, lineage, and reviewed retention/deletion rules. |
+| Models, checkpoints, and execution artifacts | `models/`, `ml/checkpointing/`, `platform/artifacts/` | Content verification, eligible version references, recovery of referenced bytes, and no silent overwrite. |
+| Qualification evidence and engineering receipts | Qualification tools plus the approved custody owner | Complete explicit inventory, revision/producer bindings, integrity checks, access policy, and independently verified retrieval where required. |
+| Operational telemetry | RuntimeKit/platform/runtime telemetry and infrastructure operators | Audience/redaction controls, retention/access policy, useful correlation, and known gaps; logging volume does not establish provenance completeness. |
+
+No backup, recovery-point/time objective, retention period, or deletion policy has been adopted by this reference. Owners must identify which data is reconstructible, which external effects are irreversible, which archive failures block a claim, and how restores are verified. Restore rehearsals must use isolated destinations and validate schema/version, integrity, authority, and effect reconciliation before resuming admission. Tests that prove process recovery do not establish host power-loss, network-filesystem, or external-provider guarantees.
+
+For the current foundation, [evidence retention](/architecture/evidence-retention) owns the implemented export/readback contract. The directory-based foundation export and governance ZIP transport are different formats with different verifiers; neither authenticates its own producer or supplies acceptance. CI artifacts are temporary transport, and a local duplicate is interim backup. A shared archive needs a controlled destination, owner, access/retention policy, and verified retrieval. Do not infer durable custody from an upload or a valid internal hash.
+
+## Incidents and governed evolution
+
+The target incident loop links environment observations to affected versions, claims, owner decisions, and remediation. Preserve failures, uncertain effects, superseded receipts, and the last known good state. Pause only the affected work class when its authority/evidence becomes invalid; do not turn recovery into broader capability or credential scope. Reconcile before repeating paid work, publication, deployment, or cancellation.
+
+A remediation changes reviewed source or configuration, produces fresh evidence, and follows the applicable delivery path. It does not rewrite historical receipts or relax the failed criteria within the same candidate. Incident ownership, response procedures, and operational exercises must be supplied by the activated environment's owners; placeholders under `docs/runbooks/` are not usable on-call procedures.
+
+## Engineering delivery is a separate acceptance path
+
+The protected engineering loop binds specification, packet, policy, PR head, synthetic merge-group candidate/base, and resulting main to distinct observations. Required review, producer identity, and exact-revision checks must hold before connected acceptance. Approved immutable evidence publication and download verification precede Linear closure. Foundation source checks, merged source, or CI configuration alone do not establish that protected route.
+
+Rob owns the manual Enterprise migration. Follow the existing [migration aftermath checklist](/operations/github-governance#manual-enterprise-migration-aftermath) to reobserve repository identity, audience, SAML access, App scope, effective protection, queue delivery, and trusted execution/custody. Missing evidence leaves the affected gate blocked. This documentation work does not migrate the repository, install an App, adopt policy, publish evidence, or close a task.
+
+## Related
+
+<CardGroup cols={2}>
+  <Card title="Security and Assurance" icon="shield" href="/architecture/foundations/security-and-assurance">
+    Claim and custody boundaries.
+  </Card>
+
+  <Card title="Blueprint Coverage" icon="map" href="/architecture/foundations/blueprint-coverage">
+    Complete system reference map.
+  </Card>
+
+  <Card title="Execution Reliability" icon="signal" href="/architecture/execution-reliability">
+    Stable effect keys, repeatable delivery, fencing, and reconciliation.
+  </Card>
+
+  <Card title="Evidence Retention" icon="archive" href="/architecture/evidence-retention">
+    Export, readback, and archive boundaries.
+  </Card>
+
+  <Card title="Governance Status" icon="gauge" href="/architecture/engineering/governance-status">
+    Current governance status and blocked gates.
+  </Card>
+
+  <Card title="GitHub Operator Runbook" icon="book" href="/operations/github-governance">
+    Operator procedures and migration checklist.
+  </Card>
+</CardGroup>

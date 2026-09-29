@@ -1,0 +1,37 @@
+---
+title: "VS-001 Local Bootstrap Review"
+sidebarTitle: "VS-001 Bootstrap"
+description: "Local bootstrap review of B1-D4 implementation under Rob's authorization, covering authored declarations, visibility inventories and directional compatibility at checkpoint 16c211b."
+---
+
+Date: 2026-09-23. Scope: local source implementation under Rob's explicit authorization to bootstrap B1-D4 without changing governance policy. Base: `10e5bdafd413e4e0e226e91144847aa8b8b4c31e`. Branch: `codex/review-alignment`. The containing commit is the exact source candidate; this file cannot embed its own commit identity. No push, merge, policy edit or qualification is authorized or claimed by this record.
+
+## Implemented increment
+
+- Authored public Echo and internal execution/assurance declarations in v1. The public operation retains POST `/echo/{requestId}` and explicit JSON 200/400/409/503 alternatives. Internal references use the kernel's exact `target_kind` spelling and literal target values.
+- Actual Bazel and CLI source visibility inventories. Missing, duplicate and relabelled sources fail. The official frontend output is consumed by Rust's sealed-graph cross-language test, not a hand-authored normalized substitute.
+- Named constrained scalar graph resources with direct primitive bases only. Scalar and field constraints are intersected rather than overwritten.
+- Directional expanded declaration compatibility: bounds, enums, tagged unions, optionality, HTTP alternatives, visibility, references and opaque revisions. Recursive/shared uses take the stricter direction. Scalar bounds are checked at their effective use sites, including array elements and internal returns. Intrinsic primitive bounds and redundant valid literal annotations do not create false breaks. Unknown pattern relationships, unclassified changes and compact/expanded representation transitions remain non-passing.
+
+No external dependencies, version locks, constitution, supervised policy or architecture YAML were changed. The compiler compatibility policy fingerprint changes to describe implemented comparison rules; it is not governance authority.
+
+## Review and corrections
+
+The parent implemented sequentially and owns all execution and receipts. Popper performed fresh read-only source review across the current branch and returned two P2 findings in successive passes:
+
+1. **Valid field bounds on a named scalar were rejected at the Rust boundary.** A regression first failed with `invalid-constraint`; sealing now validates the primitive and intersection. String and integer positive/negative cases cover contradictory bounds. The real authored WorkPacket composes Generation minimum one with a field maximum three through the official frontend.
+2. **Compatibility treated redundant scalar field bounds as breaking.** A regression first failed on an unchanged accepted value domain. Comparison now uses the same intersection semantics, retains metadata changes in the report and evaluates effective domains at use sites. Tests include redundant annotations in both directions, masked base changes, primitive/literal bounds and arrays.
+
+Initial CLI, scalar, authored-contract and compatibility tests also observed relevant behavioral failures before implementation. Intermediate TypeSpec keyword syntax and exhaustive Rust match errors were corrected, not counted as behavioral reproduction. Final read-only re-review found no remaining actionable P1/P2 findings in the current source, including intrinsic bounds, pattern-derived lengths and literal annotations. Exact-candidate aggregate results are retained by the parent in the local delivery ledger and receipts. Agent review is source review, not independent acceptance.
+
+## Verification boundary
+
+The unchanged base passed the pinned Apple Silicon aggregate. The initial B1 working tree passed 243 Python tests, 90 Rust tests, five doctests, five Bazel targets including 36 official frontend cases, configured-action inspection, unchanged locks, scaffold/tree validation and exact generated drift checking. Those initial results precede the two review corrections and must not be attributed to the final candidate. After the corrections, the focused compiler integration suite passed 66 tests. The corrected working tree then passed the full pinned aggregate: 243 Python tests, 93 Rust tests, five doctests, five Bazel targets (two executed, three cached), unchanged locks, configured-action checks, 887-file tree/scaffold coverage and exact generated-output checks. This is reviewed working-tree evidence; the clean containing commit is rechecked and recorded separately rather than borrowing the base candidate's receipt.
+
+The actual foundation-to-VS-001 report exits two (non-passing), with four breaking changes, 21 compatible additions and 30 unsupported additions. The new graph is `sha256:d856a9ee679ee150094e4065d1e5ecf761014db15a7a95d132fef3df080d3120`; comparison policy is `sha256:153ac0e85004f1f3fe545077287bba099c10bd2ba8fc7e3d64d4eea4b1ce4d66`. The named public namespace and internal inventory differ from the foundation fixture; no contract-owner acceptance is inferred from report generation. The report is retained as `bootstrap-foundation-to-vs001-compatibility.json` in the local delivery evidence directory.
+
+Use `.superpowers/sdd/2026-09-23-vs001-delivery/` in the implementation checkout for retained logs and revision-bound receipts. The foundation graph remains byte-identical; the regenerated manifest binds changed generator inputs. Do not delete this sole local evidence before owner-approved archival retrieval.
+
+## Remaining work
+
+B1 is partial: runtime value validation, timestamp/calendar semantics, canonical artifact JSON, revision validation, generated kernel reference bridges, service/architecture typed views and contract-owner acceptance remain open. B2-D4 are not completed by this increment. See [VS001_TODO](/architecture/vs001-todo) for the ordered work. Linux execution for this candidate, independent trust and assessment, protected connected acceptance and shared archive retrieval are not established. Local bootstrap authorization does not waive any of those gates.

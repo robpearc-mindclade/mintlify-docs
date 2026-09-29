@@ -1,0 +1,74 @@
+---
+title: "Bootstrap Finalization Status"
+sidebarTitle: "Bootstrap Status"
+description: "Repository and architecture baseline finalization as of 2026-09-28, covering accepted ADRs, finalized checks, remaining blockers, and the current recovery entry point."
+---
+
+This document records the bootstrap finalization status as of 2026-09-28, with baseline from 2026-09-23 and statuses refreshed at the 2026-09-26 pre-migration closeout, remote governance on 2026-09-27, and the R2 CI-substrate reconciliation on 2026-09-28. Scope is the repository and architecture baseline, not completion of VS-001 or a production/scientific release. The [agent handoff](/developer/agent-handoff) is the current recovery entry point; historical checks are bound to their named revisions, not automatically attributed to later documentation or source.
+
+## Finalized baseline
+
+The following items constitute the accepted finalized baseline:
+
+- Accepted ADR-000 through ADR-014 and their architecture laws are preserved.
+- ADR-015 records alignment and the user's explicit original-blueprint scaffold exception.
+- The master blueprint reconciles compiler, kernel, science, execution, assurance, agent, product and deployment responsibilities.
+- The complete tree includes every original blueprint path and explicit stubs. Layout metadata separates bootstrap source from scaffolded, unimplemented roots.
+- The Notion review retains source coverage, adoption decisions and limitations.
+- Repository checks cover inventory drift, root activation, placeholder markers, malformed layout metadata and local Markdown file links.
+- The executable foundation resolves the official TypeSpec Echo HTTP fixture, validates the kernel and immutable graph, and emits reproducible graph/manifest bytes through Rust Codegen. This is a limited compiler slice, not full VS-001.
+- The immutable original attachment and manifest verify 706 directories, 124 named files and 38 nested extensions. The scaffold manifest owns the current stub inventory; package/lock placeholders, the supervised PR template, the documentation index, the four B4 `tools/validation` wrappers and the codegen, contracts, tools, tests and services READMEs have reviewed activation transitions. The preserved `contracts/typespec/main.tsp` is a comment-only tombstone that declares nothing and is explicitly excluded from compilation; see its [retirement record](https://github.com/Mindclade-org/mindclade-internal-monorepo/blob/main/docs/reviews/2026-09-26-k1-32-contracts-typespec-main-retired.md). Unrelated stubs remain sealed. Documentation activation does not activate a runtime component.
+
+## Available local checks
+
+Run these commands from the repository root:
+
+```bash
+nix develop --no-write-lock-file -c just verify
+nix develop --no-write-lock-file -c just fmt-check
+nix develop --no-write-lock-file -c just check   # fast subset: no Bazel
+```
+
+The aggregate separates fast source checks, scaffold integrity, inventory/link checks, real Nix/Bazel/Cargo build/tests, and read-only generated-output checks.
+
+Clean Apple Silicon aggregate passed on reviewed B3a head `06d0e10` and [Linux main CI](https://github.com/robpearc-mindclade/mindclade-vnext/actions/runs/35955099688) passed for main checkpoint `06a903f8bb04c993d5a6282c07ae1a8fa25ad262`, whose tree is identical to that head. Generated-drift checks passed; cross-host artifact byte comparison was not refreshed for this checkpoint. Earlier checkpoints (`a0d6d41` and before) and their exact-parity results remain historical. New revisions require applicable fresh checks.
+
+<Warning>
+  Intel macOS has no development shell (H1-19). These remain source-level checks. The link checker validates local file targets and Markdown anchors, not remote URLs. Inventory validation does not prove semantic import layering.
+</Warning>
+
+The exact results belong to the final change handoff and subsequent CI receipts.
+
+## Remaining bootstrap blockers
+
+| Area | Present State | Required Next Action |
+| --- | --- | --- |
+| Nix/Bazel | Genuine locks and real compile/test actions pass on Apple Silicon and Linux for the candidate above | Obtain separately controlled acceptance and rerun checks for subsequent revisions |
+| TypeSpec | Official 1.16.0 HTTP adapter, located rejection diagnostics, independent Echo expectations | Broaden supported semantics only with explicit contracts and conformance tests |
+| Kernel and graph | Checked identities/digests/typed references; immutable validated graph; exact canonical-byte tests; B1a wire-value rules and B3a descriptor/architecture views | Remaining B1 views are open. Rob accepted the contract-owner baseline on 2026-09-26; its non-passing items stay listed, not waived |
+| Generated products | Foundation graph/manifest and, at the B2b candidate, the VS-001 thirteen-file catalog (B2a TypeScript/Rust consumers, B3a descriptor/config, B2b OpenAPI/Proto/MCP/README) pass drift checks on Apple Silicon and in Linux main CI at `8fb4fcd`; B3b (PR #18, main `72b762d`) extends the live catalog to the fourteen-file `VS001CompositionProducts@v1` profile with the generated `service/http.rs` adapter, with drift checks passing in the Mac aggregate on `00dcb95` and in Linux `just verify` on `2c018a7` (PR) and `72b762d` (main); historical byte-parity results remain revision-scoped; root placeholders stay blocked | Preserve cross-host reproducibility on subsequent revisions. Rob accepted the B2b field numbers on 2026-09-26 |
+| Durable runtime | Architecture, stubs and failure scenarios; B3a emits a checked RuntimeKit configuration constructor; B3b Stages A/B add the RuntimeKit configuration ABI and bounded transport (`0d44a36`); Stages C/D merged through PR #18 at `72b762d` (2026-09-26, one-time owner exception): the generated HTTP adapter, test-only TestKit and a non-durable Foundation Echo composition and binary (TestAdmission, no PostgreSQL), a non-durable partial VS-001 | B4 dependency enforcement is integrated (PR #22, `b7f69c0`) and runs in `just verify`; next C1-C5 PostgreSQL/outbox (criteria recorded, deferred until after the migration), worker recovery and D replay |
+| Independent assurance | Laws and planned ownership; CODEOWNERS currently names one account | Establish separate evaluator/reviewer/publisher authority and CI evidence |
+| Remote governance | Main was unprotected at source closeout. Rob transferred the repository on 2026-09-26 to private `Mindclade-org/mindclade-internal-monorepo` (same ID); main protection with the required `linux-foundation` check and code-owner review, and a one-change merge queue, are now live (PR #32 onward) | Record probe denial tests and complete O3 and the archive; see [governance status](engineering/governance-status.md). Source-only merge instructions grant no qualification or standing waiver |
+| Linux R2 CI substrate | PR #64 placed the manual exact-candidate `r2-isolation` workflow on main, and exact-main run `36470976479` on `5239ccf…` retained semantic `PASS / denied` while remaining `qualification=not-qualified`. Protected main later advanced to `ae1d83c…`; that receipt remains revision-bound. PR #54 already contains the newer main and remains a candidate that keeps `linux-foundation` on Ubuntu 24.04 while running only its R2 prerequisite on qualified Ubuntu 22.04 and failing the required context closed; PR #58's ephemeral Azure/JIT runner plan is the durable replacement direction | Complete the [PR #54 reconciliation plan](/superpowers/plans/2026-09-28-pr54-main-reconciliation), obtain fresh exact-head required CI and a new CODEOWNER approval after every head refresh, then use the protected queue. Do not treat either R2 lane as C1 qualification by itself |
+| Supervised engineering | Candidate roles, procedures, admission/audit and evidence tools; complete proposed workflow documentation; G3 admission code (PR #24) with its accepted-policy revision still a proposal, so code admission is BLOCKED | Retain integrated source checks/reviews and complete accepted-policy bootstrap, resolve the App's installation scope (now all organization repositories) and complete the protected Linear-to-main/archive loop; see [current status](engineering/governance-status.md) |
+| Scientific capability | Domain blueprint and gate plans | Select approved fixtures and qualify biological semantics, data and evaluator before models |
+| Release/deployment | Staged promotion design only | Produce signed qualified artifacts and separately verified GitOps reconciliation |
+
+<Info>
+  These open items do not prevent finalizing the architecture documents or source inventory. Cross-host source reproducibility is evidenced; independent acceptance, a completed vertical slice, qualified factory, production service, and scientific results remain unclaimed.
+</Info>
+
+For the earlier foundation candidate, a fresh whole-branch reviewer found three Important issues; author-owned regression tests and its subsequent passing candidate cover the fixes. There was no second review of those foundation fixes. These historical observations are not review evidence for the current governance candidate. Neither code review nor author tests supply separately controlled scientific/release assurance.
+
+## Related
+
+<CardGroup cols={2}>
+  <Card title="Implementation Roadmap" icon="road" href="/architecture/implementation-roadmap">
+    Ownership and dependency-ordered acceptance gates.
+  </Card>
+
+  <Card title="Agent Handoff" icon="handshake" href="/developer/agent-handoff">
+    Current recovery entry point for the engineering team.
+  </Card>
+</CardGroup>

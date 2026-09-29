@@ -1,0 +1,500 @@
+---
+title: "G2 Acceptance Criteria: Exact One-Change Merge Group Binding"
+sidebarTitle: "G2 Merge Group Binding"
+description: "Frozen criteria for G2: retain and validate an exact one-change merge group, covering offline queue observation, snapshot retention, artifact download redirects, and ruleset applicability."
+---
+
+These criteria define the G2 acceptance gate for retaining and validating an exact one-change merge group. G2 is part of the foundation governance completion plan. Every test runs offline; no live queue proof, probe PR, or live GitHub call is authorized before O2 and O3.
+
+<Warning>
+  **Status:** Frozen 2026-09-24. The independent criteria review returned APPROVE WITH CHANGES, and those changes are applied here. Rob approved these criteria and chose the (B) default: redirected artifact downloads report BLOCKED; the G2-32 allowlist branch is implemented and tested but disabled until Rob confirms the host from GitHub `/meta` after transfer.
+</Warning>
+
+## Summary
+
+| Attribute | Value |
+| --- | --- |
+| Gate ID | G2 |
+| Status | Frozen 2026-09-24 |
+| Task | "Retain and validate an exact one-change merge group" in the governance completion plan |
+| Base | `06a903f` |
+| Source repository | [Mindclade-org/mindclade-internal-monorepo](https://github.com/Mindclade-org/mindclade-internal-monorepo) |
+
+## Scope and non-goals
+
+### In scope
+
+- Source and fixture behavior for one fixed read-only queue observation
+- Exclusive retention of a single snapshot
+- A pure `verify_queue_binding` function
+- Audit `--stage queue` wiring
+- Three owner-mandated extras: (A) the repository name after the transfer, (B) artifact download redirects (off by default), and (C) ruleset applicability in `protection_check`
+- Documentation
+
+### Out of scope
+
+If any of these becomes necessary, stop and report:
+
+- **Live GitHub activity.** No live queue proof, probe PR, or live GitHub call before O2 and O3. Every G2 test runs offline, and every production reader defaults to BLOCKED.
+- **Settings and policy.** No ruleset, App, protection, transfer, or Actions settings change. No change to `.agents/policies/supervised.v1.json` or `admission.py`.
+- **Query surface.** Exactly one fixed read-only GraphQL query. No query text from the caller, no mutation, and no REST route outside `validate_endpoint`.
+- **Unsupported flows.** Queue-to-main provenance, squash and rebase flows, and connected acceptance all stay unsupported. `supervised-readiness` stays BLOCKED.
+
+## Paths
+
+| Class | Paths |
+| --- | --- |
+| Implementer-owned | `tools/engineering/github_binding.py`, `tools/engineering/github_audit.py`, `scripts/test_governance_binding.py`, `scripts/test_governance_github.py` |
+| Parent-serialized (shared) | `docs/developer/governance-tools.md` |
+| Excluded; must stay byte-identical to `06a903f` | `.agents/**`, `.github/**`, `scripts/test_ci_policy.py`, `tools/engineering/admission.py`, `tools/engineering/evidence.py`, `scripts/capture_workflow_binding.py`, `scripts/evidence_bundle.py`, all other paths |
+
+## Current behavior at `06a903f`
+
+The tests at `06a903f` pin these facts.
+
+### Repository name
+
+- `github_audit.accepted_policy` (lines 352-372) requires the policy to pin `repository` and `target_repository` exactly. Any drift raises `known`, so the check is BLOCKED.
+- It then runs `require(args.repository in (policy["repository"], policy["target_repository"]))`, an exact, case-sensitive match. As a result:
+  - `--repository Mindclade-org/mindclade-vnext` already passes `policy`
+  - `mindclade-org/mindclade-vnext` makes `policy` FAIL with "Repository is outside accepted policy", makes no API call, and exits with code 2
+- Every later comparison is also exact: repository link `full_name`, Actions and job locators built with `re.escape(args.repository)`, accepted identity, and identity in `github_binding.py`
+- `admission._validate_policy` (lines 244-265) pins ID `1382446493` and both names exactly. Admission takes no repository-name argument.
+- No existing test runs a full audit under the target name.
+
+### Artifact download
+
+- `_artifact_request` (lines 664-687) sends a single authenticated GET to `https://api.github.com/repos/{r}/actions/artifacts/{id}/zip` through `_NoArtifactRedirect`. Any 3xx response raises `Unknown`.
+- The existing test (`test_governance_binding.py:798-801`) only calls `redirect_request` directly.
+- GitHub's REST documentation says the endpoint returns `302` with a short-lived `Location` URL. It does not name the host. Every live download therefore blocks today.
+
+### Rulesets
+
+- `protection_check` (lines 432-453) fetches every ruleset from `/rulesets?includes_parents=true`.
+- Before deciding whether a ruleset applies, it calls `known(rule["target"] == "branch" and source_type in (Repository, Organization))`.
+- For active rulesets it also calls `known(set(conditions) == {"ref_name"})`.
+- As a result, `main-protection` is BLOCKED by: any `tag` ruleset, including the runbook's `evidence/*` protection; any `push` ruleset; any active organization branch ruleset that has a `repository_name` condition.
+
+### Merge method and workflow
+
+- Main binding supports only a two-parent MERGE (`github_binding.py:371`).
+- `foundation.yaml` already runs `capture_workflow_binding.py` for `merge_group` events and uploads `workflow-binding-{run_id}-{run_attempt}`.
+
+## Interfaces
+
+### `github_audit.observe_queue(variables: dict) -> dict`
+
+This function is transport. It lives in the audit module because the binding module does no I/O. It mirrors `get_review_threads`.
+
+**Inputs:** `variables` is exactly `{owner, name, number, after}`, validated before any process launches.
+
+**Command:** `gh api --hostname github.com graphql --method POST --input -`, with `GH_HOST` and `GH_DEBUG` unset and a 25 s timeout.
+
+**Output:** at most 1 MiB, parsed with `load_json`.
+
+**Query:** exactly the constant below. The tests hold an independent literal copy and assert that the two are equal.
+
+```graphql
+query MergeQueueSnapshot($owner: String!, $name: String!, $number: Int!, $after: String) {
+  repository(owner: $owner, name: $name) {
+    databaseId nameWithOwner isPrivate
+    pullRequest(number: $number) {
+      fullDatabaseId number state isDraft baseRefName headRefOid baseRefOid updatedAt
+      mergeQueueEntry { id }
+    }
+    mergeQueue(branch: "main") {
+      id
+      configuration { mergeMethod }
+      entries(first: 100, after: $after) {
+        totalCount
+        pageInfo { hasNextPage endCursor }
+        nodes {
+          id position state enqueuedAt
+          enqueuer { login }
+          baseCommit { oid }
+          headCommit { oid }
+          pullRequest { fullDatabaseId number headRefOid baseRefOid }
+        }
+      }
+    }
+  }
+}
+```
+
+The query uses only supported `MergeQueueEntry` fields and none of the deprecated `baseOid` or `headOid`. `configuration.mergeMethod` selects the parent shape to check (G2-15) and is never membership evidence.
+
+### Retained snapshot `mindclade.queue-snapshot.v1`
+
+The snapshot has exactly these keys:
+
+| Key | Description |
+| --- | --- |
+| `schema` | Schema identifier |
+| `repository_id` | Repository database ID |
+| `repository` | Repository full name |
+| `pr_number` | Pull request number |
+| `pr_database_id` | Pull request database ID |
+| `base_sha` | The operator's `--base` |
+| `source_head_sha` | The operator's `--candidate` |
+| `policy_sha` | Policy SHA |
+| `packet_sha256` | Packet SHA-256 |
+| `observed_at` | RFC 3339 UTC, taken from the injected `now` |
+| `queue` | `{id, merge_method, total_count}` |
+| `entries[]` | Ordered list of entries |
+
+Each entry has exactly `id`, `position`, `state`, `enqueued_at`, `enqueuer`, `base_sha`, `head_sha`, `number`, `pr_database_id`, `pr_head_sha`, and `pr_base_sha`. If GitHub returns a null value, the snapshot keeps it as null.
+
+The file bytes are `json.dumps(record, sort_keys=True, separators=(",", ":"))`, encoded as UTF-8 and followed by `\n`, at most 64 KiB in total. `queue_snapshot_digest` is the SHA-256 hex digest of exactly those bytes.
+
+### `github_binding.verify_queue_binding(expected: dict, observations: dict) -> dict`
+
+This function is pure: it does no I/O and never mutates its inputs. It never recomputes the snapshot digest. It uses G1's `Unknown` and `Violation` and reuses these G1 helpers, extended for `stage == "queue"`.
+
+**`expected`**
+
+- Exactly G1 `EXPECTED_KEYS` plus `enqueuer`
+- For the queue stage, `base_sha` is the queue base, `source_head_sha` is the PR head, and `tested_sha` is the merge-group head
+- `enqueuer` is the accepted policy's `acceptance_owner`. No CLI flag supplies it
+- The PR and main stages keep their exact G1 key set
+
+**`observations`**
+
+- The G1 keys plus `queue` (the decoded snapshot whose custody the adapter already checked) and `queue_snapshot_sha256`
+- A missing key, or a `KeyError`, `TypeError`, or `IndexError`, raises `Unknown`
+- Extra keys are ignored and can never cause a pass
+
+**Check selection.** Only checks that meet both conditions count:
+
+- `check_suite.id` equals `run.check_suite_id`
+- The `details_url` locator points to the `merge_group` run
+
+Checks from other runs on the same SHA are excluded; they are never a fallback.
+
+**Return value.** Exactly `queue_entry_id`, `queue_base_sha`, `queue_head_sha`, `queue_pr_head_sha`, `queue_run_id`, `queue_run_attempt`, `queue_snapshot_digest`, and `queue_observed_at`.
+
+`verify_run_binding` and `verify_primary_observations` never succeed for the queue stage.
+
+### Audit wiring
+
+`--stage` accepts `pr|queue|main`. In the queue stage, `--candidate` is the reviewed PR head. The approval and review-thread checks keep their meaning.
+
+#### Queue-stage `pull-request` check
+
+It requires: PR head == `--candidate`, base == `--base`, and not a draft.
+
+| PR state | Result |
+| --- | --- |
+| Open | PASS |
+| Merged with `merge_commit_sha` == queue head | PASS |
+| Closed and unmerged | FAIL |
+| Merged at another SHA | FAIL |
+
+#### Capture mode (`--stage queue --queue-snapshot-out PATH`)
+
+1. Read the repository and the PR over REST before and after paginating `observe_queue`. The PR's REST `base.sha` must equal `baseRefOid`; otherwise the result is Unknown.
+2. The PR's `mergeQueueEntry.id` must equal the selected entry's `id`; otherwise the result is Unknown and no file is written.
+3. Validate the complete snapshot bytes before calling `open`.
+4. Create `PATH` with `O_WRONLY|O_CREAT|O_EXCL|O_NOFOLLOW` and mode 0600. If a write fails after the file is created, unlink only this capture's file and report BLOCKED.
+5. Record `bindings["queue_capture"] = {queue_snapshot_digest, queue_entry_id, queue_observed_at}`.
+
+Capture mode emits exactly these checks: `policy`, `packet`, `repository`, `pull-request`, `queue-capture`, `execution-binding` (BLOCKED), and `supervised-readiness` (BLOCKED).
+
+#### Verification mode (`--stage queue` without the output flag)
+
+1. Read the snapshot only through the keyword-only reader `retained_queue(repository_id, pr_number, policy_sha, packet_sha256) -> (opaque_id, sha256, bytes)`. Its production default raises `Unknown("O3 has not adopted independent queue snapshot custody")`.
+2. Validate it with G1 `retained_bytes` and `strict_json`, check the exact schema, and confirm that re-serializing it canonically reproduces the same bytes. Raise `Violation` if `repository`, `pr_number`, `base_sha`, `source_head_sha`, `policy_sha`, or `packet_sha256` differs from the CLI arguments.
+3. Select checks:
+   - Count only required-context/App checks on the queue head whose locator run has event `merge_group` and a `head_branch` equal to the snapshot's queue branch, `gh-readonly-queue/main/pr-<pr_number>-<entry base_sha>`.
+   - Exclude checks from other events on the same SHA. They are never a fallback.
+   - Select the newest. A tie or no match gives Unknown.
+4. Call `verify_queue_binding` and record `bindings["queue_binding"] = result + {queue_snapshot_custody_id}`.
+
+In the queue stage, `required-checks`, `execution-transport`, and `execution-binding` report BLOCKED with the detail "evaluated by queue-binding in queue stage", and never PASS.
+
+**Fixture dependencies.** The new keyword-only dependencies are `queue_graphql` (the capture transport) and `retained_queue`. Supplying any dependency marks the report `fixture`. An omitted dependency resolves to `_missing_fixture`, never to a live call.
+
+**Unchanged:** the GovernanceReport@v1 top level, the PASS/FAIL/BLOCKED statuses, and the 0/2/3 exit codes.
+
+## Acceptance criteria
+
+### How to read results
+
+`Violation` means the check is FAIL. `Unknown` means it is BLOCKED.
+
+### How negative tests work
+
+- Each negative test changes exactly one fact of the positive control.
+- It reseals any digest or custody that the change affects, so a digest mismatch can never be what makes a semantic negative fail.
+- It asserts both the exception class and a detail substring frozen in the test module.
+
+### Fixture and positive control
+
+**G2-01** `one_entry_queue_case()` in `scripts/test_governance_binding.py` is frozen before implementation, and the parent retains the RED result. It returns fresh `(expected, observed)` objects:
+
+- **Identity:** repository `1382446493` / `robpearc-mindclade/mindclade-vnext`; PR 17 with REST id 1700 and `fullDatabaseId` `"1700"`.
+- **SHAs:** base `"a"*40`, PR head `"b"*40`, queue head `"9"*40`, tree `"1"*40`.
+- **Queue:** `MQ_fixture`, `MERGE`, total 1, with a single entry `MQE_fixture17`:
+  - position 1, state `AWAITING_CHECKS`, `pr_base_sha` `a`
+  - enqueuer `robpearc-mindclade`, enqueued `2026-09-23T10:20:00Z`
+- **Snapshot time:** `observed_at` `2026-09-23T10:21:00Z`.
+- **Run:** `merge_group` run 510, attempt 1:
+  - head branch `gh-readonly-queue/main/pr-17-` + `"a"*40`
+  - head `9`, `pull_requests: []`, suite 610
+- **Checks:** check and job 710 for `linux-foundation`, App 15368
+- **Artifact:** 810, `workflow-binding-510-1`
+- **Receipt:** a `merge_group` receipt with head `9`, base `a`, and `head_ref` equal to `refs/heads/` + the head branch
+- **Tested commit:** `9`, with parents `[a, b]`
+- **Identities:** the G1 accepted and executed identity literals
+
+Every G2 fixture (queue, parity, and (C)) uses: `merge_method: "MERGE"`; `allowed_merge_methods` that contains `"merge"`; no `required_linear_history` rule.
+
+A test asserts `observed["member"] is observed["queue"]["entries"][0]`. The parent computes the snapshot bytes and their SHA-256 as literals before implementation. Production helpers never compute them.
+
+**G2-02** The positive control returns exactly the 8 output keys, all equal to literals: entry `MQE_fixture17`, base `a`, head `9`, PR head `b`, run 510, attempt 1, the frozen digest, and `2026-09-23T10:21:00Z`.
+
+The inputs still equal their pre-call deep copies. No I/O happens: `subprocess.run`, `socket.socket`, and `urllib.request.urlopen` are patched to raise.
+
+**G2-03** The plan's Step 1 test is added verbatim: set member `number` to 18, and member `base_sha` to `"d"*40`. Each raises `Violation`. Subtests also assert the detail substring for each case, so neither case can pass through a digest or receipt mismatch.
+
+### Negative matrix (pure verifier, and the audit where named)
+
+| ID | Change from the positive control | Expected |
+| --- | --- | --- |
+| G2-04 | Membership. A complete two-entry group: PR17@1 plus PR18@2, or PR17@2 of 2. Or position 2 while the total is 1. | Violation |
+| G2-05 | Partial pagination. In the verifier, `len(entries)` != total. In capture: `hasNextPage` with a null cursor, a repeated cursor, a changed `totalCount`, page 101, queue/PR/repository identity drift across pages, or REST != GraphQL. No file is written. | Unknown |
+| G2-06 | Base. Changed queue base: the snapshot base is `a`, but the receipt `merge_group.base_sha`, the commit `parents[0]`, and the branch suffix are `d`. Mismatched base: the snapshot base, or the entry's `pr_base_sha`, differs from `expected.base_sha`/`--base`. Changed queue head: the entry `head_sha`, the receipt `merge_group.head_sha`, the run `head_sha`, or the tested commit is `"7"*40` while the others stay `9`. | Violation |
+| G2-07 | Source-head substitution: the entry `pr_head_sha`, a stable REST PR head, or the MERGE second parent is `"8"*40` -> Violation. PR head drift between the before and after reads -> Unknown. | as stated |
+| G2-08 | State: `QUEUED` or a null `head_sha` -> Unknown. `AWAITING_CHECKS`, `MERGEABLE`, and `LOCKED` are accepted. `UNMERGEABLE` -> Violation. Any other state -> Unknown. The tested-commit REST read is unavailable -> Unknown. | as stated |
+| G2-09 | Enqueuer: null -> Unknown. Any login other than `acceptance_owner`, compared with exact case (for example `fixture-untrusted[bot]` or `Robpearc-mindclade`) -> Violation. | as stated |
+| G2-10 | Required check or job is `queued` or `in_progress` -> Unknown. It concluded `cancelled`, `skipped`, `failure`, or `timed_out`, or came from the wrong App -> Violation. A selected check or job whose `head_sha` is `b` rather than `9` -> Violation. If the only required check belongs to another run or suite -> Unknown, because nothing is selected. | as stated |
+| G2-11 | Event: the run event is `pull_request`, `push`, or `workflow_dispatch`, or the receipt event is not `merge_group`. A populated `run.pull_requests` is ignored and never used as a PR-event fallback. | Violation |
+| G2-12 | Attempt: a stable completed attempt 2 when 1 is expected, or a job with `run_attempt` 2 -> Violation. A newer attempt that is incomplete -> Unknown. | as stated |
+| G2-13 | Null or deleted queue: `queue` is null; total 0 with no entries; PR `mergeQueueEntry` or `mergeQueue` is null at capture; the retained reader is absent. An audit fixture with a merged PR, `main == "9"*40`, a successful main `push` run and no snapshot gives `queue-binding` BLOCKED and no `queue_binding` bindings. The result is never reconstructed from main CI. | Unknown |
+| G2-14 | PR outcome, in both the verifier and the audit `pull-request` check. Closed and unmerged, or merged at a SHA other than `9` -> Violation (FAIL). Merged at `9` -> PASS. The merged fixture also has a newer successful `push`-on-main check on `9`, and the result is still PASS from run 510. If only that push check is present -> BLOCKED. | as stated |
+| G2-15 | Merge method: with `MERGE`, parents other than exactly `[base, pr_head]` -> Violation. `SQUASH`, `REBASE`, null, or unknown -> Unknown ("only two-parent MERGE is supported"). | as stated |
+| G2-16 | Head ref. It must be `refs/heads/gh-readonly-queue/main/pr-<N>-<40hex>`: a wrong shape -> Unknown; a wrong N, or hex != base -> Violation. The receipt `head_ref` must equal `refs/heads/` + the run `head_branch`; otherwise Violation. | as stated |
+| G2-17 | Snapshot: an unknown or missing key, non-canonical bytes, or more than 64 KiB -> Unknown. These give Violation: a duplicate JSON key; a custody digest mismatch; a mismatch with the CLI (`policy_sha`, `packet_sha256`, `base_sha`, `source_head_sha`); `observed_at` in the future, before `enqueued_at`, or after the REST `merged_at`. | as stated |
+| G2-18 | A PR-stage receipt or artifact used for the queue, or any G1 artifact, receipt, or accepted/executed-identity contradiction -> Violation. Missing proof -> Unknown, as in G1. | as stated |
+
+### Transport, capture and audit
+
+**G2-19 `observe_queue` input and transport.**
+
+- Before any process launches, it rejects: extra or missing variables, a bad owner, a number that is boolean, zero, or out of range, and an oversized cursor.
+- The argv, input, and environment match the interface definition.
+- The query constant contains no `mutation`, `subscription`, `baseOid`, or `headOid`.
+- Non-empty GraphQL `errors` give BLOCKED, with no raw error text in the output.
+
+**G2-20 Capture.**
+
+- It accepts only a PR that is `OPEN` and not a draft. A merged, closed, or draft PR gives FAIL.
+- A mismatch between `mergeQueueEntry.id` and the selected entry, or between REST `base.sha` and `baseRefOid`, gives BLOCKED and writes no file.
+- A pre-existing output file or symlink is left byte-for-byte unchanged, and the result is BLOCKED.
+- A write failure injected after the file is created unlinks only that file and gives BLOCKED.
+- The written bytes are canonical, and the reported digest is their SHA-256.
+- The positive fixture writes exactly the G2-01 literal.
+
+**G2-21 Verification mode.**
+
+- With every dependency injected: `queue-binding` is PASS, the overall report is BLOCKED, and `observation_kind` is `fixture`.
+- With each dependency omitted in turn: BLOCKED, with live functions patched to raise so any live fallback would fail the test.
+- The production `retained_queue` raises an `Unknown` whose message matches `O3`.
+- No CLI flag or path accepts a snapshot for verification, so an arbitrary saved JSON file can never become an observation. Unknown flags give `inputs` FAIL.
+
+**G2-22 Regression.**
+
+- All G1 and legacy tests in both test modules pass with unchanged expectations. This includes `test_queue_remains_unsupported_in_g1`, and `verify_primary_observations` also raises `Unknown` for the queue stage.
+- Two exceptions are allowed:
+  - The limitations text may change, but it must keep `b4`, `queue`, and `acceptance`, and must still say that live queue proof is BLOCKED before O2 and O3
+  - G2-26 may extend the redirect test
+- PR and main stage outcomes are unchanged.
+
+### (A) Post-transfer repository name (same repository ID)
+
+**G2-23 Parity.** Two fixtures are re-run under the target name:
+
+- The complete G1 PR-stage fixture binding (`test_complete_injected_binding_passes_only_as_fixture`)
+- The G2 queue fixture, in both capture and verify modes
+
+In each re-run:
+
+- Every REST or GraphQL payload, URL, receipt, workflow ref, accepted identity, and snapshot uses `Mindclade-org/mindclade-vnext`.
+- The audit runs with `--repository Mindclade-org/mindclade-vnext` and GraphQL owner `Mindclade-org`.
+- Every check status, the report status, and the exit code equal the source-name baseline.
+- Bindings differ only in values that carry the repository name.
+- The pure `verify_run_binding` and `verify_queue_binding` show the same parity.
+
+**G2-24 Case mismatch.**
+
+- A test pins the facts: the target name passes `policy`.
+- Each of `mindclade-org/mindclade-vnext`, `MINDCLADE-ORG/mindclade-vnext`, and `Mindclade-org/Mindclade-vnext` gives `policy` FAIL and exit code 2, with no REST, GraphQL, or binary request.
+- The detail contains "letter case". Other mismatches keep "outside accepted policy".
+- The pure verifiers, given the lowercase expected name and canonical observations, raise `Violation` "Repository name differs".
+- Every identity comparison is exact. ASCII case-insensitive comparison is used only to select the `letter case` detail and in the (C) ambiguity detector. Neither can ever yield PASS.
+
+**G2-25 No bridging by ID.**
+
+- If the CLI and the API disagree across the transfer (target on one side, source on the other), `repository` is FAIL with "Repository name changed".
+- A snapshot, receipt, or accepted identity recorded under the source name and verified under the target name raises `Violation`. After the transfer, capture and acceptance must happen again.
+- The policy file and `admission._validate_policy` stay byte-identical, and `test_governance_admission.py` passes unchanged.
+
+### (B) Artifact redirect: off by default
+
+**Default: G2-28.** A redirect is BLOCKED with a specific detail.
+
+**G2-27 is enabled only on Rob's written confirmation.** Enabling it uses the literal `^productionresultssa(?:[0-9]|1[0-9])\.blob\.core\.windows\.net$`, matched against the ASCII hostname from `urlsplit`. That literal must be backed by a parent-retained `/meta` fixture: `domains.actions` lists `productionresultssa0`-`19`.
+
+- The REST documentation does not name the redirect host.
+- A wider pattern such as `[0-9]{1,2}`, or any `*.blob.core.windows.net` wildcard, would admit storage accounts that GitHub has not claimed.
+
+The G2-27 code is a small, separately enabled branch. It is off by default through an empty host allowlist, and the tests switch it on by patching the allowlist constant. Integrity still rests on the mandatory independent custody digest and the optional API digest (G1 `decode_artifact`). The download host adds no trust.
+
+**G2-26 Pin.**
+
+- Through one patchable HTTPS seam, drive the whole `_artifact_request` with a `302` to `https://evil.invalid/x`.
+- The result is `Unknown` after exactly one request. This must hold permanently. The test asserts the exception class and the request count, not the G1 detail text.
+- At `06a903f`, the parent retains one more result: an allowlisted-looking `Location` also gives `Unknown` after one request.
+
+**G2-27 Allowlisted redirect (branch enabled in tests).**
+
+- The first request to api.github.com returns `302` with exactly one absolute `Location`, whose host is on the allowlist.
+- The client follows it once with a newly built GET that carries no `Authorization`, `Cookie`, or `X-GitHub-Api-Version` header. The token string appears in no header.
+- urllib's automatic redirect, which copies headers, is never used.
+- Both requests use `timeout=25`, and the test asserts it.
+- `gh auth token` runs once.
+- The redirected response must be 200, and its `geturl()` must equal the `Location`.
+- The redirected response gets the same `Content-Length` pre-check and the same `read(max_bytes + 1)`.
+- The allowlist admits `productionresultssa0`-`19` and rejects `20`, `99`, and `00`.
+
+**G2-28 Default refusal.**
+
+- With the allowlist empty, every redirect, including the G2-27 host, gives `Unknown` with the detail "Artifact download redirect host is not allowlisted; no credentials were forwarded".
+- `LIMITATIONS` states that live artifact download is BLOCKED pending Rob's confirmation.
+- G2-26 and G2-29 apply in both modes.
+
+**G2-29 Negatives.** Each case gives `Unknown`. Only the chained-redirect case makes a second request.
+
+- A disallowed host: `evil.invalid`, `productionresultssa0.blob.core.windows.net.evil.invalid`, `productionresultssa20...`, `x.blob.core.windows.net`, `api.github.com`, an IP literal, or a trailing dot.
+- An `http` scheme, a port other than 443, or userinfo in the URL.
+- A relative, missing, or duplicated `Location`.
+- Status 301, 303, 307, or 308, or a 200 that carries a `Location`.
+- A second redirect from the blob host.
+- An oversize body, detected by `Content-Length` or by the actual length when no length is sent.
+
+No exception detail or report JSON contains the signed query (`sig=`, `se=`).
+
+### (C) Ruleset applicability in `protection_check` (fail-closed)
+
+Only the classification step changes. It runs in this order:
+
+1. Check identity as today.
+2. `target` must be `branch`, `tag`, or `push`; anything else is Unknown. Skip `tag` and `push` rulesets whatever their conditions, rules, or bypass actors.
+3. For `branch`, `source_type` must be `Repository` or `Organization`; anything else is Unknown. Skip non-active enforcement as today.
+4. The `conditions` keys of an active branch ruleset must be exactly `{ref_name}` (either source type) or `{ref_name, repository_name}` (`Organization` only). Any other key, including `repository_id`, `repository_property`, and `organization_*`, is Unknown.
+5. `repository_name` must have the keys `{include, exclude}` plus an optional boolean `protected`.
+   - Both lists are string arrays, and `include` is non-empty.
+   - Patterns are evaluated against the name part of `--repository` (`mindclade-vnext`).
+   - A pattern is either `~ALL`, which matches every name, or a subset of GitHub's fnmatch syntax: the characters `[A-Za-z0-9_.-]` plus `*`, which matches any run of characters, including none.
+   - Any other metacharacter (`?`, `[`, `]`, `{`, `}`, `\`, `!`, `/`) is Unknown.
+   - Patterns are non-empty and match the whole name. Any `~` pattern other than `~ALL` is Unknown.
+   - The ruleset applies when some `include` pattern matches and no `exclude` pattern matches.
+   - Ambiguity is checked per pattern. If any include or exclude pattern gives different results case-sensitively and ASCII-case-insensitively, the result is Unknown.
+6. Skip a ruleset that does not apply. Evaluate one that applies exactly as today: `ref_name` applicability, bypass actors, then rule semantics.
+
+**RED evidence.** At `06a903f`, the parent retains `main-protection` BLOCKED for the valid configuration plus either of these additions:
+
+- An active tag ruleset (`refs/tags/evidence/*`, `deletion`, `non_fast_forward`)
+- An active organization branch ruleset with `repository_name` include `["other-repo"]`
+
+These are the RED results for G2-30 and G2-31.
+
+**G2-30 Tag and push rulesets are ignored.** The valid configuration still gives PASS with any of these added: an active or disabled `tag` ruleset for `evidence/*`, including one with bypass actors or an unknown rule type; a `push` ruleset with empty or file-path conditions. An unknown, missing, or non-string `target` is BLOCKED.
+
+**G2-31 Organization rulesets that do not apply are ignored.** The configuration still gives PASS when such a ruleset carries a bypass actor or an unknown rule. The cases: include `["other-repo"]`, include `["~ALL"]` with exclude `["mindclade-vnext"]`, include `["mindclade-vnext-*"]`, include `["*-other"]`.
+
+**G2-32 Applicable organization rulesets are enforced in full.** The include values are `["~ALL"]`, `["mindclade-*"]`, `["*-vnext"]`, `["*"]`, and `["mindclade-vnext"]`.
+
+- With a bypass actor -> FAIL.
+- With an unknown rule -> BLOCKED.
+- With a valid single-entry queue -> PASS.
+
+G2-23 parity also holds with the ruleset source set to `Mindclade-org`.
+
+**G2-33 These still give BLOCKED.**
+
+- `target: "repository"` (organization repository rules)
+- Condition keys `repository_id`, `repository_property`, or `organization_name`/`organization_id`
+- Any unknown condition key, or an unknown key inside `repository_name`
+- A non-boolean `protected`
+- A non-list or empty `include`, or a non-list `exclude`
+- Patterns that are empty, not strings, or use an unsupported metacharacter or a `~` form
+- The case-ambiguous include `["Mindclade-Vnext"]`
+- `source_type` `Enterprise`, or any unknown value, on a branch ruleset
+
+### CI wiring and documentation
+
+**G2-34 CI wiring is already in place.**
+
+- At `06a903f`, `merge_group` already runs capture and uploads `workflow-binding-{run_id}-{run_attempt}`. This has been verified.
+- Any edit to the workflow or the CI policy is a stop condition, returned for criteria review.
+- `test_ci_policy.py` passes unchanged.
+
+**G2-35 Documentation.** The parent updates `governance-tools.md` to document: the queue stage (capture and verify modes, the query and the snapshot format); `retained_queue`, pending O3; that capture is valid only while the complete queue count is 1; the exact-case target name `Mindclade-org/mindclade-vnext`; that if the transferred `full_name` differs only in letter case from the accepted policy, the audit gives FAIL and needs a reviewed policy revision (G2 never normalizes case); the (C) ruleset rules and the MERGE-only limit; that redirects are off by default, and that G2-27 needs Rob's confirmation.
+
+The documentation claims no live queue proof and no completed live download.
+
+## Parent checks and stop conditions
+
+The parent runs these steps. Workers run none of them.
+
+1. **RED.** Run `python3 -B -m unittest discover -s scripts -p test_governance_binding.py` and then the same command with `-p test_governance_github.py`, with the new tests frozen. Retain the output, plus the G2-26 and (C) base results.
+2. **GREEN.** Run focused discovery for `test_governance_binding.py`, `test_governance_github.py`, `test_governance_admission.py`, `test_governance_evidence.py`, `test_evidence_bundle.py`, `test_verify_foundation.py`, and `test_ci_policy.py`.
+3. **Unchanged paths.** Run `git diff --exit-code 06a903f -- .agents .github scripts/test_ci_policy.py tools/engineering/admission.py tools/engineering/evidence.py scripts/capture_workflow_binding.py scripts/evidence_bundle.py`, and confirm that the diff touches only the paths listed above.
+4. **Aggregate.** Run `nix develop --no-write-lock-file -c just verify`.
+5. **Review.** A fresh task review against these criteria comes first, then a whole-candidate review. Only after both, commit `feat(governance): observe exact merge groups`.
+
+**Stop and report.** Do not widen scope. Stop if any of these is needed or happens:
+
+- A change to policy, admission, rulesets, the App, the workflow, or the CI policy, or any live GitHub call
+- A field in the query that is unsupported or deprecated in the published schema. Never substitute another field; return the criteria for review
+- An edit outside the implementer-owned paths
+- A G1 or legacy expectation that would change beyond G2-22
+- A new input channel for snapshot trust, such as a path or flag
+- The recorded budget runs out
+
+G2-27 stays disabled unless Rob confirms it. A required check that was not executed is BLOCKED, with "not run" as the detail.
+
+## Reviewer recommendations (pending Rob)
+
+1. **Head ref.** Require `refs/heads/gh-readonly-queue/main/pr-<N>-<40hex>`, as in G2-16. The O2 probe confirms it.
+2. **Merge method.** Allow MERGE only. SQUASH and REBASE stay BLOCKED. The O2 probe confirms parents `[base, pr_head]`.
+3. **Redirect host.** Rob decides whether to enable G2-27 with the literal and the `/meta` fixture described in (B).
+4. **Attempt ID.** There is no attempt ID. Adding one is a schema change, out of scope here; route it to G3.
+5. **Base.** Enforce REST `base.sha` == `baseRefOid` (drift gives Unknown) == `--base` == queue base (mismatch gives Violation). See G2-06 and G2-20.
+6. **One entry.** Keep the one-entry rule as a Violation, and document that capture happens only while the count is 1 (G2-35).
+7. **G3/O3 follow-up.** Both the policy's `allowed_governance_paths` and `admission.GOVERNANCE_PATHS` omit `scripts/test_governance_binding.py`. G1 had the same gap. G2 changes neither, so governance admission for that path is reported BLOCKED and never relabeled.
+8. **Enterprise rulesets.** Rulesets with `source_type: Enterprise` stay BLOCKED. Check for them during the O2 preflight.
+
+## Amendment: target repository renamed (Rob, 2026-09-26)
+
+The repository was transferred as `Mindclade-org/mindclade-vnext` and then renamed to `Mindclade-org/mindclade-internal-monorepo` (repository ID `1382446493` unchanged). Wherever this document names `Mindclade-org/mindclade-vnext` as the target, read `Mindclade-org/mindclade-internal-monorepo`. The accepted policy's `target_repository`, `admission._validate_policy`, and the governance tests use the new name. The pre-rename target name is now outside the accepted policy, and the letter-case and parity checks apply to the new name.
+
+## Related
+
+<CardGroup cols={2}>
+  <Card title="Governance completion plan" icon="clipboard-list" href="/superpowers/plans/2026-09-23-foundation-governance-completion">
+    Parent plan containing the G2 task definition.
+  </Card>
+
+  <Card title="Governance tools" icon="gears" href="/developer/governance-tools">
+    Developer documentation for governance tooling.
+  </Card>
+
+  <Card title="GitHub governance" icon="github" href="/operations/github-governance">
+    Runbook for GitHub governance operations.
+  </Card>
+
+  <Card title="WorkPacket v1" icon="file-code" href="/developer/work-packet-v1">
+    Work packet format referenced by G2.
+  </Card>
+</CardGroup>

@@ -1,0 +1,104 @@
+---
+title: "VS-001: Semantic Development Loop"
+sidebarTitle: "VS-001"
+description: "The end-to-end engineering path from authored frontend source through Codegen, RuntimeKit, durable execution, evidence, assurance, and sealed replay."
+---
+
+VS-001 is the smallest useful end-to-end Mindclade architecture path. It proves that a contract can move from authored frontend source through Codegen, generated projections, RuntimeKit/TestKit, durable execution, evidence, assurance, replay, and policy decision. This page preserves the historical phase outline and target requirements. The current handoff and task register remain the source of truth for completion status.
+
+<Warning>
+  Historical phase/task outline with continuing target requirements. Its original checkboxes and bootstrap commands are not the current completion register.
+</Warning>
+
+## Goal
+
+Prove that a contract can move from authored frontend source through Codegen, generated projections, RuntimeKit/TestKit, durable execution, evidence, assurance, replay, and policy decision.
+
+## Required Path
+
+```text
+TypeSpec
+  -> official TypeSpec frontend
+  -> SemanticInput@v1
+  -> Rust Codegen
+  -> MindcladeGraph
+  -> SemanticGraph and CapabilityGraph typed views
+  -> typed target IR
+  -> Proto / OpenAPI / SDK / MCP / Docs
+  -> RuntimeKit service
+  -> PostgreSQL transaction
+  -> state plus transactional outbox
+  -> scheduler
+  -> deterministic worker
+  -> deterministic fake Clade artifact
+  -> Evidence
+  -> Independent Assurance
+  -> Decision
+  -> sealed replay capsule
+```
+
+## Phase 0 Bootstrap
+
+- Freeze ADR-000 through ADR-014.
+- Keep implementation to `contracts/typespec`, `core`, `codegen`, `generated`, and architecture docs.
+- Validate bootstrap source with `scripts/validate_bootstrap.py`.
+- Compile Rust skeleton with `cargo check --workspace`.
+
+## Phase 1 Work Items
+
+1. Implement `SemanticInput@v1` extraction from TypeSpec.
+2. Materialize `MindcladeGraph` with typed semantic, capability, service, and architecture views.
+3. Generate a manifest-only projection under `generated/`.
+4. Add a RuntimeKit service skeleton generated from `ServiceDescriptor@v1`.
+5. Add a TestKit deterministic fake worker.
+6. Add PostgreSQL state and transactional outbox migration.
+7. Seal a replay capsule with source, graph, generated manifest, run, artifact, evidence, and decision.
+8. Add independent assurance checks that consume evidence instead of implementation internals.
+
+## Exit Criteria
+
+- VS-001 can be replayed from a sealed capsule.
+- Generated output is reproducible and provenance-bound.
+- Implementation and assurance are owned separately.
+- A claim of qualification is supported only through policy and evidence.
+
+## Scientific Follow-On
+
+The [programmable biology roadmap](/architecture/programmable-biology) describes scientific verticals after this foundation. VS-001's deterministic fake Clade artifact proves the engineering path only. BiologicalState, TensorBundle, real Clade models, and scientific qualification require their own contracts and independent evidence; they are not added to this slice's exit criteria.
+
+## Planned Conformance and Recovery Checks
+
+The [HQ review](https://github.com/Mindclade-org/mindclade-internal-monorepo/blob/main/docs/architecture/reviews/2026-09-22-notion-hq.md) contributes the following concrete checks for implementing this slice. All remain **Not run**. The initial manifest is an intermediate milestone, not completion of the full Required Path above.
+
+| Check | Required observation |
+| --- | --- |
+| Frontend and graph | Supported model/union/enum/HTTP fixtures agree with official TypeSpec semantics; invalid versions/references produce structured diagnostics. |
+| Generation and consumers | Clean/no-op generation yields identical canonical outputs; an independent expected result checks a generated client against the fake service. |
+| Atomic state/outbox | Inject a transaction failure; neither committed run state without its event nor an orphan dispatch event is observable. |
+| Duplicate or reordered delivery | Reuse one logical run and intended result; a key reused with different inputs fails explicitly. |
+| Worker crash and stale ownership | Recover the persisted run after a lost acknowledgement; stale ownership cannot commit a second authoritative result. |
+| Retry and cancellation | Retry only eligible transient failures within limits; cancellation is pending until worker termination is confirmed. |
+| Artifact integrity | Missing/corrupted output or a digest mismatch blocks acceptance and preserves diagnostic evidence. |
+| Evidence identity and replay | Replay pins source, graph, manifest, run, artifact, evaluator, and policy; changed inputs invalidate the affected qualification evidence. |
+
+The [execution reliability plan](/architecture/execution-reliability) places paid budget admission, external reporting, release publication, state upgrades, and scientific campaign controls in their relevant follow-on slices. The [developer-product plan](/architecture/developer-products) scopes additional languages and provider lifecycle tests to actual implemented targets.
+
+## Related
+
+<CardGroup cols={2}>
+  <Card title="Service Config v1" icon="gear" href="/architecture/service-config-v1">
+    Frozen generated configuration contract produced by the VS-001 path.
+  </Card>
+
+  <Card title="Toolchain Authority" icon="wrench" href="/architecture/toolchain">
+    Pinned build tools and verification commands that gate VS-001 development.
+  </Card>
+
+  <Card title="Execution Reliability" icon="shield-check" href="/architecture/execution-reliability">
+    Planned runtime requirements for durable execution and recovery.
+  </Card>
+
+  <Card title="Programmable Biology" icon="dna" href="/architecture/programmable-biology">
+    Scientific verticals that follow after VS-001 engineering completion.
+  </Card>
+</CardGroup>

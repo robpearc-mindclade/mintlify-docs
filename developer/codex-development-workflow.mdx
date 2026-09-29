@@ -1,0 +1,243 @@
+---
+title: "Codex Development Workflow"
+sidebarTitle: "Codex Workflow"
+description: "Deliver a scoped change with useful feedback, distinct review and evidence that belongs to the actual candidate, while avoiding repeated discovery and checks."
+---
+
+This is a practical guide to the existing [foundation workflow](https://github.com/Mindclade-org/mindclade-internal-monorepo/blob/main/.agents/workflows/foundation-development.md). [AGENTS.md](https://github.com/Mindclade-org/mindclade-internal-monorepo/blob/main/AGENTS.md) governs authority and execution; [the task register](/developer/agent-handoff#current-task-register) owns current work status.
+
+## The working loop
+
+## The working loop
+
+### 1. Recover once, then keep the context current1. Recover once, then keep the context current
+
+The integration owner obtains the prior owner's handoff and records the actual checkout, common Git directory, branch/source/base, remotes, worktrees and dirty paths. Reconcile Linear assignment, path ownership, existing attempts, jobs and parent-owned receipts before dispatch. Preserve concurrent WIP; do not reset, stash, overwrite or clean it to simplify a new task.
+
+The integration owner obtains the prior owner's handoff and records the actual checkout, common Git directory, branch/source/base, remotes, worktrees and dirty paths. Reconcile Linear assignment, path ownership, existing attempts, jobs and parent-owned receipts before dispatch. Preserve concurrent WIP; do not reset, stash, overwrite or clean it to simplify a new task.
+
+Start with [start here](/developer/start-here), the handoff and the scoped authorities. Use `rg --files` to find relevant paths, then `rg -n` within those paths. Batch independent reads. Keep the resulting owner/source map in the task record and reuse unchanged context; re-read when the source, scope or authority changes. A dated receipt is a lead to verify, not a current verdictStart with [start here](/developer/start-here), the handoff and the scoped authorities. Use `rg --files` to find relevant paths, then `rg -n` within those paths. Batch independent reads. Keep the resulting owner/source map in the task record and reuse unchanged context; re-read when the source, scope or authority changes. A dated receipt is a lead to verify, not a current verdict.
+
+### 2. Bound the change and review its criteria
+
+Name one integrator and the sole registered dispatch route. Record the reader or behavioral outcome, accepted inputs, exact owned/excluded paths, actual roles, allowed tools, budget, checks and stop conditions. Use the [criteria prompt](https://github.com/Mindclade-org/mindclade-internal-monorepo/blob/main/.agents/prompts/criteria.md), or the [documentation prompt](https://github.com/Mindclade-org/mindclade-internal-monorepo/blob/main/.agents/prompts/architecture-docs.md) for prose. Have a context distinct from implementation review the criteria before authoring. Use existing user authorization where it applies; connected admission follows the existing [supervised procedure](/developer/supervised-development).
+
+### 3. Assign a fresh author and get focused feedback
+
+Give the author a bounded brief and source links, rather than the whole backlog. The author edits assigned authored paths and returns changes, rationale, limits and meaningful checks. Under parent-owned execution, the parent runs commands, tests and jobs; workers do not launch them or operate Git/remotes.
+
+### 2. Bound the change and review its criteria
+
+Name one integrator and the sole registered dispatch route. Record the reader or behavioral outcome, accepted inputs, exact owned/excluded paths, actual roles, allowed tools, budget, checks and stop conditions. Use the [criteria prompt](https://github.com/Mindclade-org/mindclade-internal-monorepo/blob/main/.agents/prompts/criteria.md), or the [documentation prompt](https://github.com/Mindclade-org/mindclade-internal-monorepo/blob/main/.agents/prompts/architecture-docs.md) for prose. Have a context distinct from implementation review the criteria before authoring. Use existing user authorization where it applies; connected admission follows the existing [supervised procedure](/developer/supervised-development).
+
+### 3. Assign a fresh author and get focused feedback
+
+Give the author a bounded brief and source links, rather than the whole backlog. The author edits assigned authored paths and returns changes, rationale, limits and meaningful checks. Under parent-owned execution, the parent runs commands, tests and jobs; workers do not launch them or operate Git/remotes.
+
+For behavior changes, use independent positive and negative expectations. For prose, inspect source claims, navigation and rendering; do not test assertions that merely repeat sentences. Run the smallest useful check after an edit. Until final validation, rerun affected checks instead of the unchanged full suite. Avoid concurrent commands that share mutable source, outputs or receiptFor behavior changes, use independent positive and negative expectations. For prose, inspect source claims, navigation and rendering; do not test assertions that merely repeat sentences. Run the smallest useful check after an edit. Until final validation, rerun affected checks instead of the unchanged full suite. Avoid concurrent commands that share mutable source, outputs or receipts.
+
+### 4. Review the task against the frozen criteria
+
+A distinct fresh task reviewer inspects the actual files and parent receipts. Resolve findings within scope, then refresh affected evidence and review. Scope or criteria changes return to their owner; implementation cannot weaken an expected result to make a failure pass.
+
+### 4. Review the task against the frozen criteria
+
+A distinct fresh task reviewer inspects the actual files and parent receipts. Resolve findings within scope, then refresh affected evidence and review. Scope or criteria changes return to their owner; implementation cannot weaken an expected result to make a failure pass.
+
+Record real identities, inherited context and prior roles. Capacity limits do not remove role separation: reuse an eligible distinct context only when its prior roles and exposure preserve the required freshness. Otherwise hand off the missing review as BLOCKED. Renaming a session does not make it independentRecord real identities, inherited context and prior roles. Capacity limits do not remove role separation: reuse an eligible distinct context only when its prior roles and exposure preserve the required freshness. Otherwise hand off the missing review as BLOCKED. Renaming a session does not make it independent.
+
+### 5. Integrate and verify the complete candidate
+
+The parent owns shared manifests, locks, regeneration, mechanical inventory and integration edits. Select applicable pinned checks from the actual diff and task contract, record their scope and run the required final gates. Obtain a fresh whole-candidate review after integration, including parent edits.
+
+### 5. Integrate and verify the complete candidate
+
+The parent owns shared manifests, locks, regeneration, mechanical inventory and integration edits. Select applicable pinned checks from the actual diff and task contract, record their scope and run the required final gates. Obtain a fresh whole-candidate review after integration, including parent edits.
+
+Bind receipts and reviews to the exact source/base, candidate content and accepted inputs. After a change, refresh dependent evidence; explain any bounded reuse of unaffected checks. Never cache an acceptance verdict or substitute another head's green run. Record required unexecuted checks as BLOCKED with "not run" in detailBind receipts and reviews to the exact source/base, candidate content and accepted inputs. After a change, refresh dependent evidence; explain any bounded reuse of unaffected checks. Never cache an acceptance verdict or substitute another head's green run. Record required unexecuted checks as BLOCKED with "not run" in detail.
+
+### 6. Commit, open the PR and follow the protected queue
+
+Stage only reviewed paths and commit the checked candidate. Use the configured operator route for the dedicated App-authored PR, with exact revisions, review references, checks and limitations. Follow the [GitHub runbook](/operations/github-governance#one-linear-to-main-acceptance-loop) for live protection, required checks and recorded Rob approval/queue admission. Ask for the newly required human step only after the concrete PR exists. If Rob reports it complete, inspect GitHub before asking again.
+
+### 6. Commit, open the PR and follow the protected queue
+
+Stage only reviewed paths and commit the checked candidate. Use the configured operator route for the dedicated App-authored PR, with exact revisions, review references, checks and limitations. Follow the [GitHub runbook](/operations/github-governance#one-linear-to-main-acceptance-loop) for live protection, required checks and recorded Rob approval/queue admission. Ask for the newly required human step only after the concrete PR exists. If Rob reports it complete, inspect GitHub before asking again.
+
+Retain PR head, tested commit, queue member/base/synthetic candidate and resulting main separately. Verify each required check and retained artifact binding; a PR or queue pass does not prove main. While CI runs, monitor in the background at bounded intervals and do independent useful work. Keep updates focused on new findings, remaining uncertainty and the next action rather than repeated pollingRetain PR head, tested commit, queue member/base/synthetic candidate and resulting main separately. Verify each required check and retained artifact binding; a PR or queue pass does not prove main. While CI runs, monitor in the background at bounded intervals and do independent useful work. Keep updates focused on new findings, remaining uncertainty and the next action rather than repeated polling.
+
+### 7. Synchronize or hand off with an exact result
+
+After required resulting-main evidence passes, recheck the selected local checkout is clean and its history permits a fast-forward. Fetch and fast-forward only owned checkouts; verify local main, tracking main and live remote main agree. If main advanced or local ownership changed, reconcile that state first. Preserve other branches, worktrees and WIP.
+
+### 7. Synchronize or hand off with an exact result
+
+After required resulting-main evidence passes, recheck the selected local checkout is clean and its history permits a fast-forward. Fetch and fast-forward only owned checkouts; verify local main, tracking main and live remote main agree. If main advanced or local ownership changed, reconcile that state first. Preserve other branches, worktrees and WIP.
+
+Report changed paths, exact revisions, receipt locations, review outcomes and remaining owner actions. Keep source completion, local checks, remote CI and operational acceptance distinct. Evidence archival and Linear closure use their existing protected procedure; this guide creates neither a new dispatcher nor an admission routeReport changed paths, exact revisions, receipt locations, review outcomes and remaining owner actions. Keep source completion, local checks, remote CI and operational acceptance distinct. Evidence archival and Linear closure use their existing protected procedure; this guide creates neither a new dispatcher nor an admission route.
+
+## Commands and check selection
+
+The following commands belong to the authorized integration owner at the actual checkout root. Follow [start here](/developer/start-here#access-and-first-commands) for the pinned Nix launcher, features, supported hosts and provisioning. Do not replace missing inputs with global installs or host tools. `--offline` is useful only after the committed inputs are available; it is not a fresh-clone promise.
+
+```bash Terminal
+# Discover recipes without running a build, then diagnose local prerequisites.
+nix develop --no-write-lock-file -c just
+nix develop --no-write-lock-file -c just doctor
+
+# A docs-only task may select this loop after reviewing its actual scope.
+# Refresh the mechanical inventory only when paths changed.
+nix develop --no-write-lock-file -c just update-tree
+nix develop --no-write-lock-file -c just check
+```
+
+Doctor is a read-only diagnostic; dirty source blocks its clean-candidate claim and remains untouched. `check` runs fast, scaffold and tree/link checks, including Rust formatting and clippy. It runs no Bazel, generated drift or boundary check. `verify` is the full aggregate required for bootstrap work and run by CI. A scoped docs task must state why narrower local checks apply; it cannot waive remote CI.
+
+| Changed area | Focused feedback and final selection |
+| --- | --- |
+| Prose/navigation | `verify-tree`, `verify-scaffold`; inspect wide/narrow rendering. `update-tree` for path changes; `check` for the fast aggregate. |
+| Rust behavior | Relevant existing `just test <targets>` targets and `fmt-check`; select the full aggregate and behavioral evidence required by the task. |
+| TypeSpec/frontend/compiler | Frontend, compiler and affected consumer/conformance targets; compatibility and deterministic regeneration for affected products. Follow the regeneration runbook before full verification. |
+| Generator/build-bound input | Regenerate each affected catalog, inspect provenance/output diffs, then `verify-generated` and applicable build/boundary checks. |
+| Toolchain/build graph/locks | Doctor, applicable flake/build/boundary checks and affected regeneration; reassess host and CI evidence. |
+
+`just verify-generated` checks drift without repairing it. `just generate-foundation` and `just generate-vs001` actually write their owned catalogs; the parent follows the [regeneration runbook](/runbooks/regenerate-generated-outputs). `update-tree` only refreshes the repository inventory. The [local verification runbook](/runbooks/local-verification) explains each recipe and receipt; the [justfile](https://github.com/Mindclade-org/mindclade-internal-monorepo/blob/main/justfile) is executable command truth.
+
+## Find the contract or codegen owner
+
+Trace a change through the existing pipeline before assigning edits:
+
+1. Authored [TypeSpec](https://github.com/Mindclade-org/mindclade-internal-monorepo/blob/main/contracts/typespec/README.md) defines the interface.
+2. The [official frontend adapter](https://github.com/Mindclade-org/mindclade-internal-monorepo/blob/main/codegen/frontend/typespec/README.md) produces `SemanticInput@v1` (`SemanticInputV1` in Rust), with resolved language and HTTP data. Its descriptor inventory carries path, digest and location.
+3. Rust [Codegen](https://github.com/Mindclade-org/mindclade-internal-monorepo/blob/main/codegen/README.md) receives descriptor bytes separately as `DescriptorSource`; [the compiler](https://github.com/Mindclade-org/mindclade-internal-monorepo/blob/main/codegen/src/pipeline.rs) checks a duplicate-free inventory/byte-source bijection and matching digests. It seals one immutable `MindcladeGraph` with borrowed typed views.
+4. The bounded target IR, [`TargetBundle<'a>`](https://github.com/Mindclade-org/mindclade-internal-monorepo/blob/main/codegen/src/target_ir.rs), borrows that graph. Emitters and the recoverable publisher produce owned products and provenance; generated files never become authored truth.
+
+| Symptom | Inspect the authored owner |
+| --- | --- |
+| Wrong declared operation/type/visibility | `contracts/typespec/` and its reviewed contract; do not patch the SDK. |
+| Missing resolved TypeSpec/HTTP data | `codegen/frontend/typespec/src/`; the adapter does not replace the official compiler or build the semantic graph. |
+| Wrong semantic validation, graph or compatibility | `core/` primitives and `codegen/src/{pipeline,graph,compatibility}*`; inspect the boundary that owns the rule. |
+| Wrong generated serialization/client/adapter | `codegen/src/target_ir.rs` and `codegen/src/emit/`, then regenerate and test the actual consumer. |
+| Publication/drift failure | `codegen/src/{projection,publication}*`, generator inputs and manifests; use the recovery runbook before another writing run. |
+| Service behavior or lifecycle | `services/foundation_echo/` domain behavior or `platform/runtimekit/` infrastructure; generated DTOs do not implement durability. |
+
+For TypeSpec-owned APIs, Protobuf is generated; the planned Proto-first boundary cannot co-own that contract. MCP metadata is not an MCP server, and the bounded Echo TypeScript client is not a complete multi-language SDK. Use the [surface ownership ledger](/architecture/generated-surface-ownership), [Echo reference](/api/vs001-echo) and [runtime foundations](/architecture/foundations/overview) for exact limits.
+
+## Recover without repeating completed work
+
+For an unknown recipe, use bare `just` in the pinned shell and select an existing recipe. For a doctor/toolchain failure, retain the sanitized output and follow [troubleshooting](/developer/troubleshooting); preserve locks and source while the owner resolves prerequisites. After a real source failure, reproduce the relevant failure, fix its owner and rerun affected checks before the final gates.
+
+## Commands and check selection
+
+The following commands belong to the authorized integration owner at the actual checkout root. Follow [start here](/developer/start-here#access-and-first-commands) for the pinned Nix launcher, features, supported hosts and provisioning. Do not replace missing inputs with global installs or host tools. `--offline` is useful only after the committed inputs are available; it is not a fresh-clone promise.
+
+```bash Terminal
+# Discover recipes without running a build, then diagnose local prerequisites.
+nix develop --no-write-lock-file -c just
+nix develop --no-write-lock-file -c just doctor
+
+# A docs-only task may select this loop after reviewing its actual scope.
+# Refresh the mechanical inventory only when paths changed.
+nix develop --no-write-lock-file -c just update-tree
+nix develop --no-write-lock-file -c just check
+```
+
+Doctor is a read-only diagnostic; dirty source blocks its clean-candidate claim and remains untouched. `check` runs fast, scaffold and tree/link checks, including Rust formatting and clippy. It runs no Bazel, generated drift or boundary check. `verify` is the full aggregate required for bootstrap work and run by CI. A scoped docs task must state why narrower local checks apply; it cannot waive remote CI.
+
+| Changed area | Focused feedback and final selection |
+| --- | --- |
+| Prose/navigation | `verify-tree`, `verify-scaffold`; inspect wide/narrow rendering. `update-tree` for path changes; `check` for the fast aggregate. |
+| Rust behavior | Relevant existing `just test <targets>` targets and `fmt-check`; select the full aggregate and behavioral evidence required by the task. |
+| TypeSpec/frontend/compiler | Frontend, compiler and affected consumer/conformance targets; compatibility and deterministic regeneration for affected products. Follow the regeneration runbook before full verification. |
+| Generator/build-bound input | Regenerate each affected catalog, inspect provenance/output diffs, then `verify-generated` and applicable build/boundary checks. |
+| Toolchain/build graph/locks | Doctor, applicable flake/build/boundary checks and affected regeneration; reassess host and CI evidence. |
+
+`just verify-generated` checks drift without repairing it. `just generate-foundation` and `just generate-vs001` actually write their owned catalogs; the parent follows the [regeneration runbook](/runbooks/regenerate-generated-outputs). `update-tree` only refreshes the repository inventory. The [local verification runbook](/runbooks/local-verification) explains each recipe and receipt; the [justfile](https://github.com/Mindclade-org/mindclade-internal-monorepo/blob/main/justfile) is executable command truth.
+
+## Find the contract or codegen owner
+
+Trace a change through the existing pipeline before assigning edits:
+
+1. Authored [TypeSpec](https://github.com/Mindclade-org/mindclade-internal-monorepo/blob/main/contracts/typespec/README.md) defines the interface.
+2. The [official frontend adapter](https://github.com/Mindclade-org/mindclade-internal-monorepo/blob/main/codegen/frontend/typespec/README.md) produces `SemanticInput@v1` (`SemanticInputV1` in Rust), with resolved language and HTTP data. Its descriptor inventory carries path, digest and location.
+3. Rust [Codegen](https://github.com/Mindclade-org/mindclade-internal-monorepo/blob/main/codegen/README.md) receives descriptor bytes separately as `DescriptorSource`; [the compiler](https://github.com/Mindclade-org/mindclade-internal-monorepo/blob/main/codegen/src/pipeline.rs) checks a duplicate-free inventory/byte-source bijection and matching digests. It seals one immutable `MindcladeGraph` with borrowed typed views.
+4. The bounded target IR, [`TargetBundle<'a>`](https://github.com/Mindclade-org/mindclade-internal-monorepo/blob/main/codegen/src/target_ir.rs), borrows that graph. Emitters and the recoverable publisher produce owned products and provenance; generated files never become authored truth.
+
+| Symptom | Inspect the authored owner |
+| --- | --- |
+| Wrong declared operation/type/visibility | `contracts/typespec/` and its reviewed contract; do not patch the SDK. |
+| Missing resolved TypeSpec/HTTP data | `codegen/frontend/typespec/src/`; the adapter does not replace the official compiler or build the semantic graph. |
+| Wrong semantic validation, graph or compatibility | `core/` primitives and `codegen/src/{pipeline,graph,compatibility}*`; inspect the boundary that owns the rule. |
+| Wrong generated serialization/client/adapter | `codegen/src/target_ir.rs` and `codegen/src/emit/`, then regenerate and test the actual consumer. |
+| Publication/drift failure | `codegen/src/{projection,publication}*`, generator inputs and manifests; use the recovery runbook before another writing run. |
+| Service behavior or lifecycle | `services/foundation_echo/` domain behavior or `platform/runtimekit/` infrastructure; generated DTOs do not implement durability. |
+
+For TypeSpec-owned APIs, Protobuf is generated; the planned Proto-first boundary cannot co-own that contract. MCP metadata is not an MCP server, and the bounded Echo TypeScript client is not a complete multi-language SDK. Use the [surface ownership ledger](/architecture/generated-surface-ownership), [Echo reference](/api/vs001-echo) and [runtime foundations](/architecture/foundations/overview) for exact limits.
+
+## Recover without repeating completed work
+
+For an unknown recipe, use bare `just` in the pinned shell and select an existing recipe. For a doctor/toolchain failure, retain the sanitized output and follow [troubleshooting](/developer/troubleshooting); preserve locks and source while the owner resolves prerequisites. After a real source failure, reproduce the relevant failure, fix its owner and rerun affected checks before the final gates.
+
+For a transient GitHub read failure, retain the error and retry the same run ID and attempt with bounded retries. Reconcile its latest state and artifacts before deciding whether any execution failed. A failed status read does not justify restarting a completed check, replaying publication or substituting a newer run. Escalate persistent gaps with the exact identity and missing evidence. Cancellation stays pending until the parent reconciles owned jobs and uncertain effect transient GitHub read failure, retain the error and retry the same run ID and attempt with bounded retries. Reconcile its latest state and artifacts before deciding whether any execution failed. A failed status read does not justify restarting a completed check, replaying publication or substituting a newer run. Escalate persistent gaps with the exact identity and missing evidence. Cancellation stays pending until the parent reconciles owned jobs and uncertain effects.
+
+## Copyable task starter
+
+This brief links to existing records; it adds no WorkPacket/report schema fields.
+
+```text
+Task and outcome: <Linear/specification links; what should change>
+Source/base/candidate: <parent-verified identities; handoff and prior attempt>
+Accepted inputs: <exact references/digests and existing approval anchors>
+Owners and prior roles: <integrator, criteria reviewer, fresh author,
+  task reviewer, whole-candidate reviewer, acceptance owner>
+Owned/excluded paths: <explicit boundaries; preserve other WIP>
+Execution: <parent-owned commands/jobs/Git/remotes; worker read/write limits>
+Checks and budget: <focused feedback, final gates, receipts, attempt limits>
+Stop and handoff: <conflicts, changed inputs, missing evidence, remaining actions>
+```
+
+Optional installed skills can help review developer experience or codegen ergonomics after their repository preconditions are checked. They remain subordinate to repository authority and are not prerequisites for this workflow. `mindclade-modern-contracts` targets a different harness-reference module and does not apply to this checkout. Generic GitLab, Forge/CodegenIrV1 or `mc forge` instructions do not change this repository's GitHub and Codegen design.
+
+## Copyable task starter
+
+This brief links to existing records; it adds no WorkPacket/report schema fields.
+
+```text
+Task and outcome: <Linear/specification links; what should change>
+Source/base/candidate: <parent-verified identities; handoff and prior attempt>
+Accepted inputs: <exact references/digests and existing approval anchors>
+Owners and prior roles: <integrator, criteria reviewer, fresh author,
+  task reviewer, whole-candidate reviewer, acceptance owner>
+Owned/excluded paths: <explicit boundaries; preserve other WIP>
+Execution: <parent-owned commands/jobs/Git/remotes; worker read/write limits>
+Checks and budget: <focused feedback, final gates, receipts, attempt limits>
+Stop and handoff: <conflicts, changed inputs, missing evidence, remaining actions>
+```
+
+Optional installed skills can help review developer experience or codegen ergonomics after their repository preconditions are checked. They remain subordinate to repository authority and are not prerequisites for this workflow. `mindclade-modern-contracts` targets a different harness-reference module and does not apply to this checkout. Generic GitLab, Forge/CodegenIrV1 or `mc forge` instructions do not change this repository's GitHub and Codegen design.
+
+<CardGroup cols={2}>
+  <Card title="Foundation wworkflow" icon="code-branch" href="https://github.com/Mindclade-org/mindclade-internal-monorepo/blob/main/.agents/workflows/foundation-development.md">
+    Tracked workflow and role prompts.
+  </Card>
+
+  <Card title="Supervised rroles" icon="user-shield" href="https://github.com/Mindclade-org/mindclade-internal-monorepo/blob/main/.agents/roles/supervised.md">
+    Role assignments and separationassignments and separation.
+  </Card>
+
+  <Card title="GitHub integrationintegration" icon="github" href="/operations/github-governance">
+    Protected PR and merge  and merge queue runbook.
+  </Card>
+
+  <Card title="Codebase mmap" icon="sitemap" href="/developer/codebase-map">
+    Where the implemented components connectWhere the implemented components connect.
+  </Card>
+
+  <Card title="Local vverification" icon="terminal" href="/runbooks/local-verification">
+    What each recipe runs and where receipts landWhat each recipe runs and where receipts land.
+  </Card>
+
+  <Card title="Regeneration runbook runbook" icon="rotate" href="/runbooks/regenerate-generated-outputs">
+    How to regenerate owned catalogHow to regenerate owned catalogs.
+  </Card>
+</CardGroup>

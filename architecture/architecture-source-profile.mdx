@@ -1,0 +1,86 @@
+---
+title: "Architecture Source and Ownership Profile for Component Models"
+sidebarTitle: "Source Profile"
+description: "Validation rules and read-only APIs for architecture model components, memberships, relations, and the checked descriptor compiler."
+---
+
+This page defines the reviewed B3a source contract for architecture model ownership, component membership, and descriptor compilation. It extends the existing model rather than creating another architecture authority. The compiler plan owns introduction and the later B4 dependency-fact integration.
+
+## Model source of truth
+
+Use the existing `docs/architecture/model/architecture.yaml`; do not create a parallel owner registry. Its top-level schema/name/authority/principles/nodes/ relationships/forbidden fields remain, and B4 adds the required top-level `dependency_policy` field (exactly configurations/allow/deny/external/exclusions; B4 criteria section 5, decision semantics section 6). Unknown keys at every level fail. The current authority keys and meanings remain; authority paths are normalized repository paths (the existing directory authority values retain a single trailing slash), while component ownership roots never have trailing slashes. `authority.graph` is the exact semantic marker `MindcladeGraph`, not a source path.
+
+## Component fields
+
+Existing nodes gain required `owner_role` and `memberships`. RuntimeKit, TestKit and foundation_echo are registered without claiming runtime implementation. Role identifies dependency responsibility, not a concrete approval identity or replacement for CODEOWNERS/Linear. Closed roles for current nodes are contracts, kernel, compiler, generated, architecture, runtimekit, testkit, service, and (B4 R1) conformance and build. No generic wildcard role or implicit role inferred from a path.
+
+Node fields are exactly id/kind/path/maturity/owner_role/memberships/scope/units. `scope` is production or test. `units` is a list with id, path, visibility (public or internal), and scope; a unit path equals or descends from its component path, units in one component do not overlap, and files outside every unit inherit the component scope with internal visibility. Node ID is nonempty dot-separated ASCII identifiers, each `[A-Za-z][A-Za-z0-9_-]*`. Kind retains current values and admits `runtime-envelope`, `test-harness` and `service-composition` for the three new nodes, and (B4 R1) `conformance-suite`, `build-tooling` and `contract-fixture`. Maturity is planned, experimental, partial, or production. A maturity label does not create proof; after the B3b merge the runtime, TestKit and Echo roots are `partial` (B4 R1-09).
+
+### Path rules
+
+`path` is a normalized nonempty relative POSIX root: no leading or trailing slash, empty segment, `.` or `..`, backslash, control byte, URI or glob. Segment alphabet `[A-Za-z0-9._-]+`, with `.` and `..` specially forbidden. Ownership comparison is by complete path segments. `platform/runtimekit2` does not overlap `platform/runtimekit`, but `platform/runtimekit/src` does. Duplicate or ancestor or descendant roots across owners are rejected. The pure parser checks lexical ownership; the generation driver separately binds actual source paths and must reject symlink escape and out-of-root reads before generation.
+
+### Membership fields
+
+Membership fields are exactly kind, id, and configuration, all strings. B3a validates declared ownership; B4 observes actual configured dependencies and required coverage. A declared membership is not an observed target or dependency pass.
+
+| Kind | ID syntax |
+| --- | --- |
+| cargo | Exact workspace package name `[A-Za-z][A-Za-z0-9_-]*`; no path, version selector, feature list, crate source URL or wildcard. |
+| bazel | Absolute main-workspace label `//<normalized package or empty>:<normalized target path>`. Root `//:generator_inputs` and source `//:contracts/typespec/public/echo.tsp` labels are admitted. Target segments use `[A-Za-z0-9_.+-]+`, excluding dot or dot-dot, empty segments and selectors. Reject `@repo`, recursive or wildcard selectors, relative labels and traversal in either half. External references belong to B4 external policy. |
+| typescript | Exact normalized compiler project or module root, without wildcard, traversal, fragment or version syntax. It need not contain package.json or be a published npm package; B4 observes actual resolver or module coverage. |
+
+Configuration token is `[A-Za-z0-9][A-Za-z0-9._-]{0,127}`. `default` in fixtures names a declaration scope only; it is not Linux or macOS coverage or a substitute for B4's later observed configurations. Freeze the configuration IDs with the B4 collector owner before claiming configured dependency validation.
+
+No repeated (kind, id, configuration) tuple, even within the same node. A (kind, id) cannot belong to two components under different configurations; otherwise an owner could change with the build host. A component may list the same package under distinct configurations. The list is required but can be empty for an authoring or documentation or generated boundary with no package yet; runtimekit, testkit and service get explicit planned memberships for their introducing task.
+
+### Relations and forbidden edges
+
+Relations use exactly from, to, and type; both component IDs must resolve. Duplicate relations fail. Existing semantic relation types frontend-input, uses, generates, and constrains are retained. `forbidden` remains its existing closed sum: either from, to, and type (resolved semantic edge) or dependency and reason (named dependency ban), never both. Forbidden edges explicitly admit `semantic-authority`; that value is not implicitly an ordinary relationship type. B4 extends typed production, build, and test policy; B3a must not silently interpret semantic relationships as permission for all runtime dependencies.
+
+Descriptor compiler asks this checked snapshot for owner by exact source path, requiring service role and canonical descriptor location. Ownership of services/foundation_echo cannot be established merely by adding its ID to a YAML string. Descriptor owner, graph architecture binding and emitted manifest all refer to the same validated model and exact architecture byte digest.
+
+These rules validate source ownership declarations. Concrete observed configuration IDs and coverage are B4 requirements; B4 reuses this parser and model. No membership or maturity label establishes runtime activation, allowed dependencies or qualification.
+
+## Read-only compiler API
+
+All checked model, component, and membership fields are private; parsing is the only construction route. `ArchitectureModel` exposes `source_digest() -> &Digest`, `components() -> &[Component]`, `component(id: &str) -> Option<&Component>` and `owner_for_path(path: &str) -> Option<&Component>`. Invalid lookup syntax returns `None`; valid path lookup follows the exact segment ownership rules above. Component accessors include `id() -> &str` and `path() -> &str`, with read-only role, maturity and membership inspection. These expose the validated model; they cannot change its membership or grant dependency permission.
+
+The final graph retains the checked model and descriptor bindings immutably. The view APIs are:
+
+```rust
+impl MindcladeGraph {
+    pub fn architecture_view(&self) -> ArchitectureView<'_>;
+    pub fn service_view(&self) -> ServiceView<'_>;
+}
+impl<'a> ArchitectureView<'a> {
+    pub fn snapshot(&self) -> &'a MindcladeGraph;
+    pub fn model(&self) -> Option<&'a ArchitectureModel>;
+}
+impl<'a> ServiceView<'a> {
+    pub fn snapshot(&self) -> &'a MindcladeGraph;
+    pub fn descriptors(&self) -> impl Iterator<Item = &'a CompiledServiceDescriptor>;
+}
+```
+
+Existing `public_view()` keeps its public declaration filter. Each view borrows this same final snapshot. An architecture-free graph has no bound model or service descriptors; it cannot compile a descriptor by recovering missing data from an ambient path. Private service staging is not another returned graph.
+
+## Related
+
+<CardGroup cols={2}>
+  <Card title="B4 Criteria" icon="code-branch" href="/superpowers/specs/2026-09-26-b4-r1-architecture-model">
+    Gate criteria that extend this ownership model with observed dependency facts.
+  </Card>
+
+  <Card title="ADR-015: Scaffold Alignment" icon="gavel" href="/architecture/adr/adr-015-original-blueprint-scaffold-alignment">
+    Decision record authorizing the original blueprint scaffold.
+  </Card>
+
+  <Card title="Service Descriptor v1" icon="file-code" href="/architecture/service-descriptor-v1">
+    Every deployable eventually carries a compiled service descriptor.
+  </Card>
+
+  <Card title="VS-001 TODO" icon="list-check" href="/architecture/vs001-todo">
+    Remaining VS-001 tasks including C1-C5 durability and D1-D4 assurance work.
+  </Card>
+</CardGroup>

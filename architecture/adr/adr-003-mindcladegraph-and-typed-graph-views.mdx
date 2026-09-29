@@ -1,0 +1,33 @@
+---
+title: "ADR-003: MindcladeGraph and Typed Graph Views"
+sidebarTitle: "ADR-003 Graph Views"
+description: "MindcladeGraph is the immutable compiled semantic graph with typed views for protocol, service, and assurance concerns."
+---
+
+ADR-003 defines `MindcladeGraph` as the immutable compiled semantic graph, with typed graph views that expose the same graph for multiple concerns including protocol, resource, capability, architecture, service, assurance, deployment, and provenance.
+
+| Status | Date | Related |
+| :-- | :-- | :-- |
+| Accepted | 2026-09-22 | Not stated |
+
+## Context
+
+A single graph authority must support multiple consumers (services, planning, validation, codegen) without fragmentation.
+
+## Decision
+
+`MindcladeGraph` is the immutable compiled semantic graph. Typed graph views expose the same graph for protocol, resource, capability, architecture, service, assurance, deployment, and provenance concerns.
+
+## Consequences
+
+- There is one graph authority with multiple typed views.
+- Generated views are reproducible projections.
+- Architecture validation can use the same graph as Codegen.
+
+## Related
+
+<CardGroup cols={2}>
+  <Card title="Architecture" icon="sitemap" href="https://github.com/Mindclade-org/mindclade-internal-monorepo/blob/main/docs/architecture">
+    Architecture documentation directory.
+  </Card>
+</CardGroup>

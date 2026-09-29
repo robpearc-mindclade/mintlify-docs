@@ -1,0 +1,91 @@
+---
+title: "Codebase Alignment Review 2026-09-23: Standards and Spec Fixes"
+sidebarTitle: "Codebase Alignment"
+description: "Review of codebase alignment on 2026-09-23 covering Standards P2 fixes, Spec P2 findings, developer journey CLI improvements, and pinned aggregate verification. Baseline: c333b7d."
+---
+
+This page records the codebase alignment review conducted on 2026-09-23. Nash reviewed Standards and Popper reviewed Spec independently and read-only. Neither review grants authority to publish or bypass protected flow. The review fixed anonymous response envelope validation, malformed source-policy handling, duplicated route syntax validation, anonymous response metadata omission, internal HTTP parameter erasure, and contradictory literal value sealing.
+
+<Warning>
+  This is a user-directed source review and bounded fixes exercise, not operational admission, independent acceptance, or release approval.
+</Warning>
+
+## Summary
+
+| Attribute | Value |
+| --- | --- |
+| Date | 2026-09-23 |
+| Main baseline | `c333b7d3c081c2c64ed19e53cc4c4e6be556b6dd` (PR #2 merged) |
+| Source tree candidate | `e06485096a5d83327715190b411fb68f1c0b705f` |
+| B1 review fixed point | `86d125c337edf9f326d516b3759f6581359d52e0` |
+| Fix branch | `codex/review-alignment` |
+| Reviewers | Nash (Standards), Popper (Spec) |
+| Standards P2 findings | 2 (both corrected) |
+| Spec P2 findings | 3 (all corrected within v1) |
+| Developer journey changes | CLI help, missing-option recovery, Clippy warnings |
+| Pinned aggregate Apple Silicon | PASS: 243 Python tests, 81 Rust tests, five doctests, five Bazel targets |
+
+## Exact scope
+
+Main was freshly fetched at `c333b7d3c081c2c64ed19e53cc4c4e6be556b6dd` (PR #2 merged), whose source tree equals candidate `e06485096a5d83327715190b411fb68f1c0b705f`. Since current-main diff was empty, the announced B1 review fixed point was `86d125c337edf9f326d516b3759f6581359d52e0`: `git diff 86d125c337edf9f326d516b3759f6581359d52e0...e06485096a5d83327715190b411fb68f1c0b705f`. The two commits are the B1 v1 declaration increment and its integration merge. Fixes are on local `codex/review-alignment`, based on fetched main. Obtain exact final commit identity from Git; this document cannot identify its own commit.
+
+The parent also inspected existing Python admission/evidence/build boundaries, CLI behavior and pinned build checks. No implemented Go consumer or generated TypeScript client exists; the official TypeSpec adapter is JavaScript. The OpenAI Agents Python release workflow and upstream TypeSpec changelog rules are not repository policy. No dependency, scaffold activation, semantic authority, public client or schema version was added. This is not an exhaustive security audit of every scaffold file or a performance qualification.
+
+## Standards findings
+
+Two P2 documented-standard findings, both corrected:
+
+1. **Anonymous response envelopes bypassed metadata validation.** The adapter now rejects unnamed response models before lowering, with located diagnostics. Named response envelopes remain supported. This enforces the explicit-failure rule in `docs/architecture/developer-products.md`.
+2. **Malformed source-policy records could throw or silently select the compact frontend.** The adapter now validates the collection, entry and path types; explicitly supplied invalid policies fail with located diagnostics.
+
+One labelled heuristic, possible Duplicated Code: route syntax validation was duplicated between compact and declaration inputs. Both now call one borrowed parser, retaining representation-specific binding checks. A table-driven test checks the same valid/invalid routes against both input forms. No speedup is claimed; this reduces duplicate logic and temporary string ownership.
+
+## Spec findings
+
+Three P2 findings, all corrected within v1:
+
+1. **Anonymous response metadata was silently omitted**, contrary to the durable capability design requirement to reject unrepresented decorators. Frontend tests cover decorated, optional-body and plain anonymous envelopes.
+2. **Internal operation parameter `@path` and `@body` metadata was erased**, contrary to B composition's requirement to represent resolved decorator meaning. These now fail with located `unsupported-http` diagnostics.
+3. **Literal values contradicting their own constraints could seal.** Rust now checks integer bounds, Unicode-scalar string-literal length and the two admitted pattern forms against the literal, enforcing B composition's invalid limit rejection. This is not full runtime string/array validation.
+
+These axes intentionally retain their overlapping finding rather than combining or reranking them. Missing authored contracts, build-bound CLI inventory, expanded compatibility, descriptors and downstream execution remain explicitly partial B1-D4 scope, not newly completed work.
+
+## Developer journey
+
+Audience: compiler contributor discovering safe local commands. Previously, `cargo run --locked -q -p mindclade-codegen -- --help` exited one as an invalid command. It now exits zero with command forms, effects and exit codes; command help is also available. Tests prove stdout/stderr behavior and no output writes. Missing compile options now identify the missing key before input I/O. Existing invalid extra options still fail, and `--check` remains read-only. This additive CLI change does not alter successful graph bytes or a public wire contract.
+
+Clippy initially reported three `collapsible_if` warnings. Mechanical let-chain edits resolve those separately from human Standards findings. Existing pinned tools were reused. No framework or dependency was added.
+
+## Verification and remaining gates
+
+Behavioral regressions were observed before implementation for anonymous envelopes, internal HTTP parameters, malformed policy fallback, contradictory literals and CLI help. Intermediate Rust compile errors were corrected and are not counted as reproduction. Both reviewers re-inspected the complete source fixes and reported no remaining actionable findings within their respective axes. Their review did not execute tests or establish independent acceptance.
+
+The pinned Apple Silicon `nix develop --no-write-lock-file -c just verify` exited zero on the reviewed working tree: 243 Python tests, 81 Rust tests, five doctests, five Bazel targets (four executed, one cached), including 33 frontend cases, and configured-action inspection. Scaffold/tree checks passed for 881 files; all dependency locks remained unchanged. Strict `cargo clippy --workspace --all-targets --locked -- -D warnings` also passed. Missing-tool and failed-command messages inside the Python negative tests are expected assertions, not passing substitutes for failed checks.
+
+The first aggregate receipt records a dirty tree and must not be attributed to clean main. Final clean-commit revalidation is recorded separately under ignored `.superpowers/sdd/2026-09-23-codebase-alignment/`; inspect the actual logs and receipt before making revision-scoped claims. This record is not that receipt.
+
+Codegen regeneration preserved graph bytes with SHA-256 `1ae176bb0076b981c0e35cf1d805f01094c466890f2d1f40f9144bcb28fd731b`. The regenerated manifest is `2685fc46befccf9590a08a947fd24d8821366da7362875f1330d099b6783cd6f`, binding the corrected compiler fingerprint. Read-only generation verification passed. Earlier Linux evidence cannot validate this new manifest. The existing relocated-generation and no-op tests exercise exact bytes, not just hashes.
+
+Observed DevEx measure: help changed from exit one/diagnostic to exit zero/help on stdout; missing-option recovery now names the required key. Human task time, discoverability study, memory and runtime performance were not measured. There is no generated-client clean-consumer or live service lifecycle evidence because those products remain unimplemented. Nonfatal locale and SDK-discovery warnings remain in the local build logs; explicit Nix compiler/linker action checks passed.
+
+Linux CI for these changes, Intel Mac execution, operator-approved governance anchors, protected connected acceptance, shared evidence archival and independent qualification are not established. No remote push, merge or evidence publication is performed by this review. Continue with the ordered [VS-001 TODOs](/architecture/vs001-todo), starting with the remaining B1 work after admission/ownership is established.
+
+## Related
+
+<CardGroup cols={2}>
+  <Card title="VS-001 TODO" icon="list-checks" href="/architecture/vs001-todo">
+    Ordered remaining tasks for the VS-001 semantic development loop, starting with B1 admission and ownership.
+  </Card>
+
+  <Card title="Codebase Finalization" icon="check-circle" href="/architecture/reviews/2026-09-23-codebase-finalization">
+    Existing-code review and finalization covering 971 tracked files and remaining B3-B4, C, D, and G gates.
+  </Card>
+
+  <Card title="Developer Products" icon="code" href="/architecture/developer-products">
+    Compiler and developer-product qualification requirements for official frontend parity and deterministic outputs.
+  </Card>
+
+  <Card title="Engineering Governance" icon="shield" href="/architecture/reviews/2026-09-23-engineering-governance">
+    Supervised engineering governance source review with admission, audit, and CI policy findings.
+  </Card>
+</CardGroup>

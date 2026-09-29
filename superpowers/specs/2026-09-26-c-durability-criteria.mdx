@@ -1,0 +1,2029 @@
+---
+title: "C Durability Criteria: VS-001 Durable Execution (C1–C5)"
+sidebarTitle: "C Durability Spec"
+description: "Revision 3 specification for VS-001 durable execution criteria C1–C5. Covers PostgreSQL selection, Rust client evaluation, fault injection, and the durable execution guarantee with all gates and amendments."
+---
+
+This page is the authoritative specification for the C1–C5 durability criteria of VS-001 Durable Execution. It was independently reviewed and re-reviewed, with all Critical findings resolved. Rob approved checkpoint A on 2026-09-26, accepting every Section 13 recommendation as written, with implementation deferred until after the GitHub Enterprise migration. Nothing here is implemented, and C1–C5 remain BLOCKED (not run). The first step after migration is the author's Section 2 reconciliation with merged source (S3).
+
+## Summary
+
+| Gate | Date | Status |
+| --- | --- | --- |
+| Checkpoint A | 2026-09-26 | Approved |
+| C1–C5 Implementation | Post-migration | BLOCKED |
+| Amendment 1 (Rob's answers) | 2026-09-26 | Approved |
+
+## Amendment 1: 2026-09-26 Checkpoint A Approved
+
+**Approved at checkpoint A on 2026-09-26. Implementation after the migration.** Independently reviewed on 2026-09-26 (three rounds; every finding resolved, the last three verified by the parent). On 2026-09-26 Rob decided to land these criteria as a record and defer C1–C5 implementation until after the GitHub Enterprise migration. Later on 2026-09-26 he approved checkpoint A: every Section 13 recommendation (items 1–14) as written. Nothing here is implemented, and C1–C5 remain BLOCKED — not run. The first step after the migration is the author's Section 2 reconciliation with merged source (S3).
+
+### What the Author Ran
+
+Only read-only evaluation and research. Every command is recorded in Section 3:
+
+- `nix eval` against the locked nixpkgs, with `--read-only` wherever a store path was computed;
+- binary-cache queries;
+- a dependency resolve in scratch packages outside the repository, with an isolated `CARGO_HOME` (index and source download only, no compilation);
+- web reads of crates.io, postgresql.org and the RustSec advisory database.
+
+There was no build, test, Git state change, or edit outside this file.
+
+**Base:** `main` at `72395a3`; branch `claude/vs001-c-durability` (revision 1: `50ef1b4`; revision 2: `51cf879`).
+
+### Unmerged Inputs Read
+
+- `claude/b3b-composition` at `2c018a7` (B3b Stages C/D). This head adds `//services/foundation_echo:supervisor_unit_tests` to the aggregate.
+- `claude/b4-dependency-enforcement` at `091aadd`. This holds the B4 criteria (frozen, with parent rulings A–N in Section 13) and the R1 model `docs/superpowers/specs/2026-09-26-b4-r1-architecture-model.md`. Rob **approved** R1 on 2026-09-26. It is not yet applied: it lands at the start of B4 Stage 2. C's additions to that model (Section 3 OD-2 step 10) are therefore a post-approval change and need re-review under B4 Section 8 ("After R1, any added entry needs re-review").
+
+**[R]** marks a name or path that exists only on one of those heads. Reconcile each one against the merged source before these criteria are frozen (Section 2).
+
+### Parent-Verified Fact Used Here
+
+Stable rustdoc 1.96.1 does **not** enforce `compile_fail` error codes. A doctest tagged `E0308` passes when it fails with `E0425`. Section 6 C5-09 is built around this.
+
+### Authorities (in Order)
+
+1. AGENTS.md: "PostgreSQL state plus transactional outbox as the durable baseline", and modular monolith first.
+2. ADR-001, ADR-002, ADR-004, ADR-008, ADR-009, ADR-010, ADR-013, and ADR-015 with its Preserved Laws.
+3. [architecture-laws](/architecture/architecture-laws) Section Durable Path (line 46).
+4. The binding [C plan](/superpowers/plans/2026-09-23-vs001-c-durability), including its Global Constraints and Review Focus.
+5. The [design](/superpowers/specs/2026-09-23-vs001-durable-capability-design), Sections 3, 5–7 and 10.
+6. The frozen ABIs [service-descriptor-v1](/architecture/service-descriptor-v1) and [service-config-v1](/architecture/service-config-v1). Both defer the durable profile to C1/C2.
+7. The frozen [B3b criteria](/superpowers/specs/2026-09-24-b3b-criteria), on `main` since `57ab5eb`.
+8. The frozen B4 criteria and the approved B4 R1 model, both at `091aadd`.
+9. [Platform and execution](/architecture/foundations/platform-and-execution), [kernel and provenance](/architecture/foundations/kernel-and-provenance), [execution reliability](/architecture/execution-reliability) (its Planned Failure Matrix) and [SYSTEM DESIGN Section Execution, state and recovery](/architecture/system-design).
+
+**Ordering:**
+
+- [Delivery](/superpowers/plans/2026-09-23-vs001-delivery).
+- The [integration readiness register](/superpowers/plans/2026-09-23-v1-integration-readiness): C1 needs completed A and B1–B4; C5 needs B2, C4 and a fresh B4 run.
+- [VS001_TODO](/architecture/vs001-todo), rows C1–C5.
+
+No ADR is dedicated to PostgreSQL or the outbox. `docs/architecture/decisions/` contains only `.gitkeep`.
+
+Where this document disagrees with those sources, the sources win and the criteria reviewer records the conflict. Section 12 lists every departure from the plan.
+
+## 1. Scope, non-goals and the guarantee
+
+No ADR is dedicated to PostgreSQL or the outbox. `docs/architecture/decisions/` contains only `.gitkeep`.
+
+Where this document disagrees with those sources, the sources win and the criteria reviewer records the conflict. Section 12 lists every departure from the plan.
+
+Where this document disagrees with those sources, the sources win and the criteria reviewer records the conflict. Section 12 lists every departure from the plan.
+
+## 1. Scope, non-goals and the guarantee
+
+**In scope:**
+
+- an isolated, real PostgreSQL provided by Nix;
+- a checksum-bound schema;
+- atomic admission with a transactional outbox;
+- canonical idempotency;
+- at-least-once dispatch with inbox deduplication;
+- generations and leases timed by the database;
+- fenced completion;
+- crash/restart recovery;
+- bounded retries;
+- confirmed cancellation;
+- the generated TypeScript client driving the real HTTP → PostgreSQL → worker path.
+
+All of it must hold on Apple Silicon (`aarch64-darwin`) and Linux (`x86_64-linux`).
+
+**The guarantee C proves:**
+
+- delivery is at least once;
+- each Run has at most one authoritative completion;
+- every admitted Run reaches a terminal state (`succeeded`, `failed` or `cancelled`) within three attempts, once a live worker runs reconciliation. A Run that stays non-terminal past the harness deadline fails the test.
+
+This holds across two fault classes:
+
+- process crashes: SIGKILL of the service, worker or recovery child;
+- PostgreSQL crash restarts: `pg_ctl stop -m immediate`, followed by WAL crash recovery.
+
+It does **not** cover power loss or an operating-system crash. On macOS, PostgreSQL's `fsync` path does not force the drive's write cache the way `fsync_writethrough` (F_FULLFSYNC) does. C records `SHOW wal_sync_method` on both hosts (C1-06) and makes no power-loss claim. Whether to claim more is Rob's decision (Section 13 item 12).
+
+**Out of scope.** Each of these is rejected at review if it appears:
+
+- a public async, 202, poll or cancel endpoint;
+- a message broker, Temporal, Kubernetes, Docker, SQLite or any other in-memory "durable" store;
+- any cloud or deployment work;
+- production credentials, passwords, TLS, or a TCP listener for PostgreSQL (OD-4);
+- external effect providers, or any real NOVA or scientific work;
+- replay, capsule sealing or assessment (these are D1–D4);
+- moving slice behaviour into `platform/persistence`, `platform/scheduler`, `services/scheduler`, `services/workers` or `tools/migrations` (OD-3);
+- Intel Mac qualification.
+
+HTTP timeout or client disconnect is **not** cancellation. The success response keeps status 200 and the exact Echo body.
+
+## 2. Dependencies on unmerged gates
+
+Every name below was checked against the source at the head shown.
+
+| Name used here | Source and observed state | Mark |
+| --- | --- | --- |
+| `AdmissionPort::execute(&self, context: &AdmissionContext, request_id: &str, request: EchoRequest) -> Result<EchoResponse, EchoError>` (`Send + Sync`), re-exported at the crate root | `services/foundation_echo/src/{ports,lib}.rs` @ `2c018a7` | [R] |
+| `AdmissionContext::{tenant, environment, identity, descriptor_digest}`, with a `pub(crate)` constructor | same | [R] |
+| `TestAdmission`: stateless, non-durable, never returns 409, and never relabelled | same | [R] |
+| `compose(config, clock, identity, latch, telemetry, admission: Arc<dyn AdmissionPort>)` and `ComposedService::{address, shutdown}`, re-exported at the root | `composition.rs`, `lib.rs` @ `2c018a7` | [R] |
+| `pub mod generated_dto` (DTOs and `EchoCapability` are publicly nameable). `generated_service_http` and `generated_service_config` are **private** modules, so `echo_handler` cannot be named from outside the crate | `lib.rs` lines 47–62 @ `2c018a7` | [R] |
+| `EchoError::{InvalidInput, IdempotencyConflict, Unavailable}` → 400/409/503, with codes `invalid_input`, `idempotency_conflict`, `unavailable` | enum on `main` (`generated/vs001/rust/public.rs`); adapter mapping @ `2c018a7` | merged / [R] |
+| `FaultBarrier::{new, arrive, arrive_or_cancel, release, arrivals, wait_arrivals}`, `Arrival`, `ManualClock::{new, advance}`, `RecordingSink` | `platform/testkit/src` @ `2c018a7` | [R] |
+| RuntimeKit `Clock`, `IdentityProvider`, `ShutdownSignal`, `ShutdownLatch`, `Lifecycle`, `serve`, `RuntimeError`, `TelemetrySink` | `platform/runtimekit/src` on `main` | merged |
+| `AdmissionMode` has only `Test`. B3b compile-fail doctests assert that `AdmissionMode::Durable` does not exist and that `ServiceConfig::new` takes no dependency | `config.rs` on `main`; `lib.rs` doctests @ `2c018a7` | merged / [R]. Conflicts with C5 → OD-6 |
+| Frozen B3b tests that C1 breaks: `b3b_26_the_echo_binary_closure_excludes_testkit` (exact Echo dependency sets) and `b3b_19_sleep_appears_only_in_the_allowlisted_pacing_helper` | `services/foundation_echo/tests/composition.rs` @ `2c018a7` | [R]; transition in Section 5.6 |
+| Bazel `//platform/testkit:{testkit,tests,sources}` and `//services/foundation_echo:{foundation_echo_lib,foundation_echo,binary_deps,composition_compile_fail,composition_in_process,supervisor_unit_tests,composition_rust,process_tests,composition_tests,client_module}` | BUILD files @ `2c018a7` | [R] |
+| `autotests = false`, with explicit `[[test]]` entries, in both `services/foundation_echo/Cargo.toml` and `platform/testkit/Cargo.toml` | @ `2c018a7` | [R] |
+| Process harness `tests/{process.rs,process.test.mjs}`; receipts `FoundationEchoReady@v1` and `FoundationEchoStopped@v1`; stdin `shutdown`; exit codes 0/1/3/4/5 | @ `2c018a7` | [R] |
+| Generated `generated/vs001/service/{config.rs,descriptor.json}` | `main` | merged |
+| Generated `generated/vs001/service/http.rs` | @ `2c018a7` | [R] |
+| `just verify-boundaries`, the four wrappers, and the `verify:` line pinned by `scripts/test_ci_policy.py` | B4 @ `091aadd` | [R] |
+| R1 model: Echo memberships `//services/foundation_echo:{foundation_echo_lib,foundation_echo}` (R1-02, which fixes the earlier `:service` label); unit `services.foundation_echo#tests` = `services/foundation_echo/tests`, scope test (R1-03); the exact 40-entry external allowlist (R1-07); rulings L, M and N | R1 model and B4 criteria Section 13 @ `091aadd`. **Approved by Rob; not yet applied** (lands at B4 Stage 2) | [R] |
+
+If B3b or B4 merges with different names, the implementer stops (S3). The criteria author then reconciles; the implementer never renames to fit.
+
+## 3. Owner decisions: evidence
+
+These are the decisions Rob makes before implementation. Section 13 lists them all with recommendations.
+
+### OD-1 PostgreSQL package and version
+
+**Locked input.** `flake.lock` pins `NixOS/nixpkgs`:
+
+- rev `b6c98e9e6633ee64753b594ff4a5febf0367fc00`;
+- `narHash` `sha256-QpXotokGh5eeMG1Njiuh27oP0rK6t5+cMp7ymXSs7mc=`;
+- original ref `nixpkgs-unstable`;
+- `lastModified` 1790055231.
+
+`flake.nix` does not reference PostgreSQL yet.
+
+**Commands.** These ran on 2026-09-25 on the aarch64-darwin host, Nix 2.35.1, from a scratch directory. `W` is the C worktree; `<sys>` is `aarch64-darwin` or `x86_64-linux`.
+
+```text
+nix flake metadata --inputs-from $W nixpkgs --json
+  → github:NixOS/nixpkgs/b6c98e9e6633ee64753b594ff4a5febf0367fc00?narHash=sha256-QpXo…7mc%3D
+nix eval --inputs-from $W --raw nixpkgs#legacyPackages.<sys>.<attr>.version
+nix eval --read-only --inputs-from $W --raw nixpkgs#legacyPackages.<sys>.<attr>.outPath    (and .drvPath)
+nix eval --read-only --inputs-from $W --json nixpkgs#legacyPackages.<sys>.<attr>.outputs
+nix eval --read-only --inputs-from $W --json nixpkgs#legacyPackages.<sys>.<attr>.meta \
+  --apply 'm: { inherit (m) broken available; platformsHas = builtins.elem "<sys>" m.platforms;
+                license = m.license.spdxId or m.license.shortName or null; }'
+nix path-info --store https://cache.nixos.org <outPath>
+nix store ls --store https://cache.nixos.org <outPath>/bin
+```
+
+The x86_64-linux attributes were evaluated on the Mac. That is evaluation only, not a run on a Linux host. K2 adds the Linux-host receipts.
+
+| Attribute | aarch64-darwin | x86_64-linux |
+| --- | --- | --- |
+| `postgresql` (floating alias) | 18.6 (same out path as `postgresql_18`) | 18.6 (same) |
+| `postgresql_13` | evaluation error: removed since it reached its EOL upstream | same |
+| `postgresql_14` / `_15` / `_16` | 14.24 / 15.19 / 16.15 | same |
+| `postgresql_17` | 17.11 | 17.11 |
+| `postgresql_18` | 18.6 | 18.6 |
+| `postgresql_19` | 19beta3 | 19beta3 |
+
+| Attribute / system | outPath | drvPath |
+| --- | --- | --- |
+| `postgresql_17`, aarch64-darwin | `/nix/store/rckrdii28pir6rrhqcby5z43i0z15d6l-postgresql-17.11` | `/nix/store/5jdp8srjyiyyhxklpyr6xliqcgqycn3m-postgresql-17.11.drv` |
+| `postgresql_17`, x86_64-linux | `/nix/store/0m6z1g5zrgngyysmgj7qsvcz0xz8l8a9-postgresql-17.11` | `/nix/store/d64nl3qnd1fccbdvz4dl93rkpgy99i34-postgresql-17.11.drv` |
+| `postgresql_18`, aarch64-darwin | `/nix/store/9p6vh3k81xpyqmrj6qp8yh1q1nw30hib-postgresql-18.6` | `/nix/store/qf9mxygr0rd036mycz8irvmkl0mybabm-postgresql-18.6.drv` |
+| `postgresql_18`, x86_64-linux | `/nix/store/9i3rafrdlicmvn7bnnzafwq715y9ap23-postgresql-18.6` | `/nix/store/8q7yd4snqsnlxp4bbyv1x81s0fkisvfa-postgresql-18.6.drv` |
+
+Further observations:
+
+- **Metadata (all four builds):** `available = true`, `broken = false`, licence `PostgreSQL`, and the evaluated system is in the platform list.
+- **Outputs:** `out, dev, doc, lib, man, jit, plperl, plpython3, pltcl`, plus `debug` on Linux.
+- **The `out` output** contains `bin/{initdb,postgres,pg_ctl,pg_controldata,pg_isready,…}` and `share/postgresql`.
+- **Linux `initdb` (17.11)** is a Nix binary wrapper around `.initdb-wrapped`. It prefixes `PATH` with glibc-bin and references a separate `-lib` output.
+- **Binary cache:** all four out paths were found in cache.nixos.org. None is in the local store.
+- **Upstream support** ([versioning](https://www.postgresql.org/support/versioning/)): 18.6 and 17.11 are the current minor releases. Final releases are 2030-11-14 for 18 and 2029-11-08 for 17. Version 14 ends 2026-11-12.
+- **Data checksums:** the [18.0 release notes](https://www.postgresql.org/docs/release/18.0/) say "Change initdb default to enable data checksums".
+
+Options:
+
+- **(a) `postgresql_18` = 18.6.**
+- **(b) `postgresql_17` = 17.11.**
+
+Never use the floating alias, 19beta3 or 14. Neither option needs a `flake.lock` change.
+
+### OD-2 Rust PostgreSQL client crate
+
+Constraints:
+
+- B3b's transport is synchronous `std::net`.
+- Repository crates are `unsafe_code = "forbid"`.
+- Dependencies are pinned exactly.
+- No downloads happen inside Bazel actions.
+- Design Section 3 names `postgres`.
+
+**Method:**
+
+- **crates.io API (2026-09-25):** versions, licences, `rust_version` and direct dependencies.
+- **Feature-resolved transitive sets:** from `cargo tree --offline -e normal,build --target <triple> --prefix none`, run in scratch packages (edition 2024, resolver 3) with the Nix Rust 1.96.1 cargo (`/nix/store/vnb5x55g2dpl8p93biap95p0qafzz40h-rust-minimal-1.96.1/bin/cargo`) and a scratch `CARGO_HOME`.
+- **Counting:** "Total" includes the crate itself and excludes dev-dependencies. "New" counts (name, version) pairs absent from the repository's `Cargo.lock`, which holds 27 external packages today.
+- **RustSec:** advisory-db `main` at `e2111519ba6d14a5da59a7b2e5c8083ae8a37c01` (2026-09-25T17:51:57Z), checked by a version-range script over every resolved package. This is not `cargo-audit`.
+
+|  | A. `postgres` 0.19.14 (sync) | B. `tokio-postgres` 0.7.18 + `tokio` rt | C. `sqlx` 0.9.0 (`postgres`, `runtime-tokio`) | D. in-repo client |
+| --- | --- | --- | --- | --- |
+| Released | 2026-06-12 | 2026-06-12 | 2026-05-21 | — |
+| Licence | MIT OR Apache-2.0 | same | same | repository |
+| `rust_version` | 1.85 | 1.85 | 1.94.0 | 1.96.1 |
+| Direct normal dependencies | 6 (`bytes`, `fallible-iterator`, `futures-util`, `log`, `tokio` [`rt`, `time`], `tokio-postgres`) | 18 | 1 mandatory + 4 optional | 0 |
+| Transitive, darwin / linux | **61 / 58** | 60 / 57 | 116 / 116 (124 with `macros`, `migrate`) | 0 |
+| New relative to `Cargo.lock`, darwin / linux | **53 / 50** (Appendix A) | 52 / 49 | 97 (107) | 0 |
+| Proc-macros | `async-trait` (on `syn` 3.0.6, already locked) | same | 6 (8) | — |
+| New build scripts | `getrandom` 0.4.3 and `parking_lot_core` 0.9.12: 11 lines each, cfg detection only, no `Command`, no network | same | 11–15 | — |
+| Native linking | no `links` key; no cc or pkg-config. macOS only: `whoami` → `objc2-system-configuration`/`objc2-core-foundation` link Apple's SystemConfiguration and CoreFoundation frameworks | same | none | — |
+| Second major versions | `sha2` 0.11.0, `digest` 0.11.3, `block-buffer` 0.12.1, `crypto-common` 0.2.2 and `cpufeatures` 0.3.1, next to the pinned `sha2 =0.10.9` line | same | same, plus `hashbrown` and `syn` | — |
+| Resolved versions affected by RustSec | none | none | none | — |
+| Fit | blocking API; tokio hidden in the driver | second concurrency model in service code | async; macros conflict with hermetic Bazel actions | the repository would own a driver |
+
+Family advisories, all dated 2026-06-12 and all patched in the versions `postgres =0.19.14` requires (`tokio-postgres ^0.7.18`, `postgres-protocol ^0.6.12`):
+
+| Advisory | Crate and affected range | Impact |
+| --- | --- | --- |
+| RUSTSEC-2026-0178 | `tokio-postgres` \< 0.7.18 | panic on a short `DataRow` |
+| RUSTSEC-2026-0179 | `postgres-protocol` \< 0.6.12 | unbounded SCRAM iteration count |
+| RUSTSEC-2026-0180 | `postgres-protocol` \< 0.6.12 | panic decoding `hstore` |
+
+So `=0.19.14` is the minimum acceptable pin. A lock that resolves either affected version stops the work (S9).
+
+Observations from the downloaded sources:
+
+- `postgres` runs a private current-thread tokio runtime per connection (`src/config.rs:460`).
+- `tokio-postgres` supports `Host::Unix(PathBuf)`.
+- Neither crate reads environment variables. With no `user` set, however, `tokio-postgres` calls `whoami::username()` (`src/connect_raw.rs:109`).
+- `postgres` has one `unsafe` block (`src/lazy_pin.rs`).
+- All licences in the resolved tree are permissive.
+
+**Bound on the estimate (finding I15).** Appendix A records the expected new-package set. At K3, either of these is a stop (S9) and goes back for re-review:
+
+- the real resolve adds a different set of (name, version) pairs than Appendix A. Legitimate upstream releases since 2026-09-25 count as different;
+- any existing `Cargo.lock` version changes.
+
+The macOS framework link through the Nix cc wrapper is probe P-PG7.
+
+**Bazel wiring. What exists today:**
+
+- one `crate.from_cargo(name = "crates", cargo_lockfile = "//:Cargo.lock", manifests = ["//:Cargo.toml"], host_tools = "@nix_rust//:BUILD", …)` for three triples, using rules_rust 0.74.0;
+- consumers reference `@crates//:<name>` or `all_crate_deps`;
+- Nix tools come through the `foundation` module extension in `tools/build/foundation.bzl`, one `nixpkgs_flake_package` per flake package;
+- `.bazelrc` sets `--lockfile_mode=error`;
+- crates are fetched by repository rules, not actions.
+
+**Bazel wiring. Parent steps (none performed):**
+
+1. **`flake.nix`:** add `postgresqlToolchain = assert pkgs.postgresql_18.version == "18.6"; pkgs.postgresql_18;` (or the 17 equivalent), and add its version to `toolchainInfo`.
+2. **`tools/build/foundation.bzl`:** add `("nix_postgresql", "postgresqlToolchain", …)`, exporting `bin/{initdb,postgres,pg_ctl,pg_controldata}` and a `files` filegroup of `bin/**`, `lib/**` and `share/**`.
+3. **`MODULE.bazel`:** add `use_repo(foundation, …, "nix_postgresql")`.
+4. **Root `Cargo.toml`:** add `postgres = "=0.19.14"`, and the member `services/foundation_echo/testing` (Section 4.3).
+5. **`services/foundation_echo/Cargo.toml`:** add `postgres.workspace = true` (normal). The testing crate is **not** a dev-dependency of Echo. PostgreSQL tests are Bazel-only (Section 4.2), so Echo's dev set stays exactly `{mindclade-testkit}`.
+6. **`Cargo.lock`, reproducing Appendix A exactly (residual I15):**
+   1. Run `nix develop --no-write-lock-file -c cargo fetch` without `--locked`. This adds the new packages and leaves existing pins untouched.
+   2. For every added package whose version differs from Appendix A, run `cargo update -p <name>@<resolved> --precise <Appendix A version>`.
+   3. Check that the lock diff only adds packages, and that the additions equal Appendix A.
+
+   If a `--precise` pin is refused (for example, the version was yanked or is incompatible), stop (S9) and re-review. Do not accept a drifted set.
+7. **`MODULE.bazel.lock`:** run `nix develop --no-write-lock-file -c bazel mod deps --lockfile_mode=update`. Which lock sections change is unverified.
+8. **BUILD deps:** add `@crates//:postgres` to `:foundation_echo_lib`, the testing crate and the test targets. PostgreSQL tests take `data = ["@nix_postgresql//:files"]` plus the env keys in Section 4.2.
+9. **Regeneration:** run `scripts/validate_generator_inputs.py`, then `just generate-foundation` and `just generate-vs001`. `flake.nix`, `Cargo.*`, `MODULE.bazel*` and `foundation.bzl` are generator source inputs.
+10. **B4 model change (finding I5).** R1 is approved (`091aadd`), so these entries are a **post-approval model change**. It needs its own re-review under B4 Section 8 ("After R1, any added entry needs re-review") and Rob's approval, before C1's dependency lands. The entries:
+    - unit `{id: testing, path: services/foundation_echo/testing, visibility: internal, scope: test}`;
+    - memberships `{kind: cargo, id: mindclade-foundation-echo-testing}`, `{kind: bazel, id: "//services/foundation_echo/testing:testing"}` and `{kind: bazel, id: "//services/foundation_echo/testing:recovery_child"}`;
+    - allow `{from: "services.foundation_echo#testing", to: platform.testkit, kinds: [production, test]}`. The Cargo normal edge from the testing crate to TestKit is production kind;
+    - `external: {ecosystem: cargo, name: postgres, from: [services.foundation_echo], kinds: [production, test]}`;
+    - `external: {ecosystem: bazel, name: nix_postgresql, from: [platform.testkit, services.foundation_echo], kinds: [test]}`.
+
+    **[R] B4 ruling needed.** The question is whether a membership-resolved endpoint whose manifest or package lies inside the `testing` unit takes the unit's test scope. The re-reviewer reads B4 Section 6 as a two-step resolution:
+    1. the **component** is resolved by membership, then by path;
+    2. the **unit** is resolved by the endpoint's own path. For a membership node, that path is its manifest (`Cargo.toml`) or its BUILD package path.
+
+    Under that reading the testing crate is test scope. B4 has not yet made the reading an explicit ruling. C5-07 checks it executably. If B4 rules otherwise, the fallback is a Bazel-only testonly crate with no Cargo manifest (S12).
+
+**Parent commands for the authoritative record (K3):**
+
+- `cargo tree --locked -e normal,build --target <triple> -p mindclade-foundation-echo` for both triples;
+- licences from `cargo metadata --locked`;
+- RustSec over the whole `Cargo.lock` at a recorded advisory-db commit.
+
+`cargo-audit` is not in the flake. The parent either provisions it, which is a tool addition Rob must approve (Section 13 item 13), or repeats the version-range check.
+
+### OD-3 Migration location
+
+The plan's location is `services/foundation_echo/migrations/0001_execution.sql`. The related scaffold stubs are listed in Section 5.5:
+
+- `platform/persistence/{migrations,outbox,postgres}/.gitkeep`;
+- `tools/migrations/{apply,check,rollback}.py`;
+- `infra/storage/postgres/.gitkeep`.
+
+Options:
+
+- **(a)** Keep the migration, the runner and the state machine in the service, and leave the stubs planned.
+- **(b)** Activate `platform/persistence` and `tools/migrations` through reviewed transitions.
+
+### OD-4 Test-only trust authentication and database roles
+
+**Common to both options:**
+
+- `listen_addresses = ''`;
+- `pg_hba.conf` holds only `local` trust lines, one per role below, and no `host` lines;
+- DSNs carry no password;
+- production credentials remain out of scope.
+
+**Roles (finding I8):**
+
+- **(a)** One trust role: the initdb superuser, as in the plan. It can `ALTER SYSTEM`, set `session_replication_role`, and disable triggers. So the append-only rule (C1-09) and the durability settings (C1-06) are enforced against the store's own code paths, not against a hostile session.
+- **(b)** Two trust roles:
+  - `mindclade_admin`, a superuser that runs the migration and owns every table;
+  - `mindclade_app`, not a superuser and not an owner, with only the grants the store needs (`SELECT`/`INSERT` everywhere, and `UPDATE` only on the projection columns C1-13 allows).
+
+  The store runs as `mindclade_app`, so the store path cannot `ALTER SYSTEM`, `ALTER TABLE … DISABLE TRIGGER` or `UPDATE` immutable columns. That makes C1-09 and C1-13 hold against the application role, and C1-06 checks `rolsuper = false` on the app session. Tamper helpers and migration use the admin role.
+
+**How the roles are created (Minor N5):**
+
+- `initdb -U mindclade_admin` makes the bootstrap superuser `mindclade_admin`, under both options. No `postgres` role and no OS-user role exist.
+- `PgHarness` is std-only TestKit and has no database driver. B3b-26 pins TestKit's normal dependencies to exactly `{core, runtimekit}`. So the harness creates roles and the database **without a client connection**, in single-user mode, after `initdb` and before `pg_ctl start`:
+  - It runs `postgres --single -j -D <data> postgres` through `MINDCLADE_POSTGRES_BIN`, with `env_clear()`, the harness deadline, and statements supplied on stdin.
+  - Under both options it runs `CREATE DATABASE mindclade OWNER mindclade_admin`.
+  - Under (b) it also runs `CREATE ROLE mindclade_app LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS`.
+  - A non-zero exit returns `TestError::CommandFailure`, and nothing starts.
+- The migration, run as `mindclade_admin`, creates the tables and grants `mindclade_app` only the privileges listed above.
+- `pg_hba.conf` lists exactly these roles.
+
+### OD-5 Retry timings
+
+The design's values are at most three attempts, with persisted delays of 100 ms and 500 ms. `WorkPacket.maximum_attempts` is `@maxValue(3)`.
+
+### OD-6 Durable descriptor and configuration profile (blocks C5 only)
+
+Evidence:
+
+- **service-descriptor-v1:** "C1/C2 will separately review durable admission, required PostgreSQL, connection reference resolution, durable readiness, migration/durability verification and worker bounds. B3a rejects those values."
+- **service-config-v1:** "C1/C2 still need a separately reviewed durable configuration/port/readiness profile". `AdmissionMode` has only `Test`.
+- **B plan:** "C1/C2 introduce the separately reviewed required PostgreSQL profile and readiness probe".
+- **B3b-23 and B3b-27, and B3b's compile-fail doctests:** no `Durable` mode, no dependency argument, and nothing labelled durable.
+
+Relabelling under `AdmissionMode::Test` would violate B3b-27 and platform-and-execution ("a descriptor flag cannot turn the earlier test collaborator into the later implementation").
+
+The profile must fix six things:
+
+1. The descriptor values: `dependencies.postgres.required: true`, `configuration.admission: durable`, and a durable readiness value.
+2. `AdmissionMode::Durable`, and the ready receipt `"admission":"durable"`.
+3. How the binary receives the socket directory. Options:
+   - **(a)** argv `--postgres-socket-dir <absolute path>`, accepted only in the durable local-test profile. The path must be absolute, exist, have mode 0700 and be owned by the process user. Role and database names are fixed profile constants.
+   - **(b)** A first stdin line. This changes B3b-25's frozen control protocol.
+   - **(c)** A file-based reference.
+4. Bounds: concurrent worker claims, dispatch batch limit, lease duration, the request deadline, and **the maximum number of PostgreSQL connections** (C5-12).
+5. A distinct exit code for a failed dependency, migration or durability check.
+6. A reviewed flip of the B3b-23 and B3b-27 compile-fail and labelling tests, done as a parent transition like B2b-20.
+
+## 4. Interfaces
+
+### 4.1 Generated internal DTOs (confirmed present)
+
+`generated/vs001/rust/internal.rs` exists on `main`. It is Codegen output from `contracts/typespec/internal/execution.tsp` (manifest `rust/internal.rs` `sha256:9d66fa96…e07f2f`), reachable publicly as `mindclade_foundation_echo::generated_dto::internal::*` [R]. It defines:
+
+- the records `Admission`, `WorkPacket`, `Dispatch`, `Lease`, `Attempt`, `Completion`, `CancelRequest`, `CancelConfirmation`, `ArtifactRecord` and `EvidenceRecord`;
+- the messages `DispatchMessage`, `CancelMessage` and `ExecutionMessage`;
+- the closed enums `RunState`, `FaultClass` (Deterministic, Transient, Uncertain), `CancelReason` and `ObservationOutcome`;
+- typed references such as `RunReference`.
+
+Notes that bind the criteria:
+
+- **Admission key.** `Admission` has no `capability` field. The `capability` part of the admission key comes from the trusted `AdmissionContext.identity` and `WorkPacket.capability`, never from request bytes.
+- **Generation limit.** `Generation` is `i32` with a minimum of 1, so exhaustion is at `i32::MAX`.
+- **Lease expiry format.** `Lease.expires_at` is `mindclade-utc-millis`, 24 characters.
+- **Termination observation.** `CancelConfirmation.termination_observation` is a required `Sha256`. A confirmation without an observation cannot even be constructed; see C4-02.
+- **References.** `RunRef` and `ArtifactRef` are the kernel `Reference<targets::Run>` and `Reference<targets::Artifact>`. Conversion goes through kernel constructors, which reject a wrong `target_kind`.
+- **Stop condition.** C never hand-writes substitutes in `generated/`. If regeneration loses a type, stop (S5).
+
+### 4.2 Interfaces by task
+
+Items marked ¹ differ from the plan (Section 12).
+
+**C1, TestKit `PgHarness`** (`platform/testkit/src/postgres.rs`, product-neutral, std only, no `unsafe`, no `sleep`):
+
+- `start()`, `start_with(StartOptions)`¹, `dsn(&self, role)`¹, `stop(self)`, `restart(&mut self)`, and `crash_restart(&mut self)`¹.
+- `StartOptions` carries deadlines only. It has **no path, DSN, port or tool field**; a test in `durable_boundaries.rs` checks this by scanning the signature.
+- Constants: `STARTUP_DEADLINE = 30 s`, `STOP_DEADLINE = 30 s`, `INITDB_DEADLINE = 60 s`.
+
+**Binaries** (finding C3). The harness reads four Bazel-declared runfile env keys¹:
+
+- `MINDCLADE_POSTGRES_BIN`
+- `MINDCLADE_INITDB_BIN`
+- `MINDCLADE_PG_CTL_BIN`
+- `MINDCLADE_PG_CONTROLDATA_BIN`
+
+After canonicalisation, all four must lie in one `/nix/store/…/bin` directory. Every child process starts with `env_clear()` plus an explicit allowlist.
+
+**Cluster settings** (Minor):
+
+- `initdb -U mindclade_admin --no-locale -E UTF8 --data-checksums --auth=trust` (roles as in OD-4);
+- `timezone = 'UTC'`, `max_connections = 32`, `listen_addresses = ''`;
+- the default port 5432, which only names the socket file.
+
+**Lifecycle** (finding C3):
+
+| Operation | Command | Effect |
+| --- | --- | --- |
+| bootstrap (first start only) | after `initdb`: `postgres --single -j -D <data> postgres`, with statements on stdin | creates the database and, under OD-4 (b), the `mindclade_app` role. No driver is used (OD-4) |
+| start | `pg_ctl start -w -t 30` | `pg_ctl` does the polling, so the harness never sleeps |
+| `stop` | `pg_ctl stop -m fast -w -t 30` | clean shutdown, then both directories are removed |
+| `restart` | `stop -m fast`, then start | clean restart |
+| `crash_restart` | `pg_ctl stop -m immediate -w`, then start | Immediate mode quits every server process without a checkpoint, so the next start performs WAL crash recovery. `pg_controldata` must report a cluster state other than `shut down` between the stop and the start |
+| `Drop` | best-effort `stop -m immediate`, then directory removal | — |
+
+The harness **never** SIGKILLs the postmaster, because that leaks SysV shared memory and macOS allows few segments (`kern.sysv.shmmni`).
+
+**Errors:**
+
+- `TestError`: `UnavailableTool`, `Startup`, `Timeout`, `CommandFailure`, `Cleanup`.
+- `StoreError`: `Database`, `IncompatibleVersion`, `Integrity`, `Conflict`, `StaleLease`, `InvalidTransition`.
+
+**PostgreSQL tests are Bazel-only** (finding I6). They are not declared as Cargo `[[test]]` targets, and both manifests keep `autotests = false`, as B3b does. Cargo therefore neither compiles nor runs these test files. `cargo test` builds only the libraries, the binaries and the declared tests. Under Bazel, a missing env key fails the test (C1-02).
+
+**C1, store:**
+
+- `PgStore::connect(dsn) -> Result<PgStore, StoreError>` = `connect_with(dsn, Arc::new(NoCheckpoints))`.
+- `PgStore::connect_with(dsn, Arc<dyn Checkpoints>)`¹ is the only way hooks enter.
+- `migrate(&mut self)`.
+- `verify_durability(&mut self)`¹, which `connect_with` runs on every new session.
+- The DSN is key/value only. Allowed keys are exactly `host`, `user`, `dbname` and `application_name`; anything else is rejected (C1-03).
+- `pub const MIGRATION_LOCK_KEY: i64` is the fixed advisory-lock key¹.
+
+**C2:**
+
+- `PgStore::admit(&mut self, &Admission) -> Result<AdmissionResult, StoreError>`, with `AdmissionResult::{Created(RunRef), Existing(RunRef)}`.
+
+**C3:**
+
+- `dispatch_batch(limit: u16)`;
+- `claim(&Identity) -> Option<Lease>`;
+- `complete(&Completion) -> CompletionResult::{Committed(ArtifactRef), AlreadyCommitted(ArtifactRef)}`.
+
+**C4:**
+
+- `request_cancel(&CancelRequest)` and `confirm_cancel(&CancelConfirmation)`, returning `CancelResult::{Pending, Cancelled, AlreadyTerminal}`;
+- `reconcile() -> RecoveryReport`;
+- `record_failure(&Lease, FaultClass)`;
+- `record_exit_observation(&Lease, ExitObservation) -> Sha256`¹, which C4-02 uses.
+
+**Engine entrypoints**¹ (findings C4 and N1). These are the only functions `recovery_child` may call. Each has a stated production caller:
+
+| Entrypoint | Production caller |
+| --- | --- |
+| `admit_and_wait` | `DurableAdmission` |
+| `dispatch_once`, `work_once`, `reconcile_once` | the in-process scheduler loop. `reconcile_once` also confirms a pending cancellation once a matching exit observation is recorded (C4-02) |
+| `record_exit_observation(&Lease, ExitObservation) -> Sha256` | the in-process supervisor, when it observes a worker's termination |
+| `confirm_cancel(&CancelConfirmation)` | `reconcile_once` |
+| `request_cancel(&CancelRequest)` | none in this slice (there is no public cancel endpoint). It is `pub` for the supervisor's later policy path and for tests |
+
+- `work_once` computes results only through `execution::worker::compute_echo_artifact` (N3, below).
+- **Idle waits.** Production idle loops (the scheduler with no work, the dispatcher with an empty batch) wait on `ShutdownLatch::wait_timeout` or a `Condvar`, never `sleep` (residual a).
+
+**Worker computation (finding N3).** There is exactly one deterministic compute function:
+
+- `pub fn compute_echo_artifact(lease: &Lease, request: &EchoRequest) -> Completion` in `services/foundation_echo/src/execution/worker.rs`;
+- it produces canonical fake-NOVA bytes with an explicit non-scientific fixture marker, and provenance references;
+- `Engine::work_once` uses it in production (C5) and in `recovery_child`;
+- the testing crate's `FakeWorker::compute` is a thin wrapper that calls it and counts calls.
+
+So C3/C4 and C5 compute byte-identical artifacts. C3-06 asserts this: for the same `(lease, request)`, `FakeWorker::compute` and a production `work_once` commit equal bytes. TestKit contains no worker (Section 12 D2).
+
+**C5:**
+
+- `DurableAdmission: AdmissionPort` [R].
+- `scripts/verify_vs001.py::run_checks(root, runner=None) -> dict`¹, which resolves `subprocess.run` at call time.
+- `just verify-vs001`.
+
+### 4.3 Fault-injection hooks and test support (proposed mechanism)
+
+**The production seam:**
+
+- the trait is `pub trait Checkpoints: Send + Sync { fn reached(&self, at: Checkpoint) -> Result<(), CheckpointAbort>; }`;
+- `NoCheckpoints` (returns `Ok(())`) is the only production implementor;
+- production `main.rs` constructs `NoCheckpoints`;
+- no configuration, environment, argv or request byte selects a hook.
+
+`Checkpoint` is a closed enum with at least these variants:
+
+| Variant | Where it sits |
+| --- | --- |
+| `AfterRunInsertBeforeOutbox` | admission transaction |
+| `BeforeAdmissionCommit` | admission transaction |
+| `AfterAdmissionCommitBeforeResponse` | after the admission commit |
+| `AfterOutboxRowsLocked` | inside the dispatch transaction |
+| `AtDispatchHandoff` | after the inbox commit, before delivery is marked |
+| `AfterRunLockedForClaim` | inside the claim transaction |
+| `AfterLeaseAcquired` | after the claim commits |
+| `AfterCompletionFence` | step 2 of C3-04, with the Run locked |
+| `BeforeCompletionCommit` | completion transaction |
+| `AfterCompletionCommitBeforeAck` | after the completion commit |
+| `AfterCancelRunLocked` | inside `request_cancel` |
+| `BeforeCancelConfirmation` | before `confirm_cancel` |
+| `AfterCancelConfirmation` | after `confirm_cancel` |
+
+**The testonly crate** `mindclade-foundation-echo-testing`:
+
+- lives at `services/foundation_echo/testing/`;
+- is built by Bazel as `//services/foundation_echo/testing:{testing,recovery_child,compile_fail}`, all `testonly = True`, with `rustc_flags = ["-Funsafe-code"]`;
+- is a Cargo member with `publish = false`, `[lints] workspace = true` and `autotests = false`.
+
+It is limited to **mechanism** (finding C4):
+
+1. **`PgTest` fixture.** It keeps the plan's fixture surface (Minor N4):
+   - `new` and `finish`;
+   - the field `t.store`, a `PgStore` connected as the app role through `connect_with(…, BarrierCheckpoints)`;
+   - one admin-role connection;
+   - `admission(request_id, message) -> Admission`, which builds a validated DTO from fixed fixtures;
+   - `inject_fault(checkpoint: &str)`, which maps the name to `Checkpoint`; an unknown name panics;
+   - `admitted_lease(request_id) -> Lease`, via `admit`, `dispatch_batch` and `claim`;
+   - `expire_and_reassign(&Lease) -> Lease`, via `expire_lease` then `claim`;
+   - `completion(&Lease, message) -> Completion`, via `FakeWorker`.
+
+   None of these asserts anything.
+2. **`observer()`.** A read-only session (`default_transaction_read_only = on`) whose `query_json(sql)` runs only `SELECT` or `WITH … SELECT`.
+3. **Permitted writes.** Outside the store API used through `t.store`, the crate may issue writes of exactly two classes, both on the admin connection. Anything else is forbidden and is caught by the scan.
+   - **(i) Tamper helpers** commit. Each runs with `session_replication_role = replica`: `expire_lease`, `set_retry_eligible_now`, `corrupt_artifact_bytes`, `corrupt_reference_kind`, `set_migration_checksum_byte`, `set_persisted_version`, `set_run_state_without_event`.
+
+     `session_replication_role = replica`: `expire_lease`, `set_retry_eligible_now`, `corrupt_artifact_bytes`, `corrupt_reference_kind`, `set_migration_checksum_byte`, `set_persisted_version`, `set_run_state_without_event`.
+   - **(ii) Lock helpers** (N2) **always roll back** and never commit.
+     - The read-only observer cannot take these locks: PostgreSQL rejects `LOCK TABLE … IN SHARE MODE` and `FOR UPDATE` in a read-only transaction.
+     - Each lock helper holds an open transaction and releases it only by `ROLLBACK`. Its guard's `Drop` also rolls back.
+     - `lock_artifacts_share()`: `LOCK TABLE artifacts IN SHARE MODE`.
+     - `hold_admission_key(key)`: inserts an uncommitted placeholder `runs` row carrying one admission key. This write is never visible to other sessions.
+4. **`BarrierCheckpoints`**, built on `FaultBarrier`.
+5. **`FakeWorker::compute(&Lease, &EchoRequest) -> Completion`**, a counting wrapper around `execution::worker::compute_echo_artifact` (N3).
+6. **`RecoveryHarness`.** It:
+   - spawns `recovery_child` in a mode;
+   - waits for the child's `checkpoint <name>` line;
+   - sends `continue`, or kills the child and records its exit status through `Engine::record_exit_observation`, as the production supervisor would;
+   - calls `crash_restart`.
+7. **`recovery_child`.** Takes its DSN over stdin, calls only the §4.2 `Engine` entrypoints, and contains no SQL. Its modes are `admit`, `work`, `work --until-terminal`, `cancel` (calls `request_cancel`) and `confirm` (calls `reconcile_once`, which calls `confirm_cancel`).
+
+**Observation SQL and case scripts** are reserved to the test author (§5.4): `tests/observe.rs` (every `snapshot` query and invariant) and `tests/recovery_cases.rs` (the steps and expected table for every case, including the plan's `run_recovery_case`).
+
+**Why a separate crate:**
+
+- **Not `cfg(test)`.** It compiles only into the crate's own unit-test binary. The reserved integration tests and child processes link the non-test build, so they could not reach the hooks.
+- **Not a Cargo feature.** B4 collects `--all-features`. Two Bazel variants of one crate have types that do not unify. And production would run code that differs from the tested variant.
+- **What the trait gives.** Identical store code runs in tests and in production. Reachability is enforced by Bazel `testonly`, by B4 `production-to-test`, and by the `binary_deps` genquery (C5-09).
+
+**Unit tests.** In-crate unit tests in `services/foundation_echo/src/**` never use the testing crate or PostgreSQL. Bazel would link two instances of the library.
+
+## 5. Paths
+
+### 5.1 Owned by the C implementer (authored source only)
+
+- `services/foundation_echo/src/execution/{mod,store,admission,dispatch,scheduler,worker,recovery,cancellation}.rs`
+- `services/foundation_echo/migrations/0001_execution.sql`, embedded with `include_str!` and declared as `compile_data`
+- The durable wiring in `services/foundation_echo/src/{composition,main,lib}.rs` [R] (`main.rs` only after OD-6)
+- `services/foundation_echo/testing/src/**`, including `src/bin/recovery_child.rs`. Its reserved `compile_fail.md` is excluded (§5.4).
+- `platform/testkit/src/{postgres,process}.rs`, plus additive changes to `lib.rs` [R]. There is no TestKit worker; the single compute function is service code (§4.2 N3, §12 D2).
+- `scripts/verify_vs001.py`
+
+### 5.2 Parent-owned
+
+- `flake.nix`, `flake.lock` (unchanged), `Cargo.toml`, `Cargo.lock`, `MODULE.bazel`, `MODULE.bazel.lock`
+- **`services/foundation_echo/Cargo.toml`, `services/foundation_echo/testing/Cargo.toml` and `platform/testkit/Cargo.toml`** (Minor). Every dependency line changes `Cargo.lock`.
+- Every `BUILD.bazel`, and `tools/build/foundation.bzl`
+- `justfile`, `.github/workflows/foundation.yaml`, `scripts/{test_ci_policy,verify_foundation,validate_generator_inputs}.py`
+- Codegen regeneration of `generated/`, `REPOSITORY_TREE.md`, `docs/architecture/model/*` and `maturity.yaml`
+- The transitions of frozen B3b tests (§5.6)
+- The OD-6 amendment
+
+### 5.3 Excluded
+
+- `core/**`, `codegen/**` and `platform/runtimekit/**`, apart from what OD-6 grants
+- `contracts/typespec/**` and `generated/**`
+- Every scaffold stub
+- `platform/persistence/**`, `platform/scheduler/**`, `services/scheduler/**`, `services/workers/**`, `tools/migrations/**` and `infra/**`
+- B4 wrappers and collectors [R]
+- D-owned replay and capsule paths
+
+### 5.4 Reserved for the independent test author
+
+The implementer never edits these:
+
+- `services/foundation_echo/tests/{durability,admission,dispatch,recovery,public_durable,durable_boundaries}.rs`
+- `services/foundation_echo/tests/{observe,recovery_cases}.rs`: all observation SQL and case scripts (finding C4)
+- `services/foundation_echo/tests/public_durable.test.mjs`
+- `services/foundation_echo/testing/compile_fail.md`: compile-fail and compiling sibling pairs (C5-09), included by the testing crate as `#[doc = include_str!("../compile_fail.md")] mod compile_fail {}`
+- `platform/testkit/tests/postgres.rs`
+- `scripts/test_verify_vs001.py`
+
+Every file under `services/foundation_echo/tests/` falls in R1's test-scope unit `services.foundation_echo#tests`.
+
+### 5.5 Scaffold-stub scan (complete)
+
+The scan covered `blueprint-scaffold.json` on `main`: 706 directories, 124 files, 707 `stub_files`, 707 `stub_sha256` entries, 18 `preserved_files` and 6 `activated_files`.
+
+- **Nothing C adds is manifest-listed.** That covers `services/foundation_echo/**`, `platform/testkit/src`, `platform/testkit/tests` and `scripts/`.
+- **Manifest-listed paths C touches:**
+  - `flake.nix`, `justfile`, `Cargo.toml`, `Cargo.lock`, `MODULE.bazel` and `BUILD.bazel` are `preserved_files`. Edits are allowed and no transition is needed.
+  - `flake.lock` is an unchanged `activated_file`.
+- **Stubs that stay untouched under OD-3 (a):**
+  - `platform/persistence/{migrations,outbox,postgres}/.gitkeep`
+  - `tools/migrations/{apply,check,rollback}.py`
+  - `infra/storage/{backup,cache,feature_store,object,postgres}/.gitkeep`
+  - `platform/scheduler/.gitkeep`
+  - `runtime/execution/.gitkeep`
+  - `platform/experiments/execution/.gitkeep`
+  - `services/scheduler/{service.descriptor.yaml,src/.gitkeep,tests/.gitkeep}`
+  - `services/workers/{agents,evaluation,features,inference,ingestion,training}/{service.descriptor.yaml,src/.gitkeep}`
+  - `services/control_plane/{migrations,outbox,scheduler}/.gitkeep`
+  - `services/api_gateway/migrations/.gitkeep`
+  - `services/experiment_service/execution/.gitkeep`
+  - `platform/testkit/{assertions,fake_clock,fake_identity,fake_models,fake_storage,fake_workers,fixtures}/.gitkeep`
+  - `platform/runtimekit/{config,descriptors,health,identity,lifecycle,middleware,shutdown,telemetry}/.gitkeep`
+  - `tools/build/{bazel,nix}/.gitkeep`
+- **Result under OD-3 (a):** zero `stub_files`, `stub_sha256` or `activated_files` transitions. The only other model edits are:
+  - `repository-layout.json`, components `platform` and `services`: text only (`purpose` and `activation`; `state` stays `present`);
+  - `maturity.yaml` (C5-08);
+  - the B4 unit and memberships (§3 OD-2, step 10).
+- **Result under OD-3 (b):**
+  - `tools/migrations/*.py` move from `stub_files` to `activated_files`, as in B4-17.
+  - A `platform/persistence/*/.gitkeep` is retired only when real source lands in that directory.
+
+### 5.6 Transitions of frozen B3b tests (finding C2)
+
+These are reviewed parent transitions at C1, like B2b-20. S14 applies if any other frozen test would break.
+
+1. **`b3b_26_the_echo_binary_closure_excludes_testkit`** (`services/foundation_echo/tests/composition.rs`).
+
+   Adding `postgres` at C1 breaks its exact normal-dependency set. The transition changes the expected sets to:
+   - normal: `{mindclade-core, mindclade-runtimekit, postgres, serde, serde_json}`;
+   - dev: `{mindclade-testkit}` (unchanged, because the testing crate is not an Echo dev-dependency);
+   - build: empty (unchanged).
+
+   The Bazel genquery arm is unchanged. C5-09 adds the testing-crate exclusion in C's own reserved test. This is a reviewed edit to a B3b test-author file. It is not the C implementer's.
+2. **`b3b_19_sleep_appears_only_in_the_allowlisted_pacing_helper`**.
+
+   This test scans Echo `src`/`tests` and TestKit `src`/`tests` for `sleep(` outside `fn pace(`. The earlier draft allowed bounded-poll sleeps, which would break it. This revision **forbids `sleep(` in all C code** instead (§7), so **no transition is expected**. The scanned set grows automatically, because Bazel `:sources`, `:test_sources` and `//platform/testkit:sources` are globs. C's reserved `durable_boundaries.rs` extends the same scan to `services/foundation_echo/testing/**`, which b3b_19 does not cover. If an implementation needs a sleep, stop (S14). Never widen the allowlist silently.
+3. **B3b-23 and B3b-27** (compile-fail "no `Durable`", and "nothing labelled durable") flip only through OD-6, at C5.
+
+## 6. Acceptance criteria
+
+The format follows B3b: each criterion gives a positive control (P), negative cases (N) and a Bazel target.
+
+Rules that apply to every criterion:
+
+- **Every negative has a positive control.** A store that rejects everything must not pass.
+- **Negatives name their error.** Each negative names the exact `StoreError` or `TestError` variant, or the exact B4 diagnostic (Minor).
+- **Observation is independent.** Durable assertions are observed on real PostgreSQL through the reserved `observe.rs` queries on an independent read-only session. Method return values alone are never enough.
+- **No skips.** "Fails" means a non-passing Bazel test, never a skip, `#[ignore]` or early return.
+- **Timeouts are failures.** Harness deadlines fail with a distinct "harness timeout" message, and such a timeout is never product success.
+- **Races must overlap (finding I7).** Wherever a criterion says _overlap observed_, the test must see, before releasing the first party, that the second party's backend is waiting on a lock or is inside the contested window, and must record that observation. It identifies the backend by `application_name` in `pg_stat_activity`. Waiting means `wait_event_type = 'Lock'` with a matching ungranted `pg_locks` row; being inside the window means `state = 'idle in transaction'` at a named checkpoint. A race that ran sequentially fails. The waiting loop is deadline-bounded, is paced by `recv_timeout` of a few milliseconds on a channel that never receives (residual a), and never calls `sleep`.
+
+### C1: Harness and schema
+
+**C1-01 Owned, Unix-socket-only cluster.**
+
+- P:
+  - `PgHarness::start` creates, through `mkdtemp`, a data directory and a short socket directory. Both have mode 0700 and are owned by the test user.
+  - The socket path is at most 103 bytes.
+  - `SHOW listen_addresses` is `''`, and `SHOW unix_socket_directories` equals the owned directory.
+  - The postmaster PID owns no TCP listening socket. On Linux this is checked through `/proc/&lt;pid&gt;/net/tcp{,6}` plus `/proc/&lt;pid&gt;/fd` inodes; on macOS through `/usr/sbin/lsof -nP -a -p &lt;pid&gt; -iTCP -sTCP:LISTEN`. The check is scoped to the PID, so a host service on 5432 cannot make it flaky (finding I14).
+- N:
+  - `pg_hba.conf`, read back, has no `host` or `hostssl` line.
+  - Two consecutive harnesses never reuse a directory, and the previous directories no longer exist.
+  - The earlier "pre-created directory" negative is removed. It needed a path option, which C1-03 forbids (finding I14).
+- Target: `//platform/testkit:postgres_tests`.
+
+**C1-02 Tool provenance; missing tools fail.**
+
+- P: all four env keys resolve under one `/nix/store/…/bin` directory, and `postgres --version` reports the OD-1 version.
+- N, each `TestError::UnavailableTool`, and the test **fails**:
+  - an unset key;
+  - a key outside `/nix/store`;
+  - keys spread across two directories;
+  - a version mismatch.
+- N: a decoy `postgres` placed first on `PATH` is never executed.
+- N: the `durable_boundaries.rs` scan finds no `#[ignore]`, and no "missing tool \\u2192 return" path.
+- Target: `//platform/testkit:postgres_tests`.
+
+**C1-03 No ambient or unrestricted DSN.**
+
+- P: `dsn(role)` is `host=&lt;owned dir&gt; user=&lt;role&gt; dbname=&lt;db&gt;`.
+- N:
+  - `DATABASE_URL`, `PGHOST`, `PGPORT`, `PGUSER`, `PGDATABASE`, `PGDATA`, `PGOPTIONS`, `PGPASSFILE`, `PGSERVICE` and `PGSSLMODE` are set to decoys. The DSN is unchanged, and no child sees any of them: a GUC that `PGOPTIONS` would set stays at its default.
+  - `PgStore::connect` rejects each of these before any socket I/O, with `StoreError::Database`:
+    - a URL-form DSN;
+    - an `options` key (for example `options=-c synchronous_commit=off`);
+    - `password`, `hostaddr`, `port` or `sslmode`;
+    - a TCP `host`;
+    - a missing `user`.
+- N (allowlist scan in `durable_boundaries.rs`; findings C1 and residual C1-03). The public surface of `PgHarness`, `StartOptions`, `PgTest` and `RecoveryHarness` must equal exactly these (function, parameter) pairs:
+  - `PgHarness::start()`
+  - `PgHarness::start_with(options: StartOptions)`
+  - `PgHarness::dsn(&self, role: Role)`, where `Role` is a closed enum `{Admin, App}`
+  - `PgHarness::stop(self)`, `PgHarness::restart(&mut self)`, `PgHarness::crash_restart(&mut self)`
+  - `StartOptions` fields `{startup_deadline: Duration, stop_deadline: Duration, initdb_deadline: Duration}`
+  - `PgTest::new()`, `PgTest::finish(self)`, and the public field `PgTest::store: PgStore`, which the plan's tests use as `t.store`
+  - `PgTest::admission(&self, request_id: &str, message: &str)`
+  - `PgTest::inject_fault(&mut self, checkpoint: &str)`
+  - `PgTest::admitted_lease(&mut self, request_id: &str)`
+  - `PgTest::expire_and_reassign(&mut self, lease: &Lease)`
+  - `PgTest::completion(&mut self, lease: &Lease, message: &str)`
+  - `PgTest::observer(&mut self)`, and the tamper and lock helpers of Section 4.3, each with the parameters listed there
+  - `RecoveryHarness::new(test: &mut PgTest)`. It takes the DSN from the fixture and never from a parameter;
+  - `RecoveryHarness::spawn(&mut self, mode: ChildMode)`, `RecoveryHarness::continue_child(&mut self)`, `RecoveryHarness::kill_child(&mut self)`
+
+  Any other `pub fn`, parameter or public field fails. So no DSN, path or tool parameter can exist. D's reserved `replay(capsule_root, &mut PgHarness)` stays DSN-free.
+- Target: `//platform/testkit:postgres_tests`, `//services/foundation_echo:durability_tests`, `//services/foundation_echo:durable_boundaries_tests`.
+
+**C1-04 Bounded startup and shutdown.**
+
+- P:
+  - start is ready within `STARTUP_DEADLINE`;
+  - `stop` (`-m fast`) returns `Ok` within `STOP_DEADLINE`;
+  - after that the postmaster PID from `postmaster.pid` no longer exists (checked by PID) and both directories are removed.
+- N:
+  - `start_with(StartOptions { startup_deadline: 1 ms })` returns `TestError::Timeout`, after which no process of that harness remains and both directories are removed;
+  - `Drop` without `stop` is best-effort only. Cleanup errors surface only through `stop`.
+- Target: `//platform/testkit:postgres_tests`.
+
+**C1-05 Guaranteed teardown and isolation.**
+
+- P: after a test passes, fails or panics, no postgres process of that harness remains, and no socket or data directory remains. The panicking case runs as a child test process.
+- N:
+  - a sibling sentinel directory and a sentinel process survive teardown;
+  - a second, concurrent `PgHarness` keeps serving after the first one stops.
+- Target: `//platform/testkit:postgres_tests`.
+
+**C1-06 Durable settings, checked on every session.**
+
+- P:
+  - the plan's query (`fsync`, `synchronous_commit`, `full_page_writes`) run through the `postgres` crate returns exactly one row whose Boolean is `true`;
+  - `verify_durability` runs on every new store session, because `synchronous_commit` is per session;
+  - under OD-4 (b), the app session has `rolsuper = false`. That role was created by the single-user bootstrap, and `pg_roles` lists exactly `mindclade_admin`, `mindclade_app` and PostgreSQL's built-in `pg_*` roles;
+  - `SHOW data_checksums` and `SHOW wal_sync_method` are recorded as observations.
+- N: each of these makes the next `connect` fail with `StoreError::Database`:
+  - `ALTER SYSTEM SET fsync = off` then `pg_reload_conf()`;
+  - separately, `full_page_writes = off`;
+  - separately, `synchronous_commit = off`.
+
+  These are all reload (SIGHUP) or user-context settings. No restart is needed (Minor).
+- N: `ALTER ROLE &lt;app&gt; SET synchronous_commit = off` makes the next `connect` fail.
+- N (scan in `durable_boundaries.rs`; residual I8): no file in `services/foundation_echo/src/**` or the testing crate issues `SET` or `set_config` for `synchronous_commit`, `fsync` or `full_page_writes` (matched case-insensitively), and none contains `ALTER SYSTEM`.
+  - The only permitted mentions are the `current_setting(...)` reads inside `verify_durability`.
+  - The scan's positive control finds those reads.
+- Target: `//services/foundation_echo:durability_tests`, `//services/foundation_echo:durable_boundaries_tests`.
+
+**C1-07 The migration runs exactly once and is checksum-bound.**
+
+- P:
+  - on a fresh database, `migrate` records exactly one row: version 1 and the SHA-256 of the embedded bytes;
+  - a second `migrate` changes nothing (catalogue identical).
+- N:
+  - one altered checksum byte (tamper helper) \\u2192 `StoreError::Integrity`;
+  - a recorded version of 2 \\u2192 `StoreError::IncompatibleVersion`.
+- N, overlap: `migrate` runs under `pg_advisory_xact_lock(MIGRATION_LOCK_KEY)`. The test holds that lock in an open transaction, starts a `migrate` and observes it waiting in `pg_locks` (`locktype = 'advisory'`, `granted = false`), then releases. Exactly one application follows.
+- N, mid-migration failure: the test pre-creates a table whose name matches the **last** table the reviewed migration creates. `migrate` then fails with `StoreError::Database`, leaving no table from the migration and no version row. This proves the single transaction without a checkpoint (finding I7).
+- Target: `//services/foundation_echo:durability_tests`.
+
+**C1-08 Schema coverage.**
+
+- P:
+  - the tables `runs`, `attempts`, `outbox`, `inbox`, `artifacts`, `evidence` and `events` exist;
+  - every row carries tenant and environment scope and the persisted schema, workflow, contract, policy and packet versions;
+  - events carry a stable identity and a per-Run causal sequence (needed by D1).
+- N: an insert missing any scope or version column is rejected (NOT NULL).
+- Target: `//services/foundation_echo:durability_tests`.
+
+**C1-09 Constraints proven by violation.**
+
+Each case is a deliberately violating statement inside a rolled-back transaction. It runs on the app role under OD-4 (b), or on the single role under (a).
+
+- N, each rejected:
+  - a duplicate `(tenant, environment, capability, request_id)`;
+  - a duplicate (Run, generation) Attempt;
+  - a second authoritative completion or artifact for a Run;
+  - a duplicate outbox or inbox identity;
+  - a duplicate (Run, causal sequence);
+  - a violation of each foreign key;
+  - a state outside the seven `RunState` values;
+  - an `UPDATE` moving a terminal Run;
+  - an `UPDATE` or `DELETE` on `events`, `artifacts` or `evidence`;
+  - under OD-4 (b), `ALTER TABLE … DISABLE TRIGGER`, `ALTER SYSTEM` and `SET session_replication_role` by the app role.
+- P: one legal row per table.
+- Target: `//services/foundation_echo:durability_tests`.
+
+**C1-10 Clean restart and crash restart (finding C3).**
+
+- P, clean: after `restart()` (fast), committed rows and settings survive.
+- P, crash: a row committed immediately before `crash_restart()` (immediate) survives WAL replay. `pg_controldata` showed an unclean state (not `shut down`) between the stop and the start.
+- N:
+  - a transaction open at `crash_restart()` leaves no row;
+  - after every restart, `verify_durability` passes again.
+- Target: `//services/foundation_echo:durability_tests`.
+
+**C1-11 Version receipt.**
+
+- P: `SHOW server_version` equals the OD-1 version on both hosts.
+- N: a mismatch fails.
+- Target: `//services/foundation_echo:durability_tests`, plus the K2 receipt.
+
+**C1-12 Redaction.**
+
+- N: take a canary DSN and password (`postgres://u:CANARY-PW@h/db`, `password=CANARY-PW`) through rejection, `TestError` and `StoreError`. Neither the canary nor `postgres://` appears in any `Display`, `Debug` or telemetry line.
+- P: errors keep their category.
+- Target: `//services/foundation_echo:durability_tests`.
+
+**C1-13 Admission immutability and event-sourced state (finding I12).**
+
+- N: an `UPDATE` of any admission byte, digest, key or version column on `runs` is rejected.
+- P:
+  - every state change appends exactly one event in the same transaction;
+  - after every operation in C2\\u2013C4, the reserved invariant query `state_matches_latest_event` holds for every Run. It asserts that `runs.state` equals the state of the Run's highest-sequence event.
+- N (residual I12, the testable case only): the tamper helper `set_run_state_without_event` desynchronises `runs.state` from the latest event, after which `reconcile()` returns `StoreError::Integrity` and changes nothing.
+- Target: `//services/foundation_echo:durability_tests`, `//services/foundation_echo:recovery_tests`.
+
+## 6. Acceptance criteria
+
+The format follows B3b: each criterion gives a positive control (P), negative cases (N) and a Bazel target.
+
+Rules that apply to every criterion:
+
+- **Every negative has a positive control.** A store that rejects everything must not pass.
+- **Negatives name their error.** Each negative names the exact `StoreError` or `TestError` variant, or the exact B4 diagnostic (Minor).
+- **Observation is independent.** Durable assertions are observed on real PostgreSQL through the reserved `observe.rs` queries on an independent read-only session. Method return values alone are never enough.
+- **No skips.** "Fails" means a non-passing Bazel test, never a skip, `#[ignore]` or early return.
+- **Timeouts are failures.** Harness deadlines fail with a distinct "harness timeout" message, and such a timeout is never product success.
+- **Races must overlap (finding I7).** Wherever a criterion says _overlap observed_, the test must see, before releasing the first party, that the second party's backend is waiting on a lock or is inside the contested window, and must record that observation. It identifies the backend by `application_name` in `pg_stat_activity`. Waiting means `wait_event_type = 'Lock'` with a matching ungranted `pg_locks` row; being inside the window means `state = 'idle in transaction'` at a named checkpoint. A race that ran sequentially fails. The waiting loop is deadline-bounded, is paced by `recv_timeout` of a few milliseconds on a channel that never receives (residual a), and never calls `sleep`.
+
+### C1: Harness and schema
+
+**C1-01 Owned, Unix-socket-only cluster.**
+
+- P:
+  - `PgHarness::start` creates, through `mkdtemp`, a data directory and a short socket directory. Both have mode 0700 and are owned by the test user.
+  - The socket path is at most 103 bytes.
+  - `SHOW listen_addresses` is `''`, and `SHOW unix_socket_directories` equals the owned directory.
+  - The postmaster PID owns no TCP listening socket. On Linux this is checked through `/proc/&lt;pid&gt;/net/tcp{,6}` plus `/proc/&lt;pid&gt;/fd` inodes; on macOS through `/usr/sbin/lsof -nP -a -p &lt;pid&gt; -iTCP -sTCP:LISTEN`. The check is scoped to the PID, so a host service on 5432 cannot make it flaky (finding I14).
+- N:
+  - `pg_hba.conf`, read back, has no `host` or `hostssl` line.
+  - Two consecutive harnesses never reuse a directory, and the previous directories no longer exist.
+  - The earlier "pre-created directory" negative is removed. It needed a path option, which C1-03 forbids (finding I14).
+- Target: `//platform/testkit:postgres_tests`.
+
+**C1-02 Tool provenance; missing tools fail.**
+
+- P: all four env keys resolve under one `/nix/store/…/bin` directory, and `postgres --version` reports the OD-1 version.
+- N, each `TestError::UnavailableTool`, and the test **fails**:
+  - an unset key;
+  - a key outside `/nix/store`;
+  - keys spread across two directories;
+  - a version mismatch.
+- N: a decoy `postgres` placed first on `PATH` is never executed.
+- N: the `durable_boundaries.rs` scan finds no `#[ignore]`, and no "missing tool \\u2192 return" path.
+- Target: `//platform/testkit:postgres_tests`.
+
+**C1-03 No ambient or unrestricted DSN.**
+
+- P: `dsn(role)` is `host=&lt;owned dir&gt; user=&lt;role&gt; dbname=&lt;db&gt;`.
+- N:
+  - `DATABASE_URL`, `PGHOST`, `PGPORT`, `PGUSER`, `PGDATABASE`, `PGDATA`, `PGOPTIONS`, `PGPASSFILE`, `PGSERVICE` and `PGSSLMODE` are set to decoys. The DSN is unchanged, and no child sees any of them: a GUC that `PGOPTIONS` would set stays at its default.
+  - `PgStore::connect` rejects each of these before any socket I/O, with `StoreError::Database`:
+    - a URL-form DSN;
+    - an `options` key (for example `options=-c synchronous_commit=off`);
+    - `password`, `hostaddr`, `port` or `sslmode`;
+    - a TCP `host`;
+    - a missing `user`.
+- N (allowlist scan in `durable_boundaries.rs`; findings C1 and residual C1-03). The public surface of `PgHarness`, `StartOptions`, `PgTest` and `RecoveryHarness` must equal exactly these (function, parameter) pairs:
+  - `PgHarness::start()`
+  - `PgHarness::start_with(options: StartOptions)`
+  - `PgHarness::dsn(&self, role: Role)`, where `Role` is a closed enum `{Admin, App}`
+  - `PgHarness::stop(self)`, `PgHarness::restart(&mut self)`, `PgHarness::crash_restart(&mut self)`
+  - `StartOptions` fields `{startup_deadline: Duration, stop_deadline: Duration, initdb_deadline: Duration}`
+  - `PgTest::new()`, `PgTest::finish(self)`, and the public field `PgTest::store: PgStore`, which the plan's tests use as `t.store`
+  - `PgTest::admission(&self, request_id: &str, message: &str)`
+  - `PgTest::inject_fault(&mut self, checkpoint: &str)`
+  - `PgTest::admitted_lease(&mut self, request_id: &str)`
+  - `PgTest::expire_and_reassign(&mut self, lease: &Lease)`
+  - `PgTest::completion(&mut self, lease: &Lease, message: &str)`
+  - `PgTest::observer(&mut self)`, and the tamper and lock helpers of Section 4.3, each with the parameters listed there
+  - `RecoveryHarness::new(test: &mut PgTest)`. It takes the DSN from the fixture and never from a parameter;
+  - `RecoveryHarness::spawn(&mut self, mode: ChildMode)`, `RecoveryHarness::continue_child(&mut self)`, `RecoveryHarness::kill_child(&mut self)`
+
+  Any other `pub fn`, parameter or public field fails. So no DSN, path or tool parameter can exist. D's reserved `replay(capsule_root, &mut PgHarness)` stays DSN-free.
+- Target: `//platform/testkit:postgres_tests`, `//services/foundation_echo:durability_tests`, `//services/foundation_echo:durable_boundaries_tests`.
+
+**C1-04 Bounded startup and shutdown.**
+
+- P:
+  - start is ready within `STARTUP_DEADLINE`;
+  - `stop` (`-m fast`) returns `Ok` within `STOP_DEADLINE`;
+  - after that the postmaster PID from `postmaster.pid` no longer exists (checked by PID) and both directories are removed.
+- N:
+  - `start_with(StartOptions { startup_deadline: 1 ms })` returns `TestError::Timeout`, after which no process of that harness remains and both directories are removed;
+  - `Drop` without `stop` is best-effort only. Cleanup errors surface only through `stop`.
+- Target: `//platform/testkit:postgres_tests`.
+
+**C1-05 Guaranteed teardown and isolation.**
+
+- P: after a test passes, fails or panics, no postgres process of that harness remains, and no socket or data directory remains. The panicking case runs as a child test process.
+- N:
+  - a sibling sentinel directory and a sentinel process survive teardown;
+  - a second, concurrent `PgHarness` keeps serving after the first one stops.
+- Target: `//platform/testkit:postgres_tests`.
+
+**C1-06 Durable settings, checked on every session.**
+
+- P:
+  - the plan's query (`fsync`, `synchronous_commit`, `full_page_writes`) run through the `postgres` crate returns exactly one row whose Boolean is `true`;
+  - `verify_durability` runs on every new store session, because `synchronous_commit` is per session;
+  - under OD-4 (b), the app session has `rolsuper = false`. That role was created by the single-user bootstrap, and `pg_roles` lists exactly `mindclade_admin`, `mindclade_app` and PostgreSQL's built-in `pg_*` roles;
+  - `SHOW data_checksums` and `SHOW wal_sync_method` are recorded as observations.
+- N: each of these makes the next `connect` fail with `StoreError::Database`:
+  - `ALTER SYSTEM SET fsync = off` then `pg_reload_conf()`;
+  - separately, `full_page_writes = off`;
+  - separately, `synchronous_commit = off`.
+
+  These are all reload (SIGHUP) or user-context settings. No restart is needed (Minor).
+- N: `ALTER ROLE &lt;app&gt; SET synchronous_commit = off` makes the next `connect` fail.
+- N (scan in `durable_boundaries.rs`; residual I8): no file in `services/foundation_echo/src/**` or the testing crate issues `SET` or `set_config` for `synchronous_commit`, `fsync` or `full_page_writes` (matched case-insensitively), and none contains `ALTER SYSTEM`.
+  - The only permitted mentions are the `current_setting(...)` reads inside `verify_durability`.
+  - The scan's positive control finds those reads.
+- Target: `//services/foundation_echo:durability_tests`, `//services/foundation_echo:durable_boundaries_tests`.
+
+**C1-07 The migration runs exactly once and is checksum-bound.**
+
+- P:
+  - on a fresh database, `migrate` records exactly one row: version 1 and the SHA-256 of the embedded bytes;
+  - a second `migrate` changes nothing (catalogue identical).
+- N:
+  - one altered checksum byte (tamper helper) \\u2192 `StoreError::Integrity`;
+  - a recorded version of 2 \\u2192 `StoreError::IncompatibleVersion`.
+- N, overlap: `migrate` runs under `pg_advisory_xact_lock(MIGRATION_LOCK_KEY)`. The test holds that lock in an open transaction, starts a `migrate` and observes it waiting in `pg_locks` (`locktype = 'advisory'`, `granted = false`), then releases. Exactly one application follows.
+- N, mid-migration failure: the test pre-creates a table whose name matches the **last** table the reviewed migration creates. `migrate` then fails with `StoreError::Database`, leaving no table from the migration and no version row. This proves the single transaction without a checkpoint (finding I7).
+- Target: `//services/foundation_echo:durability_tests`.
+
+**C1-08 Schema coverage.**
+
+- P:
+  - the tables `runs`, `attempts`, `outbox`, `inbox`, `artifacts`, `evidence` and `events` exist;
+  - every row carries tenant and environment scope and the persisted schema, workflow, contract, policy and packet versions;
+  - events carry a stable identity and a per-Run causal sequence (needed by D1).
+- N: an insert missing any scope or version column is rejected (NOT NULL).
+- Target: `//services/foundation_echo:durability_tests`.
+
+**C1-09 Constraints proven by violation.**
+
+Each case is a deliberately violating statement inside a rolled-back transaction. It runs on the app role under OD-4 (b), or on the single role under (a).
+
+- N, each rejected:
+  - a duplicate `(tenant, environment, capability, request_id)`;
+  - a duplicate (Run, generation) Attempt;
+  - a second authoritative completion or artifact for a Run;
+  - a duplicate outbox or inbox identity;
+  - a duplicate (Run, causal sequence);
+  - a violation of each foreign key;
+  - a state outside the seven `RunState` values;
+  - an `UPDATE` moving a terminal Run;
+  - an `UPDATE` or `DELETE` on `events`, `artifacts` or `evidence`;
+  - under OD-4 (b), `ALTER TABLE … DISABLE TRIGGER`, `ALTER SYSTEM` and `SET session_replication_role` by the app role.
+- P: one legal row per table.
+- Target: `//services/foundation_echo:durability_tests`.
+
+**C1-10 Clean restart and crash restart (finding C3).**
+
+- P, clean: after `restart()` (fast), committed rows and settings survive.
+- P, crash: a row committed immediately before `crash_restart()` (immediate) survives WAL replay. `pg_controldata` showed an unclean state (not `shut down`) between the stop and the start.
+- N:
+  - a transaction open at `crash_restart()` leaves no row;
+  - after every restart, `verify_durability` passes again.
+- Target: `//services/foundation_echo:durability_tests`.
+
+**C1-11 Version receipt.**
+
+- P: `SHOW server_version` equals the OD-1 version on both hosts.
+- N: a mismatch fails.
+- Target: `//services/foundation_echo:durability_tests`, plus the K2 receipt.
+
+**C1-12 Redaction.**
+
+- N: take a canary DSN and password (`postgres://u:CANARY-PW@h/db`, `password=CANARY-PW`) through rejection, `TestError` and `StoreError`. Neither the canary nor `postgres://` appears in any `Display`, `Debug` or telemetry line.
+- P: errors keep their category.
+- Target: `//services/foundation_echo:durability_tests`.
+
+**C1-13 Admission immutability and event-sourced state (finding I12).**
+
+- N: an `UPDATE` of any admission byte, digest, key or version column on `runs` is rejected.
+- P:
+  - every state change appends exactly one event in the same transaction;
+  - after every operation in C2\\u2013C4, the reserved invariant query `state_matches_latest_event` holds for every Run. It asserts that `runs.state` equals the state of the Run's highest-sequence event.
+- N (residual I12, the testable case only): the tamper helper `set_run_state_without_event` desynchronises `runs.state` from the latest event, after which `reconcile()` returns `StoreError::Integrity` and changes nothing.
+- Target: `//services/foundation_echo:durability_tests`, `//services/foundation_echo:recovery_tests`.
+
+{/* PART-C */}
+
+{/* PART-D */}
+
+- **(ii) Lock helpers** are used only to prove determinism. They each begin a transaction on the admin connection, take the lock described, and return the connection in the open transaction. The helper caller must `ROLLBACK`; nothing in C commits a lock helper transaction.
+  - `hold_admission_key()`, which takes the advisory lock `MIGRATION_LOCK_KEY` on the admin connection.
+  - `lock_artifacts_share()`, which takes `LOCK TABLE artifacts IN SHARE MODE`.
+  - The test author documents which helper is used, and the test checks that the waited-for event is logged.
+
+### 4.4 Reserved files and scenario cases
+
+The plan's fixture methods were split between the testing crate (mechanism) and reserved test files (assertions and observation queries). This was revised in revision 3 (D5):
+
+- `PgTest::{admission, inject_fault, admitted_lease, expire_and_reassign, completion}` and `t.store` are kept in the testing crate with the plan's signatures (N4).
+- `PgTest::snapshot` and `run_recovery_case` moved to reserved files in `tests/`.
+
+The following files are **reserved** for the test author. The implementer may not edit them:
+
+| File | Contents |
+| --- | --- |
+| `tests/observe.rs` | `snapshot(&mut PgTest) -> serde_json::Value`, plus helper functions `run_state`, `outbox_count`, `artifact_count`, `lease_count`, `inbox_count` that each run a read-only `SELECT`. |
+| `tests/recovery_cases.rs` | `run_recovery_case(case)` for pre-defined recovery and cancel case scripts, plus the scenario definitions C4-05 uses. |
+| `tests/durable_boundaries.rs` | C1-02, C1-03, and the C5-09 scans (reserved code that checks the store, harness and testing crate for forbidden patterns). |
+
+The scenario scripts are case functions: each takes a `&mut PgTest`, runs a sequence of store API calls and tamper helpers, and returns a `serde_json::Value` observation. They are used by both the recovery test runner and, when wrapped as in-process harnesses, by the public durable tests (C5-10 to C5-12).
+
+## 5. Implementation order and transitions
+
+### 5.1 Order
+
+C1 and C4 are a single package. C1, C4 and C5 must be started after the durable-profile (OD-6, C0) gate, but K3 discovery does not wait for it.
+
+| Stage | Tasks | What it produces |
+| --- | --- | --- |
+| K3 | OD-2 discovery, probes | Exact lock changes; approved Appendix A |
+| C0 | OD-6 parent transition | The durable profile, descriptor and config; reviewed B3b-23/27 flips |
+| C1 | PostgreSQL harness, schema, settings scan | TestKit `PgHarness`; store `PgStore::connect*`; `verify_durability`; `MIGRATION_LOCK_KEY`; all C1 tests |
+| C2 | Admission (atomic) | `admit` with transactional outbox; idempotency; C2 tests |
+| C3 | Dispatch, claim, complete | Fenced completion with generation lease; C3 tests |
+| C4 | Recovery, cancel, liveness | `reconcile`; `request_cancel`/`confirm_cancel`; `record_exit_observation`; the C4 liveness cases |
+| C5 | End-to-end public durable tests | `DurableAdmission`; `verify_vs001.py`; the public durable MJS cases |
+
+Rob may decide to do C0 before or after C1. C5 must not start without C0.
+
+### 5.2 Cargo.toml ownership
+
+Each manifest is owned by exactly one gate:
+
+| Manifest | Owner |
+| --- | --- |
+| `Cargo.toml` (root) | C |
+| `services/foundation_echo/Cargo.toml` | C |
+| `platform/testkit/Cargo.toml` | C1 |
+| `services/foundation_echo/testing/Cargo.toml` | C |
+
+B3b owns `services/foundation_echo/tests/composition.rs` and the B3b-25 protocol in `tests/process.rs`/`process.test.mjs`.
+
+### 5.3 Scaffold stubs
+
+These directories and files are scaffolded but not implemented:
+
+- `platform/persistence/{migrations,outbox,postgres}/.gitkeep`;
+- `tools/migrations/{apply,check,rollback}.py`;
+- `infra/storage/postgres/.gitkeep`;
+- `services/foundation_echo/migrations/0001_execution.sql`.
+
+They may be activated only through reviewed transitions.
+
+### 5.4 Test-author reserved files
+
+The independent test author writes these from the criteria. The implementer must not edit them:
+
+| File | Criteria |
+| --- | --- |
+| `tests/observe.rs` | C1-03, C1-06, C1-08, C1-09, C1-13, C4-04 |
+| `tests/recovery_cases.rs` | C1-13, C4-01 to C4-05 |
+| `tests/durable_boundaries.rs` | C1-02, C1-03, C5-09, §7 |
+| `tests/public_durable.test.mjs` | C5-01 to C5-04, C5-10 to C5-12 |
+
+### 5.5 B3b transitions
+
+The following B3b tests must be updated by a reviewed parent transition (not by the implementer):
+
+| Test | Change | Where |
+| --- | --- | --- |
+| `b3b_26_the_echo_binary_closure_excludes_testkit` | Add `postgres` to the allowed normal dependencies of `:foundation_echo_lib`. The dev set stays exactly `{mindclade-testkit}`. | `services/foundation_echo/tests/composition.rs` |
+| B3b-23 and B3b-27 compile-fail doctests | Flip: `AdmissionMode::Durable` and `ServiceConfig::new(dep)` must compile; the old tests must fail. | `src/lib.rs` doctests (parent edit) |
+
+`b3b_19_sleep_appears_only_in_the_allowlisted_pacing_helper` is kept unchanged. C forbids `sleep(` in all C source instead.
+
+### 5.6 Store implementation notes (non-binding)
+
+These are suggestions for the implementer, not criteria the test author asserts:
+
+- A single `PgStore` connection pool wrapping `postgres::Client` is sufficient.
+- Use advisory locks (`pg_advisory_lock`) for the migration lock and for the admission key uniqueness check (C1-07).
+- For the outbox, use a `pending` boolean column on the outbox table; `dispatch_batch` flips it to false with `UPDATE … RETURNING`.
+- Store the schema version in a `store_version` table; `verify_durability` reconciles it against an in-code checksum (C1-08).
+- Use `clock_timestamp()` for all wall-clock times in SQL.
+- Append-only tables: `runs`, `outbox`, `artifacts`, `attempts`, `events`. No `DELETE` or `UPDATE` on these tables except the allowed updates in C1-13.
+- The lease table is updated in place; that is not append-only.
+
+## 6. Criteria
+
+Sections 6.1 through 6.5 list the C1 through C5 criteria. Each is a numbered review item with a test label, pass condition and notes. The test author writes the tests from these items.
+
+<Warning>
+  C1–C5 are BLOCKED (not run) until after the GitHub Enterprise migration. No implementation has started. The stop conditions in Section 11 still apply.
+</Warning>
+
+### 6.1 C1: PostgreSQL harness, schema and settings
+
+**C1-01: Socket-only, no TCP.** The harness starts `initdb` and `pg_ctl start` with `listen_addresses = ''`, using a socket in a short directory with mode 0700. On macOS, `lsof -nP -a -p <postmaster pid> -iTCP -sTCP:LISTEN` inside the Bazel test action returns no lines. On Linux, `/proc/<postmaster pid>/net/tcp` shows no listening sockets.
+
+**C1-02: Runfile env keys required.** Under Bazel, each PostgreSQL test fails fast with a clear error if any of `MINDCLADE_POSTGRES_BIN`, `MINDCLADE_INITDB_BIN`, `MINDCLADE_PG_CTL_BIN`, or `MINDCLADE_PG_CONTROLDATA_BIN` is missing. Under Cargo (which has no runfiles), these tests are not compiled or run (Section 4.2).
+
+**C1-03: DSN keys restricted.** `PgStore::connect` rejects a DSN whose key set is not exactly `{host, user, dbname, application_name}`. `connect_with` takes the same DSN restriction. No TCP port, password or SSL parameter is accepted. The `host` value must be a socket directory path.
+
+**C1-04: All binaries from one Nix store path.** After canonicalising the four env values, they all lie in the same `/nix/store/…/bin` directory.
+
+**C1-05: Tool env cleared.** Every child process spawned by `PgHarness` starts with `env_clear()` and an explicit allowlist of at most `{PATH, HOME, TMPDIR}`.
+
+**C1-06: Durability settings checked every session.** `verify_durability` runs on every new store connection and checks every required setting. The check records `wal_sync_method`. The list of checked settings is in a reserved scan (C5-09). The session's `rolsuper` is recorded; under OD-4(b) it must be `false`.
+
+**C1-07: Advisory key pre-created.** Before the migration runs, `PgHarness` creates an empty table `runs` with a unique index on `(admission_key)`. The migration then adds the remaining columns. This proves that the admission key constraint is a persistent index, not a session-level check.
+
+**C1-08: Schema version persisted and rejected.** A `store_version` table holds a single row with the schema checksum. `verify_durability` rejects a connection whose `store_version` row does not match the in-code checksum. A tamper helper `set_persisted_version` changes the stored checksum; the next `verify_durability` on a new connection returns `IncompatibleVersion`.
+
+**C1-09: Append-only enforced.** `durable_boundaries.rs` contains a reserved scan that checks `services/foundation_echo/src/execution/store.rs` for `DELETE` or `UPDATE` on `runs`, `outbox`, `artifacts`, `attempts` or `events`. Only the updates listed in C1-13 are allowed. The scan also checks for `ALTER TABLE … DISABLE TRIGGER` or `ALTER SYSTEM`. Any disallowed pattern fails the test.
+
+**C1-10: WAL crash recovery observed.** `crash_restart` runs `pg_ctl stop -m immediate`, checks `pg_controldata` for a state other than `shut down`, then starts again. The next store connection succeeds and `verify_durability` passes.
+
+**C1-11: Query timeout.** A store query that exceeds the deadline returns `StoreError::Database` with a clear timeout indicator. The timeout is set on the connection or statement, not by a client-side sleep.
+
+**C1-12: DSN redaction.** The DSN logged by `PgStore` (telemetry or debug) omits the `user` value and shows `host=<redacted>`. The full DSN is never printed.
+
+**C1-13: Immutable columns.** A tamper helper that `UPDATE`s a disallowed column on `runs`, `outbox`, `artifacts`, `attempts` or `events` returns `StoreError::Integrity` when the store next reads that row. The allowed column updates are: `lease` (only the worker claim and expiry), `outbox.pending`, `attempts.result`, and `events.observation`.
+
+### 6.2 C2: Admission
+
+**C2-01: Atomic admission with outbox.** Admitting a Run with a new `request_id` inserts exactly one row into `runs` and at least one row into `outbox`, within one transaction. If the transaction commits, both are durable. If it rolls back, neither is present.
+
+**C2-02: Identity in admission key.** The `AdmissionContext` identity and the `WorkPacket.capability` form the admission key. A duplicate admission key with the same identity and capability returns `Existing(RunRef)`.
+
+**C2-03: Idempotency returns the same RunRef.** Repeating an admission with the same `request_id` returns the same `RunRef` and `RunState`.
+
+**C2-04: Conflict on different capability.** Admitting the same `request_id` with a different `WorkPacket.capability` returns `Conflict`.
+
+**C2-05: Concurrent admission races win or block.** Two `admit` calls with the same new `request_id` and `BarrierCheckpoints` at `AfterRunInsertBeforeOutbox` and `BeforeAdmissionCommit` produce exactly one `Created` and one `Existing`. No double insert occurs.
+
+**C2-06: Paused or terminal migrates or fails.** If a Run is already terminal (`succeeded`, `failed`, `cancelled`) or the worker policy rejects it as paused, `admit` returns the existing `RunRef` and the current state. It does not create a new Run.
+
+### 6.3 C3: Dispatch, claim and complete
+
+**C3-01: One outbox row per admitted Run.** Every admitted Run produces exactly one `outbox` row with `pending = true`. A duplicate admission returns the same `RunRef` and produces no new outbox row.
+
+**C3-02: Batch dispatch in order.** `dispatch_batch(limit)` returns up to `limit` outbox rows, ordered by `created_at`. Each returned row has `pending = true`. The rows are locked with `FOR UPDATE SKIP LOCKED`.
+
+**C3-03: Claim with generation lease.** `claim(identity)` atomically finds the oldest pending dispatch, inserts or updates a `lease` row with generation `1`, sets `expires_at` to `now + lease_duration`, and returns the `Lease`. A second concurrent claim on the same Run returns `None` because the lease row is locked.
+
+**C3-04: Fenced completion.** `complete(&Completion)` checks the lease generation: if the `Lease` generation does not match the `Run`'s current generation, it returns `StaleLease`. If it matches, it inserts an `artifact` row and transitions the `Run` to `succeeded` in one transaction. A second `complete` with the same or later generation returns `AlreadyCommitted(ArtifactRef)`.
+
+**C3-05: Dispatch after failure re-enters outbox.** When `record_failure` is called with `FaultClass::Transient`, the Run transitions to `retrying`, the generation increments, and the outbox row is reset to `pending = true` with a new `retry_eligible_at` based on the delay schedule (OD-5). `dispatch_batch` will re-return it.
+
+**C3-06: Same bytes for same input.** For the same `(lease, request)`, `FakeWorker::compute` and a production `work_once` store equal bytes in the committed artifact. The test compares the artifact SHA-256 from both paths.
+
+**C3-07: Deterministic retry schedule.** The retry delays are 100 ms and 500 ms. After two transient failures, the Run transitions to `failed` and the outbox row is not reset.
+
+### 6.4 C4: Recovery, cancel and liveness
+
+**C4-01: Reconcile retries to terminal.** A Run in `retrying` with `retry_eligible_at <= now` is reclaimed by `reconcile()`, given a new lease, and re-dispatched. After three attempts total (the original plus two retries), it transitions to `failed` if still not completed.
+
+**C4-02: Cancel with observation.** `request_cancel(CancelRequest)` transitions the Run to `cancelling` if it is not terminal. `confirm_cancel(CancelConfirmation)` checks `termination_observation`: if it matches the SHA-256 of the recorded `ExitObservation`, the Run transitions to `cancelled`. If the observation does not match, it returns `Pending`. If the Run is already terminal, it returns `AlreadyTerminal`.
+
+**C4-03: Record failure on lease timeout.** If a worker does not complete within the lease duration, `reconcile()` records `FaultClass::Transient`, expires the lease, and re-enters the Run into the outbox (subject to the retry limit).
+
+**C4-04: Tamper detection.** A tamper helper that corrupts a row returns `StoreError::Integrity` on the next store read. The tamper methods are exactly those in Section 4.3.
+
+**C4-05: Liveness across crash/restart.** The scenario cases in `recovery_cases.rs` are run with the process harness. Each case is run 20 times. The flakiness budget is: zero flakes allowed at 20 runs if p \< 0.01, else one flake allowed if p \< 0.05.
+
+The liveness cases are:
+
+| Case | Steps | Expected terminal state |
+| --- | --- | --- |
+| A1 | Admit, crash service mid-dispatch, restart, reconcile | `succeeded` |
+| A2 | Admit, crash worker mid-compute, restart, reconcile | `succeeded` |
+| A3 | Admit, complete, crash before ack, restart | `succeeded` (already committed) |
+| B1 | Admit, request cancel, crash service before confirm, record exit observation, restart, reconcile | `cancelled` |
+| B2 | Admit, dispatch, claim, record failure, crash, restart, reconcile | `failed` (after 3 attempts) or `succeeded` (if a later claim wins) |
+| B3 | Admit, crash PostgreSQL mid-transaction, crash_restart, reconnect, reconcile | `succeeded` (if commit made it to WAL) or `retrying` (if not) |
+| X1 | Admit with all checkpoints held, inject faults at every checkpoint, release randomly, verify no deadlock | all runs terminal |
+| X2 | Stress: 50 concurrent admissions, random crashes, reconcile, verify every run terminal within deadline | all runs terminal |
+
+**C4-06: Budget for the ×50 runs.** The admission and dispatch repeats (K6) must complete within a wall-clock budget recorded by the parent. The recommended budget is 5 minutes for the ×50 admission run and 5 minutes for the ×50 dispatch run, on the CI host with parallelism capped by P-PG3.
+
+### 6.5 C5: End-to-end public durable tests
+
+**C5-01: Durable descriptor and config.** The descriptor contains `dependencies.postgres.required: true`, `configuration.admission: durable`, and a durable readiness value. `AdmissionMode::Durable` exists and the ready receipt contains `"admission":"durable"`. A `ServiceConfig::new` with a dependency argument compiles. A config without the dependency argument does not compile in a durable doctest (compile-fail pair).
+
+**C5-02: Readiness probe with locked admission key.** The public test sends requests while a lock helper holds the admission key. The readiness probe still returns ready. The public test then observes that only one request is admitted; subsequent requests with the same key return the same RunRef.
+
+**C5-03: Close is not cancel.** Closing the client connection does not transition any Run to `cancelled`. A later reconnect and status check shows the Run is still `retrying` or `succeeded`, depending on timing.
+
+**C5-04: Cancel is confirmed, not immediate.** A cancel request through the test helper returns a `CancelResult::Pending`. The Run transitions to `cancelled` only after `confirm_cancel` with a matching `termination_observation`.
+
+**C5-05: Pinned target list.** `verify_vs001.py` checks that the exact target list from Section 8 matches the Bazel query output. No extra test targets are added without an update to the criteria.
+
+**C5-06: Integration test list.** The MJS case driver runs all cases in `recovery_cases.rs` through the public HTTP → PostgreSQL → worker path. Each case produces the same terminal state as the store-level version.
+
+**C5-07: Cycle-free, exact edge checks.** The `testing` crate is a Cargo member with `publish = false` and workspace lints. It has no production dependency on `foundation_echo_lib` (the normal edge is test-only). The negative check is a six-step scratch procedure: create a new Cargo workspace, add the testing crate as a path dependency, attempt `cargo build`, and verify it fails with a message about a missing `foundation_echo_lib` production dependency. The exact error text is recorded by the parent.
+
+**C5-08: No TCP in public tests.** The public test MJS driver checks `SHOW listen_addresses` through the store observer and confirms it is `''`.
+
+**C5-09: Reserved scans.** The `durable_boundaries.rs` reserved file contains scans for:
+
+- no `sleep(` in C source (TestKit, Echo `src`, `tests`, testing crate);
+- no `unsafe` in C source (except the known `postgres` crate block);
+- the exact DSN key allowlist (C1-03);
+- the exact durability settings list (C1-06);
+- no `as_any` or `dyn Any` downcasts in C source (residual b);
+- public items only in generated modules (compile-fail pairs for `generated_service_http` and `generated_service_config`).
+
+**C5-10: Lock waiter observed.** A public test sends a request while a tamper helper holds the admission key. The test confirms that the request is queued (not rejected) and that a telemetry or log entry records the wait.
+
+**C5-11: Worker call counts match.** The telemetry sink records exactly as many `compute_echo_artifact` calls as the store records completed attempts. The counts are compared after the scenario run.
+
+**C5-12: Connection bound enforced.** The store uses at most `B` concurrent connections, where `B` is the bound from the durable profile (OD-6 item 4). A test that launches `B + 1` concurrent admissions observes that the `B + 1`th blocks until a connection is released. The bound is enforced by the connection pool, not by a semaphore in the store code.
+
+## Related
+
+<CardGroup cols={2}>
+  <Card title="C Durability Plan" icon="route" href="/superpowers/plans/2026-09-23-vs001-c-durability">
+    The binding plan with global constraints and review focus for C1–C5.
+  </Card>
+
+  <Card title="Durable Capability Design" icon="lightbulb" href="/superpowers/specs/2026-09-23-vs001-durable-capability-design">
+    Design Sections 3, 5–7 and 10: execution modules, DSN redaction and configuration bounds.
+  </Card>
+
+  <Card title="B3b Criteria" icon="shield-check" href="/superpowers/specs/2026-09-24-b3b-criteria">
+    Frozen composition criteria on main since 57ab5eb, with the B3b-26 and B3b-27 tests C transitions.
+  </Card>
+
+  <Card title="B4 Dependency Enforcement" icon="lock" href="/superpowers/specs/2026-09-24-b4-criteria">
+    Frozen B4 criteria and the approved R1 model at 091aadd, which C extends under B4 Section 8.
+  </Card>
+
+  <Card title="Integration Readiness" icon="clipboard-check" href="/superpowers/plans/2026-09-23-v1-integration-readiness">
+    The register that tracks C1–C5 prerequisites and gate ordering.
+  </Card>
+
+  <Card title="VS001 TODO" icon="list-checks" href="/architecture/vs001-todo">
+    Rows C1–C5 in the architecture todo, with dependencies and blocker status.
+  </Card>
+</CardGroup>
+
+- **(ii) Lock helpers** are used only to prove determinism. They each begin a transaction on the admin connection, take the lock described, and return the connection in the open transaction. The helper caller must `ROLLBACK`; nothing in C commits a lock helper transaction.
+  - `hold_admission_key()`, which takes the advisory lock `MIGRATION_LOCK_KEY` on the admin connection.
+  - `lock_artifacts_share()`, which takes `LOCK TABLE artifacts IN SHARE MODE`.
+  - The test author documents which helper is used, and the test checks that the waited-for event is logged.
+
+### 4.4 Reserved files and scenario cases
+
+The plan's fixture methods were split between the testing crate (mechanism) and reserved test files (assertions and observation queries). This was revised in revision 3 (D5):
+
+- `PgTest::{admission, inject_fault, admitted_lease, expire_and_reassign, completion}` and `t.store` are kept in the testing crate with the plan's signatures (N4).
+- `PgTest::snapshot` and `run_recovery_case` moved to reserved files in `tests/`.
+
+The following files are **reserved** for the test author. The implementer may not edit them:
+
+| File | Contents |
+| --- | --- |
+| `tests/observe.rs` | `snapshot(&mut PgTest) -> serde_json::Value`, plus helper functions `run_state`, `outbox_count`, `artifact_count`, `lease_count`, `inbox_count` that each run a read-only `SELECT`. |
+| `tests/recovery_cases.rs` | `run_recovery_case(case)` for pre-defined recovery and cancel case scripts, plus the scenario definitions C4-05 uses. |
+| `tests/durable_boundaries.rs` | C1-02, C1-03, and the C5-09 scans (reserved code that checks the store, harness and testing crate for forbidden patterns). |
+
+The scenario scripts are case functions: each takes a `&mut PgTest`, runs a sequence of store API calls and tamper helpers, and returns a `serde_json::Value` observation. They are used by both the recovery test runner and, when wrapped as in-process harnesses, by the public durable tests (C5-10 to C5-12).
+
+## 5. Implementation order and transitions
+
+### 5.1 Order
+
+C1 and C4 are a single package. C1, C4 and C5 must be started after the durable-profile (OD-6, C0) gate, but K3 discovery does not wait for it.
+
+| Stage | Tasks | What it produces |
+| --- | --- | --- |
+| K3 | OD-2 discovery, probes | Exact lock changes; approved Appendix A |
+| C0 | OD-6 parent transition | The durable profile, descriptor and config; reviewed B3b-23/27 flips |
+| C1 | PostgreSQL harness, schema, settings scan | TestKit `PgHarness`; store `PgStore::connect*`; `verify_durability`; `MIGRATION_LOCK_KEY`; all C1 tests |
+| C2 | Admission (atomic) | `admit` with transactional outbox; idempotency; C2 tests |
+| C3 | Dispatch, claim, complete | Fenced completion with generation lease; C3 tests |
+| C4 | Recovery, cancel, liveness | `reconcile`; `request_cancel`/`confirm_cancel`; `record_exit_observation`; the C4 liveness cases |
+| C5 | End-to-end public durable tests | `DurableAdmission`; `verify_vs001.py`; the public durable MJS cases |
+
+Rob may decide to do C0 before or after C1. C5 must not start without C0.
+
+### 5.2 Cargo.toml ownership
+
+Each manifest is owned by exactly one gate:
+
+| Manifest | Owner |
+| --- | --- |
+| `Cargo.toml` (root) | C |
+| `services/foundation_echo/Cargo.toml` | C |
+| `platform/testkit/Cargo.toml` | C1 |
+| `services/foundation_echo/testing/Cargo.toml` | C |
+
+B3b owns `services/foundation_echo/tests/composition.rs` and the B3b-25 protocol in `tests/process.rs`/`process.test.mjs`.
+
+### 5.3 Scaffold stubs
+
+These directories and files are scaffolded but not implemented:
+
+- `platform/persistence/{migrations,outbox,postgres}/.gitkeep`;
+- `tools/migrations/{apply,check,rollback}.py`;
+- `infra/storage/postgres/.gitkeep`;
+- `services/foundation_echo/migrations/0001_execution.sql`.
+
+They may be activated only through reviewed transitions.
+
+### 5.4 Test-author reserved files
+
+The independent test author writes these from the criteria. The implementer must not edit them:
+
+| File | Criteria |
+| --- | --- |
+| `tests/observe.rs` | C1-03, C1-06, C1-08, C1-09, C1-13, C4-04 |
+| `tests/recovery_cases.rs` | C1-13, C4-01 to C4-05 |
+| `tests/durable_boundaries.rs` | C1-02, C1-03, C5-09, §7 |
+| `tests/public_durable.test.mjs` | C5-01 to C5-04, C5-10 to C5-12 |
+
+### 5.5 B3b transitions
+
+The following B3b tests must be updated by a reviewed parent transition (not by the implementer):
+
+| Test | Change | Where |
+| --- | --- | --- |
+| `b3b_26_the_echo_binary_closure_excludes_testkit` | Add `postgres` to the allowed normal dependencies of `:foundation_echo_lib`. The dev set stays exactly `{mindclade-testkit}`. | `services/foundation_echo/tests/composition.rs` |
+| B3b-23 and B3b-27 compile-fail doctests | Flip: `AdmissionMode::Durable` and `ServiceConfig::new(dep)` must compile; the old tests must fail. | `src/lib.rs` doctests (parent edit) |
+
+`b3b_19_sleep_appears_only_in_the_allowlisted_pacing_helper` is kept unchanged. C forbids `sleep(` in all C source instead.
+
+### 5.6 Store implementation notes (non-binding)
+
+These are suggestions for the implementer, not criteria the test author asserts:
+
+- A single `PgStore` connection pool wrapping `postgres::Client` is sufficient.
+- Use advisory locks (`pg_advisory_lock`) for the migration lock and for the admission key uniqueness check (C1-07).
+- For the outbox, use a `pending` boolean column on the outbox table; `dispatch_batch` flips it to false with `UPDATE … RETURNING`.
+- Store the schema version in a `store_version` table; `verify_durability` reconciles it against an in-code checksum (C1-08).
+- Use `clock_timestamp()` for all wall-clock times in SQL.
+- Append-only tables: `runs`, `outbox`, `artifacts`, `attempts`, `events`. No `DELETE` or `UPDATE` on these tables except the allowed updates in C1-13.
+- The lease table is updated in place; that is not append-only.
+
+## 6. Criteria
+
+Sections 6.1 through 6.5 list the C1 through C5 criteria. Each is a numbered review item with a test label, pass condition and notes. The test author writes the tests from these items.
+
+<Warning>
+  C1–C5 are BLOCKED (not run) until after the GitHub Enterprise migration. No implementation has started. The stop conditions in Section 11 still apply.
+</Warning>
+
+### 6.1 C1: PostgreSQL harness, schema and settings
+
+**C1-01: Socket-only, no TCP.** The harness starts `initdb` and `pg_ctl start` with `listen_addresses = ''`, using a socket in a short directory with mode 0700. On macOS, `lsof -nP -a -p <postmaster pid> -iTCP -sTCP:LISTEN` inside the Bazel test action returns no lines. On Linux, `/proc/<postmaster pid>/net/tcp` shows no listening sockets.
+
+**C1-02: Runfile env keys required.** Under Bazel, each PostgreSQL test fails fast with a clear error if any of `MINDCLADE_POSTGRES_BIN`, `MINDCLADE_INITDB_BIN`, `MINDCLADE_PG_CTL_BIN`, or `MINDCLADE_PG_CONTROLDATA_BIN` is missing. Under Cargo (which has no runfiles), these tests are not compiled or run (Section 4.2).
+
+**C1-03: DSN keys restricted.** `PgStore::connect` rejects a DSN whose key set is not exactly `{host, user, dbname, application_name}`. `connect_with` takes the same DSN restriction. No TCP port, password or SSL parameter is accepted. The `host` value must be a socket directory path.
+
+**C1-04: All binaries from one Nix store path.** After canonicalising the four env values, they all lie in the same `/nix/store/…/bin` directory.
+
+**C1-05: Tool env cleared.** Every child process spawned by `PgHarness` starts with `env_clear()` and an explicit allowlist of at most `{PATH, HOME, TMPDIR}`.
+
+**C1-06: Durability settings checked every session.** `verify_durability` runs on every new store connection and checks every required setting. The check records `wal_sync_method`. The list of checked settings is in a reserved scan (C5-09). The session's `rolsuper` is recorded; under OD-4(b) it must be `false`.
+
+**C1-07: Advisory key pre-created.** Before the migration runs, `PgHarness` creates an empty table `runs` with a unique index on `(admission_key)`. The migration then adds the remaining columns. This proves that the admission key constraint is a persistent index, not a session-level check.
+
+**C1-08: Schema version persisted and rejected.** A `store_version` table holds a single row with the schema checksum. `verify_durability` rejects a connection whose `store_version` row does not match the in-code checksum. A tamper helper `set_persisted_version` changes the stored checksum; the next `verify_durability` on a new connection returns `IncompatibleVersion`.
+
+**C1-09: Append-only enforced.** `durable_boundaries.rs` contains a reserved scan that checks `services/foundation_echo/src/execution/store.rs` for `DELETE` or `UPDATE` on `runs`, `outbox`, `artifacts`, `attempts` or `events`. Only the updates listed in C1-13 are allowed. The scan also checks for `ALTER TABLE … DISABLE TRIGGER` or `ALTER SYSTEM`. Any disallowed pattern fails the test.
+
+**C1-10: WAL crash recovery observed.** `crash_restart` runs `pg_ctl stop -m immediate`, checks `pg_controldata` for a state other than `shut down`, then starts again. The next store connection succeeds and `verify_durability` passes.
+
+**C1-11: Query timeout.** A store query that exceeds the deadline returns `StoreError::Database` with a clear timeout indicator. The timeout is set on the connection or statement, not by a client-side sleep.
+
+**C1-12: DSN redaction.** The DSN logged by `PgStore` (telemetry or debug) omits the `user` value and shows `host=<redacted>`. The full DSN is never printed.
+
+**C1-13: Immutable columns.** A tamper helper that `UPDATE`s a disallowed column on `runs`, `outbox`, `artifacts`, `attempts` or `events` returns `StoreError::Integrity` when the store next reads that row. The allowed column updates are: `lease` (only the worker claim and expiry), `outbox.pending`, `attempts.result`, and `events.observation`.
+
+### 6.2 C2: Admission
+
+**C2-01: Atomic admission with outbox.** Admitting a Run with a new `request_id` inserts exactly one row into `runs` and at least one row into `outbox`, within one transaction. If the transaction commits, both are durable. If it rolls back, neither is present.
+
+**C2-02: Identity in admission key.** The `AdmissionContext` identity and the `WorkPacket.capability` form the admission key. A duplicate admission key with the same identity and capability returns `Existing(RunRef)`.
+
+**C2-03: Idempotency returns the same RunRef.** Repeating an admission with the same `request_id` returns the same `RunRef` and `RunState`.
+
+**C2-04: Conflict on different capability.** Admitting the same `request_id` with a different `WorkPacket.capability` returns `Conflict`.
+
+**C2-05: Concurrent admission races win or block.** Two `admit` calls with the same new `request_id` and `BarrierCheckpoints` at `AfterRunInsertBeforeOutbox` and `BeforeAdmissionCommit` produce exactly one `Created` and one `Existing`. No double insert occurs.
+
+**C2-06: Paused or terminal migrates or fails.** If a Run is already terminal (`succeeded`, `failed`, `cancelled`) or the worker policy rejects it as paused, `admit` returns the existing `RunRef` and the current state. It does not create a new Run.
+
+### 6.3 C3: Dispatch, claim and complete
+
+**C3-01: One outbox row per admitted Run.** Every admitted Run produces exactly one `outbox` row with `pending = true`. A duplicate admission returns the same `RunRef` and produces no new outbox row.
+
+**C3-02: Batch dispatch in order.** `dispatch_batch(limit)` returns up to `limit` outbox rows, ordered by `created_at`. Each returned row has `pending = true`. The rows are locked with `FOR UPDATE SKIP LOCKED`.
+
+**C3-03: Claim with generation lease.** `claim(identity)` atomically finds the oldest pending dispatch, inserts or updates a `lease` row with generation `1`, sets `expires_at` to `now + lease_duration`, and returns the `Lease`. A second concurrent claim on the same Run returns `None` because the lease row is locked.
+
+**C3-04: Fenced completion.** `complete(&Completion)` checks the lease generation: if the `Lease` generation does not match the `Run`'s current generation, it returns `StaleLease`. If it matches, it inserts an `artifact` row and transitions the `Run` to `succeeded` in one transaction. A second `complete` with the same or later generation returns `AlreadyCommitted(ArtifactRef)`.
+
+**C3-05: Dispatch after failure re-enters outbox.** When `record_failure` is called with `FaultClass::Transient`, the Run transitions to `retrying`, the generation increments, and the outbox row is reset to `pending = true` with a new `retry_eligible_at` based on the delay schedule (OD-5). `dispatch_batch` will re-return it.
+
+**C3-06: Same bytes for same input.** For the same `(lease, request)`, `FakeWorker::compute` and a production `work_once` store equal bytes in the committed artifact. The test compares the artifact SHA-256 from both paths.
+
+**C3-07: Deterministic retry schedule.** The retry delays are 100 ms and 500 ms. After two transient failures, the Run transitions to `failed` and the outbox row is not reset.
+
+### 6.4 C4: Recovery, cancel and liveness
+
+**C4-01: Reconcile retries to terminal.** A Run in `retrying` with `retry_eligible_at <= now` is reclaimed by `reconcile()`, given a new lease, and re-dispatched. After three attempts total (the original plus two retries), it transitions to `failed` if still not completed.
+
+**C4-02: Cancel with observation.** `request_cancel(CancelRequest)` transitions the Run to `cancelling` if it is not terminal. `confirm_cancel(CancelConfirmation)` checks `termination_observation`: if it matches the SHA-256 of the recorded `ExitObservation`, the Run transitions to `cancelled`. If the observation does not match, it returns `Pending`. If the Run is already terminal, it returns `AlreadyTerminal`.
+
+**C4-03: Record failure on lease timeout.** If a worker does not complete within the lease duration, `reconcile()` records `FaultClass::Transient`, expires the lease, and re-enters the Run into the outbox (subject to the retry limit).
+
+**C4-04: Tamper detection.** A tamper helper that corrupts a row returns `StoreError::Integrity` on the next store read. The tamper methods are exactly those in Section 4.3.
+
+**C4-05: Liveness across crash/restart.** The scenario cases in `recovery_cases.rs` are run with the process harness. Each case is run 20 times. The flakiness budget is: zero flakes allowed at 20 runs if p \< 0.01, else one flake allowed if p \< 0.05.
+
+The liveness cases are:
+
+| Case | Steps | Expected terminal state |
+| --- | --- | --- |
+| A1 | Admit, crash service mid-dispatch, restart, reconcile | `succeeded` |
+| A2 | Admit, crash worker mid-compute, restart, reconcile | `succeeded` |
+| A3 | Admit, complete, crash before ack, restart | `succeeded` (already committed) |
+| B1 | Admit, request cancel, crash service before confirm, record exit observation, restart, reconcile | `cancelled` |
+| B2 | Admit, dispatch, claim, record failure, crash, restart, reconcile | `failed` (after 3 attempts) or `succeeded` (if a later claim wins) |
+| B3 | Admit, crash PostgreSQL mid-transaction, crash_restart, reconnect, reconcile | `succeeded` (if commit made it to WAL) or `retrying` (if not) |
+| X1 | Admit with all checkpoints held, inject faults at every checkpoint, release randomly, verify no deadlock | all runs terminal |
+| X2 | Stress: 50 concurrent admissions, random crashes, reconcile, verify every run terminal within deadline | all runs terminal |
+
+**C4-06: Budget for the ×50 runs.** The admission and dispatch repeats (K6) must complete within a wall-clock budget recorded by the parent. The recommended budget is 5 minutes for the ×50 admission run and 5 minutes for the ×50 dispatch run, on the CI host with parallelism capped by P-PG3.
+
+### 6.5 C5: End-to-end public durable tests
+
+**C5-01: Durable descriptor and config.** The descriptor contains `dependencies.postgres.required: true`, `configuration.admission: durable`, and a durable readiness value. `AdmissionMode::Durable` exists and the ready receipt contains `"admission":"durable"`. A `ServiceConfig::new` with a dependency argument compiles. A config without the dependency argument does not compile in a durable doctest (compile-fail pair).
+
+**C5-02: Readiness probe with locked admission key.** The public test sends requests while a lock helper holds the admission key. The readiness probe still returns ready. The public test then observes that only one request is admitted; subsequent requests with the same key return the same RunRef.
+
+**C5-03: Close is not cancel.** Closing the client connection does not transition any Run to `cancelled`. A later reconnect and status check shows the Run is still `retrying` or `succeeded`, depending on timing.
+
+**C5-04: Cancel is confirmed, not immediate.** A cancel request through the test helper returns a `CancelResult::Pending`. The Run transitions to `cancelled` only after `confirm_cancel` with a matching `termination_observation`.
+
+**C5-05: Pinned target list.** `verify_vs001.py` checks that the exact target list from Section 8 matches the Bazel query output. No extra test targets are added without an update to the criteria.
+
+**C5-06: Integration test list.** The MJS case driver runs all cases in `recovery_cases.rs` through the public HTTP → PostgreSQL → worker path. Each case produces the same terminal state as the store-level version.
+
+**C5-07: Cycle-free, exact edge checks.** The `testing` crate is a Cargo member with `publish = false` and workspace lints. It has no production dependency on `foundation_echo_lib` (the normal edge is test-only). The negative check is a six-step scratch procedure: create a new Cargo workspace, add the testing crate as a path dependency, attempt `cargo build`, and verify it fails with a message about a missing `foundation_echo_lib` production dependency. The exact error text is recorded by the parent.
+
+**C5-08: No TCP in public tests.** The public test MJS driver checks `SHOW listen_addresses` through the store observer and confirms it is `''`.
+
+**C5-09: Reserved scans.** The `durable_boundaries.rs` reserved file contains scans for:
+
+- no `sleep(` in C source (TestKit, Echo `src`, `tests`, testing crate);
+- no `unsafe` in C source (except the known `postgres` crate block);
+- the exact DSN key allowlist (C1-03);
+- the exact durability settings list (C1-06);
+- no `as_any` or `dyn Any` downcasts in C source (residual b);
+- public items only in generated modules (compile-fail pairs for `generated_service_http` and `generated_service_config`).
+
+**C5-10: Lock waiter observed.** A public test sends a request while a tamper helper holds the admission key. The test confirms that the request is queued (not rejected) and that a telemetry or log entry records the wait.
+
+**C5-11: Worker call counts match.** The telemetry sink records exactly as many `compute_echo_artifact` calls as the store records completed attempts. The counts are compared after the scenario run.
+
+**C5-12: Connection bound enforced.** The store uses at most `B` concurrent connections, where `B` is the bound from the durable profile (OD-6 item 4). A test that launches `B + 1` concurrent admissions observes that the `B + 1`th blocks until a connection is released. The bound is enforced by the connection pool, not by a semaphore in the store code.
+
+## Related
+
+<CardGroup cols={2}>
+  <Card title="C Durability Plan" icon="route" href="/superpowers/plans/2026-09-23-vs001-c-durability">
+    The binding plan with global constraints and review focus for C1–C5.
+  </Card>
+
+  <Card title="Durable Capability Design" icon="lightbulb" href="/superpowers/specs/2026-09-23-vs001-durable-capability-design">
+    Design Sections 3, 5–7 and 10: execution modules, DSN redaction and configuration bounds.
+  </Card>
+
+  <Card title="B3b Criteria" icon="shield-check" href="/superpowers/specs/2026-09-24-b3b-criteria">
+    Frozen composition criteria on main since 57ab5eb, with the B3b-26 and B3b-27 tests C transitions.
+  </Card>
+
+  <Card title="B4 Dependency Enforcement" icon="lock" href="/superpowers/specs/2026-09-24-b4-criteria">
+    Frozen B4 criteria and the approved R1 model at 091aadd, which C extends under B4 Section 8.
+  </Card>
+
+  <Card title="Integration Readiness" icon="clipboard-check" href="/superpowers/plans/2026-09-23-v1-integration-readiness">
+    The register that tracks C1–C5 prerequisites and gate ordering.
+  </Card>
+
+  <Card title="VS001 TODO" icon="list-checks" href="/architecture/vs001-todo">
+    Rows C1–C5 in the architecture todo, with dependencies and blocker status.
+  </Card>
+</CardGroup>
+
+{/* PART-F */}
+
+- **(ii) Barrier helpers and coordination** (finding N4). `BarrierCheckpoints` uses `FaultBarrier::{new, arrive_or_cancel}` to coordinate helper ordering with the test. It never emits assertions. `InjectionControl` is an internal spectator map separating the test-owned tests from the mechanism-owned fault logic.
+
+**Limitation list (findings C4 and N2).** The test crate and its compile-fail module may contain, and the scan must allow:
+
+- `use postgres:: …` and `use tokio_postgres:: …`, because `tokio-postgres` is in the transitive set.
+- `whoami::username()`, because `tokio-postgres` resolves it when no user is set.
+- OS reads (metadata, directories, env made present by Bazel).
+- `Duration::from_secs` and `Instant::now`.
+
+The scan forbids:
+
+- any `sleep` or `thread::sleep`;
+- `unsafe` blocks (compile-fail rejects them);
+- calls to production admission entrypoints inside helper implementations (except the minimal `FakeWorker::compute` wrapper).
+
+**Permitted compile-fail assertions at this stage.**
+
+- No-existence doctests for `DurableAdmission` or a `Durable` mode before OD-6 is approved.
+- `compile_fail` rejection of `unsafe` blocks inside the test crate.
+- Build-failure gates for `recovery_child` and `supervisor_unit_tests` before their test targets are needed.
+
+These gates flip in Section 5.6, not here.
+
+### 4.4 C5: DurableAdmission and verification script
+
+`DurableAdmission` is the first implementation of `AdmissionPort` that uses the real PostgreSQL path. It is gated behind OD-6 (Section 3).
+
+- It reuses `connect_with` and the real store API.
+- It must serve the same HTTP → PostgreSQL → worker path as the test probes.
+- The generated TypeScript client drives the real HTTP path.
+
+The verification script `scripts/verify_vs001.py` is updated in C5 to:
+
+- resolve `subprocess.run` at call time, not import time;
+- run the full suite with the durable profile active;
+- check `ExitCode::DurabilityCheckFailed` (finding N1).
+
+`just verify-vs001` is the entry point for the full suite.
+
+## 5. Criteria by task
+
+The criteria below are numbered by task. Each criterion has:
+
+- a task prefix (C1, C2, C3, C4, C5);
+- a sequential number;
+- the expected test or evidence kind;
+- the exact assertion or observation.
+
+Failing any criterion stops the gate (S1–S12). The stop conditions are in Section 5.7.
+
+### 5.1 C1: PostgreSQL harness, schema and durability checks
+
+**C1-01. PgHarness owns lifecycle and cluster isolation.**
+
+- The harness creates three distinct data directories and three distinct socket directories, each with mode 0700.
+- `pg_hba.conf` contains only `local` trust lines for the declared roles, and no `host` lines.
+- The postmaster listens on no TCP socket (observed by `lsof` on Darwin, `/proc/<pid>/net/tcp{,6}` on Linux).
+- PIDs are registered with canonical data directories and checked for identity before stop or cleanup.
+- Cleanup removes all owned data and socket directories; residue checks confirm absence.
+
+**C1-02. Bazel-only PostgreSQL tests.**
+
+- PostgreSQL tests are not declared as Cargo `[[test]]` targets.
+- Both `services/foundation_echo/Cargo.toml` and `platform/testkit/Cargo.toml` keep `autotests = false`.
+- A missing `MINDCLADE_POSTGRES_BIN` (or any of the four env keys) fails the test at runtime.
+- `cargo test` does not compile or run PostgreSQL test files.
+
+**C1-03. Exact public surface of PgHarness and PgStore.**
+
+The exact public surface is staged per A4.5:
+
+- **C1 harness stage:** `PgHarness::{start, start_with, dsn, stop, restart, crash_restart}`; `StartOptions` with three deadline fields; closed `Role` enum.
+- **C1 schema/store/trace stage:** `PgStore::connect` and `connect_with`; `PgStore::migrate`; `PgStore::verify_durability`; DSN key rejection before I/O; `TraceContext` with its three A3.1 methods; real fixture `new`, `finish`, `observer`; public `store` field; migration checksum/version tamper helpers.
+- **C2 stage:** real admission helper; admission checkpoint injection.
+- **C3 stage:** real `admitted_lease`, `expire_and_reassign`, `completion`; relevant lock and tamper helpers.
+- **C4 stage:** full C1-03 union, including actual `RecoveryHarness`.
+
+No unspecified helper signature is authorized at any stage.
+
+**C1-04. Checksum-bound schema.**
+
+- The migration file `services/foundation_echo/migrations/0001_execution.sql` has a pinned SHA-256 checksum.
+- `PgStore::migrate` acquires advisory lock `MIGRATION_LOCK_KEY`, compares the on-disk checksum, and aborts with `StoreError::IncompatibleVersion` on mismatch.
+- `verify_durability` checks `fsync = on`, `synchronous_commit = on`, `full_page_writes = on`, and records `wal_sync_method`.
+
+**C1-05. No `sleep` in TestKit or harness.**
+
+- `PgHarness` uses `pg_ctl -w` for polling; no `sleep`, `thread::sleep`, or `std::time::Duration`-based spin loops.
+- The `no_sleep` scan in `durable_boundaries.rs` passes.
+
+**C1-06. Durability GUCs and `wal_sync_method`.**
+
+- `verify_durability` asserts `fsync = on`, `synchronous_commit = on`, `full_page_writes = on` on every new app session.
+- `wal_sync_method` is recorded and retained for both hosts.
+- Under OD-4 (b), `rolsuper = false` is asserted on the app session.
+
+**C1-07. Crash recovery performs WAL replay.**
+
+- `crash_restart` uses `pg_ctl stop -m immediate -w`, then `pg_controldata` confirms a state other than `shut down`.
+- After restart, the cluster is queryable and the recovery log shows replay.
+- The harness never SIGKILLs the postmaster.
+
+**C1-08. Provenance: all tools from one Nix store path.**
+
+- All four canonicalized binaries lie in one `/nix/store/…/bin` directory.
+- The harness rejects mismatched or missing tools.
+
+**C1-09. Append-only events table.**
+
+- The schema defines an events table with immutable columns.
+- `UPDATE` on immutable columns is rejected; `ALTER TABLE … DISABLE TRIGGER` is not used by the store.
+
+**C1-10. Schema version check stops on mismatch.**
+
+- `PgStore::connect` rejects a database whose schema version does not match the expected migration checksum.
+- The error is `StoreError::IncompatibleVersion`.
+
+**C1-11. `env_clear()` on every child process.**
+
+- Every PostgreSQL child starts with `env_clear()` plus an explicit allowlist.
+- No ambient `PG*` variable, `DATABASE_URL`, or `PATH` lookup is used.
+
+**C1-12. Socket directory length bound.**
+
+- The created socket directory path is at most 103 bytes.
+- This is verified for each cluster.
+
+**C1-13. Immutable admission columns.**
+
+- Schema checks reject updates to immutable admission columns, including trace fields, using legal rollback-only schema-test rows.
+- Product fixture helpers do not commit fake admissions.
+- C2 reruns immutability on actual admitted rows and begins `state_matches_latest_event` after every implemented operation.
+- C3 and C4 extend that assertion to their real operations.
+- The tamper-then-reconcile `StoreError::Integrity`/no-change negative waits for C4; no no-op reconciler is valid.
+
+**C1-14. Direct parser and schema vectors.**
+
+- Full direct parser/schema vectors are part of the schema/trace slice.
+- No RuntimeKit trace accessor is needed for C1-14.
+
+### 5.2 C2: Admission
+
+**C2-01. Atomic admission with transactional outbox.**
+
+- `PgStore::admit` inserts the Run and the outbox message in one transaction.
+- A duplicate `(request_id, capability)` pair returns `AdmissionResult::Existing(RunRef)` with the same RunRef.
+- A non-duplicate returns `AdmissionResult::Created(RunRef)`.
+
+**C2-02. Idempotency key is `(request_id, capability)`.**
+
+- The admission key combines the trusted `AdmissionContext.identity` and `WorkPacket.capability`, never request bytes.
+- Retrying with the same key returns the same RunRef.
+
+**C2-03. Admission transaction commits before response.**
+
+- The HTTP 200 response is sent only after the admission transaction commits.
+- There is no async, 202, or poll endpoint.
+
+### 5.3 C3: Dispatch, claim, complete
+
+**C3-01. At-least-once dispatch with inbox deduplication.**
+
+- `dispatch_batch` selects pending outbox messages, inserts inbox rows, and marks them delivered in one transaction.
+- Redelivery of the same message is rejected by inbox unique constraint.
+
+**C3-02. Lease expiry is database-timed.**
+
+- `Lease.expires_at` is `mindclade-utc-millis`, 24 characters.
+- Expiry is checked by the database clock, not the worker clock.
+
+**C3-03. Fenced completion.**
+
+- `complete` locks the Run row, checks the lease matches, and commits the artifact only if the Run is still in the claimed state.
+- A mismatched lease returns `StoreError::StaleLease`.
+
+**C3-04. Completion within three attempts.**
+
+- `WorkPacket.maximum_attempts` is at most 3.
+- `record_failure` increments the attempt count and reschedules with delays of 100 ms and 500 ms.
+- A Run that exceeds the attempt count transitions to `failed`.
+
+**C3-05. Generation exhaustion at `i32::MAX`.**
+
+- `Generation` is `i32` with minimum 1.
+- Exhaustion is at `i32::MAX`; no wraparound is allowed.
+
+**C3-06. FakeWorker and production compute equal bytes.**
+
+- For the same `(lease, request)`, `FakeWorker::compute` and a production `work_once` commit equal bytes.
+- TestKit contains no worker.
+
+### 5.4 C4: Cancel, reconcile, recovery
+
+**C4-01. Confirmed cancellation with observation.**
+
+- `request_cancel` transitions the Run to `cancelling`.
+- `confirm_cancel` requires a `CancelConfirmation` with a `termination_observation` SHA-256.
+- The Run transitions to `cancelled` only after confirmation.
+
+**C4-02. Reconcile processes stuck Runs.**
+
+- `reconcile` finds Runs stuck past lease expiry, records failure or cancellation, and reschedules eligible work.
+- `reconcile_once` also confirms a pending cancellation once a matching exit observation is recorded.
+
+**C4-03. Recovery child entrypoints.**
+
+- `recovery_child` may call only: `admit_and_wait`, `dispatch_once`, `work_once`, `reconcile_once`, `record_exit_observation`, `confirm_cancel`, `request_cancel`.
+- Each has a stated production caller (Section 4.2).
+
+**C4-04. No public cancel endpoint.**
+
+- There is no public async, 202, poll, or cancel endpoint.
+- `request_cancel` is `pub` only for the supervisor's later policy path and for tests.
+
+### 5.5 C5: End-to-end durable execution
+
+**C5-01. DurableAdmission implements AdmissionPort.**
+
+- `DurableAdmission::execute` uses the real PostgreSQL path.
+- It returns 200 with the exact Echo body on success.
+- It returns 400/409/503 with codes `invalid_input`, `idempotency_conflict`, `unavailable`.
+
+**C5-02. HTTP → PostgreSQL → worker path is real.**
+
+- The generated TypeScript client drives the real HTTP endpoint.
+- The service writes to PostgreSQL, dispatches to workers, and returns results.
+
+**C5-03. Fault injection covers both fault classes.**
+
+- Process crash: SIGKILL of service, worker, or recovery child.
+- PostgreSQL crash restart: `pg_ctl stop -m immediate`, then WAL crash recovery.
+
+**C5-04. Every Run reaches a terminal state within three attempts.**
+
+- Once a live worker runs reconciliation, every admitted Run reaches `succeeded`, `failed`, or `cancelled`.
+- A Run that stays non-terminal past the harness deadline fails the test.
+
+**C5-05. No more than one authoritative completion per Run.**
+
+- `complete` commits at most one artifact per Run.
+- A second completion returns `CompletionResult::AlreadyCommitted(ArtifactRef)`.
+
+**C5-06. Generated client compiles and passes.**
+
+- The generated TypeScript client compiles against the real HTTP path.
+- It passes the durable execution test suite.
+
+**C5-07. B4 model executable check.**
+
+- The real dependency graph matches the B4 model entries for the testing unit and external `postgres`/`nix_postgresql`.
+- This is checked by the B4 boundary scan.
+
+**C5-08. Verification script runs full suite.**
+
+- `scripts/verify_vs001.py::run_checks` resolves `subprocess.run` at call time.
+- `just verify-vs001` runs the full suite with the durable profile.
+
+**C5-09. Compile-fail doctests flip for Durable mode.**
+
+- After OD-6 is approved, the B3b-23 and B3b-27 compile-fail doctests flip to assert `AdmissionMode::Durable` exists and `ServiceConfig::new` takes a dependency argument.
+- This is done as a parent transition like B2b-20.
+
+**C5-10. Durable descriptor and config profile.**
+
+- The descriptor sets `dependencies.postgres.required: true`, `configuration.admission: durable`, and a durable readiness value.
+- `AdmissionMode::Durable` exists and emits `"admission":"durable"` in the ready receipt.
+- The binary accepts `--postgres-socket-dir <absolute path>` in the durable local-test profile.
+
+**C5-11. Exit code for failed dependency/migration/durability check.**
+
+- A distinct exit code (`ExitCode::DurabilityCheckFailed`) is returned when the dependency, migration, or durability check fails.
+
+**C5-12. Maximum PostgreSQL connections bounded.**
+
+- The durable profile bounds the maximum number of PostgreSQL connections.
+- This is checked at startup and enforced by the connection pool.
+
+### 5.6 Transitions from B3b
+
+The following B3b criteria are intentionally violated by C1–C5 and require a reviewed parent transition:
+
+- **B3b-26:** `b3b_26_the_echo_binary_closure_excludes_testkit` checks exact Echo dependency sets. Adding `postgres` to `:foundation_echo_lib` changes the set; the transition flips this test to the new expected set.
+- **B3b-19:** `b3b_19_sleep_appears_only_in_the_allowlisted_pacing_helper` checks that `sleep` appears only in the allowlisted pacing helper. C1's harness uses no `sleep`, but the addition of PostgreSQL-related timing changes may affect this. The transition updates the allowlist or flips the test.
+- **B3b-23 and B3b-27:** compile-fail doctests assert no `Durable` mode and no dependency argument. These flip after OD-6 (C5-09).
+- **B3b-25:** The frozen control protocol (stdin `shutdown`). OD-6 option (b) would change this; the transition preserves the protocol if (a) or (c) is chosen.
+
+### 5.7 Stop conditions
+
+| Stop | Condition |
+| --- | --- |
+| S1 | Any criterion assertion fails |
+| S2 | A public endpoint (async, 202, poll, cancel) appears |
+| S3 | B3b or B4 merges with different names; implementer stops, criteria author reconciles |
+| S4 | A message broker, Temporal, K8s, Docker, SQLite, or in-memory store appears |
+| S5 | Regeneration loses a generated type |
+| S6 | A production credential, password, TLS, or TCP listener for PostgreSQL appears |
+| S7 | An external effect provider, real NOVA, or scientific work appears |
+| S8 | Substrate failure (PostgreSQL crash, tool mismatch, or harness cleanup failure) |
+| S9 | Cargo.lock drift: different set, missing/extra pair, or existing pin change |
+| S10 | Moving slice behavior into `platform/persistence`, `platform/scheduler`, `services/scheduler`, `services/workers`, or `tools/migrations` |
+| S11 | Intel Mac qualification attempted |
+| S12 | B4 rules the testing crate as production scope; fallback is Bazel-only testonly crate with no Cargo manifest |
+
+## 6. Acceptance criteria
+
+## 6. Acceptance criteria
+
+### 6.1 C1 RED
+
+- [ ] C1-01 through C1-14 pass on both hosts.
+- [ ] PgHarness starts three clusters concurrently, queries them, crashes one, recovers it, and cleans up.
+- [ ] The `postgres_substrate_probe` binary runs at `--local_test_jobs=1` with no cache.
+- [ ] K2 (both-host evaluations), K3 (lock diff, Appendix A match, licenses, advisories), and P-PG1–8 are retained.
+
+### 6.2 C2 RED
+
+- [ ] C2-01 through C2-03 pass on both hosts.
+- [ ] Admission is atomic, idempotent, and commits before response.
+- [ ] The admission helper and checkpoint injection are present.
+
+### 6.3 C3 RED
+
+- [ ] C3-01 through C3-06 pass on both hosts.
+- [ ] Dispatch, claim, and complete are correct.
+- [ ] FakeWorker and production compute equal bytes.
+
+### 6.4 C4 RED
+
+- [ ] C4-01 through C4-04 pass on both hosts.
+- [ ] Cancel, reconcile, and recovery child entrypoints are correct.
+- [ ] `state_matches_latest_event` holds after every implemented operation.
+
+### 6.5 C5 RED
+
+- [ ] C5-01 through C5-12 pass on both hosts.
+- [ ] DurableAdmission works end-to-end.
+- [ ] The generated TypeScript client compiles and passes.
+- [ ] B3b-23/B3b-27 compile-fail doctests are flipped.
+- [ ] Verification script runs the full suite.
+
+### 6.6 Integration readiness
+
+Refer to the [integration readiness register](/superpowers/plans/2026-09-23-v1-integration-readiness) for C1–C5 completion tracking and the required A/B1–B4 gates.
+
+## 7. Risks and mitigations
+
+| Risk | Mitigation |
+| --- | --- |
+| PostgreSQL version EOL | Pin `postgresql_18` 18.6; monitor Nixpkgs for security updates |
+| Cargo.lock drift | Strict S9 stop; exact Appendix A comparison for both hosts |
+| B4 model scope dispute | C5-07 executable check; fallback to Bazel-only testonly crate (S12) |
+| macOS SysV shared memory leak | Never SIGKILL postmaster; use `pg_ctl stop -m immediate` |
+| Power loss not covered | Document `wal_sync_method`; defer claim to Rob's decision |
+| Public endpoint scope creep | S2 stop; explict rejection list in Section 1 |
+| Intel Mac qualification | S11 stop; not in scope |
+
+## 8. Amendments
+
+- **Amendment 1 (2026-09-26):** Checkpoint A approved; C1–C5 deferred to post-migration.
+- **Amendment 2 (2026-09-26):** Rob's answers to Section 13 items 1–14. (Details preserved in source history.)
+- **Amendment 3 (2026-09-26):** Section 13 recommendations accepted as written. (Details preserved in source history.)
+- **Amendment 4 (2026-09-28):** Bounded prerequisite package before C1 RED. A4.1–A4.11.
+
+## 9. Appendix A: Expected new Cargo.lock packages
+
+The 53 Darwin / 50 Linux new packages are listed in the source file. The global lock adds 20 lock-only pairs for a total of 73 new registry pairs. Refer to the reviewed `c1-global-lock-s9-review.json` for the exact list.
+
+## 10. Related
+
+<CardGroup cols={2}>
+  <Card title="Overview" icon="compass" href="/superpowers/specs/overview">
+    Summary and navigation for all VS-001 superpower specifications.
+  </Card>
+
+  <Card title="Integration Readiness" icon="clipboard-check" href="/superpowers/plans/2026-09-23-v1-integration-readiness">
+    Track C1–C5 completion and required A/B1–B4 gates.
+  </Card>
+
+  <Card title="D Assurance Criteria" icon="shield-check" href="/superpowers/specs/2026-09-26-d-assurance-criteria">
+    The D1–D4 assurance and replay criteria that follow C.
+  </Card>
+
+  <Card title="Current Task Register" icon="list-checks" href="/developer/agent-handoff#current-task-register">
+    Active work items, assignments, and current task status.
+  </Card>
+</CardGroup>
+
+### A4.7 Reviewed S9 reconciliation: host closures and the global lock
+
+**Status: specific source reconciliation independently reviewed PASS.** The parent stopped on the distinction below and supplied the actual lock and historical scratch comparison for review. This text is not new Rob approval, permission to adopt an unreviewed lock, completed K3, or runtime probe evidence. The independent task-4a reviewer re-reviewed this exact 73-global/53–50-host reconciliation and recorded source-scope PASS on 2026-09-28. The parent separately reports locked Bazel re-splice/build PASS; that does not establish actual runtime or complete K3. Final candidate-bound evidence remains owed.
+
+**Observed discrepancy.** Appendix A describes new packages in each selected host's normal/build closure: 53 on aarch64-apple-darwin and 50 on x86_64-unknown-linux-gnu. The historical K3/OD-2 instruction comparing the whole Cargo.lock additions to that per-host list conflates two different inventories. The parent-supplied `c1-global-lock-s9-review.json` records 73 new registry (name, version) pairs in the global lock, with exact Appendix A matches in both supported normal/build closures and no missing/extra pair in either. The 20 global extras below are absent from both supported normal/build closures.
+
+`c1-historical-lock-comparison.json` compares the recovered original PostgreSQL scratch Cargo.lock used for the earlier resolve with the prepared lock. Every one of the 73 current new registry pairs already appears in that historical scratch lock; `new_not_historical` is empty. This discrepancy is therefore not new package-version drift relative to that scratch inventory. The scratch also contained serde/serde_core/serde_derive 1.0.229; those versions are not adopted. The prepared lock preserves the existing 27 registry pins, including the repository's 1.0.228 serde family. The parent-supplied preparation record identifies the compared Cargo.lock as `sha256:4b9051f1000ae45e5ada887691eee4560a365a866ae4b67c771ff5a0ac58fb19`. These are bounded source-resolution findings, not execution on both hosts.
+
+**Reviewed exact reconciliation.** Following this specific source review, read OD-2 step 6, K3 and S9's Appendix A comparison as two simultaneous frozen checks, superseding only the inconsistent whole-lock-equals-per-host wording (including A4.1/A4.4's shorthand):
+
+1. The new registry pairs in each supported target's normal/build closure must equal Appendix A exactly: 53 Darwin; 50 Linux, excluding only Appendix A's three Darwin-only pairs. No host-closure drift or extra pair is allowed.
+2. The global Cargo.lock new-registry-pair inventory must equal the union of Appendix A's 53 Darwin pairs and exactly these 20 additional lock-only pairs (73 total):
+   | Package | Version |
+   | --- | --- |
+   | bumpalo | 3.20.3 |
+   | js-sys | 0.3.106 |
+   | libredox | 0.1.25 |
+   | once_cell | 1.21.4 |
+   | r-efi | 6.0.0 |
+   | redox_syscall | 0.5.18 |
+   | rustversion | 1.0.23 |
+   | slab | 0.4.12 |
+   | wasi | 0.11.1+wasi-snapshot-preview1 |
+   | wasi | 0.14.7+wasi-0.2.4 |
+   | wasip2 | 1.0.4+wasi-0.2.12 |
+   | wasite | 1.0.2 |
+   | wasm-bindgen | 0.2.129 |
+   | wasm-bindgen-macro | 0.2.129 |
+   | wasm-bindgen-macro-support | 0.2.129 |
+   | wasm-bindgen-shared | 0.2.129 |
+   | web-sys | 0.3.106 |
+   | windows-link | 0.2.1 |
+   | windows-sys | 0.61.2 |
+   | wit-bindgen | 0.57.1 |
+3. All existing registry pins remain unchanged. Any future addition, removal or version substitution in either frozen inventory, a lock-only extra entering either supported normal/build closure, or any existing-pin change still triggers S9 and specific re-review. The selected direct dependency remains `postgres = "=0.19.14"`; this reconciliation does not permit a floating resolve or silent substitution.
+
+"Lock-only" here means absent from the two selected normal/build closures, not a blanket statement about every possible target, feature or dependency kind. These inventory entries admit no additional host, compiled code path, direct dependency, B4 permission, tool or sandbox exception. They do not discharge K3's complete license/advisory evidence, actual crate_universe re-splice/locked-success checks, or both-host runtime prerequisites. The preparation record's cross-target graphs were evaluated on Darwin and its version-range advisory result is not a completed whole-lock or both-host qualification claim. Any changed input invalidates dependent evidence under the existing binding rules.
+
+### A4.8 Runtime-review correction: registered identity and observer environment
+
+**Status: bounded source correction accepted in direction by the parent; exact contract/implementation review required before live execution.** This addresses the runtime review's observable Darwin PID-reuse gap and independent observer HOME/TMPDIR mismatch. It supersedes A4.3's shorter Darwin ps field list and clarifies ownership checks without admitting another tool/dependency, unsafe code, arbitrary command, host, or sandbox exception.
+
+Both the binary supervisor and independent test use exactly `/bin/ps -ww -p <registered_owned_pid> -o pid= -o lstart= -o comm= -o args=` under the existing clear environment with `LC_ALL=C`, `LANG=C`, `TZ=UTC`. Require one bounded LF-terminated row, status 0 and empty stderr for presence. Parse the numeric PID, five C-locale UTC lstart tokens, exact selected Nix executable comm token, then the entire remaining args field. Its exact expected value is `<canonical postgres> -D <canonical owned data dir>`, with embedded spaces preserved. Remove only column-separator whitespace before args; never trim its tail, tokenize it as shell input, accept a substring match, or fall back to executable-only/process-title output. Reject control characters in derived paths and ambiguous/truncated output. Actual incompatible platform rendering fails for review rather than weakening identity checks.
+
+For each successful initial/recovery start, retain an immutable tuple of PID, canonical data directory, pidfile line-3 startup epoch, and ps birth time, executable and full args. Read pidfile PID/data/start fields before and after ps and require them unchanged. Ps birth and pidfile startup epoch are distinct times, not required equal: require `birth <= startup`, both within the supervisor's recorded wall-clock interval for that completed start under its existing 30-second deadline. Parse UTC using bounded std-only logic; clock regression or invalid/out-of-window identity is unresolved. The independent test retains its own tuple and uses its own pre-owned-ACK sample as initial lower bound, pre-crashed-ACK sample for restart, and observed-completion upper bound. Never use delayed helper_begin receipt as the lower bound. Its wider window does not purport to be the supervisor's launch interval.
+
+Immediately before every ordinary or cleanup stop, compare all saved fields with a new fixed ps observation bracketed by unchanged pidfile reads. Launch the stop directly after the checks, without an intervening wait or unrelated helper. Any mismatch, unavailable identity or expired budget preserves owner and roots and forbids stop/signaling/removal. A cancellation-raced successful start may emit only its one expected not-yet-emitted started/restarted PID record after its already-begun start helper reaps successfully, then register birth identity before cleanup. The test's cancelled parser permits exactly that reconciliation, bound to the known in-flight start/window; it permits no new start, duplicate/replacement identity, unsolicited index or normal phase advance. Unresolved starts have no cleanup-signaling authority.
+
+Four Darwin registration observations add four ledgered pid_status launches: normal Darwin helper count becomes 35, bounded by 36 attempts and 208 stdout lines. Every launch retains Child ownership and consumes existing absolute deadlines; no run/barrier/cleanup budget is extended. The exact ledger and cancellation transitions receive independent review. Absence still requires exit 1 with empty stdout/stderr; any occupied PID fails absence, even if its identity differs. Linux retains its /proc starttime check. Independent final residue checks remain mandatory before accepting terminal quiescence/removal.
+
+These observations detect already observable same-executable PID reuse, including another cluster's different data args. Ps birth time is only second-resolution; process argument text is not unforgeable. A check-to-signal race remains before pg_ctl's numeric-PID signal, as with proc inspection then numeric signaling. This is not an adversarial or atomic process-handle guarantee. If eliminating that residual race is required, live execution stays blocked under the currently permitted tools; no broader authority is implied.
+
+For independent PostgreSQL version/status/control and already permitted cleanup helpers, set HOME and TMPDIR to the test's exclusively created, ownership-checked mode-0700 `<canonical TEST_TMPDIR>/substrate-observer-<test_pid>` root, starting before the first version check. Retain this root through final observer cleanup; never depend on the probe root existing. Host ps/lsof/capacity observers keep their narrower locale/timezone-only environment. The probe's PostgreSQL children keep its own data root as HOME/TMPDIR. No user environment is inherited and no caller-selectable resource path is added.
+
+### A4.9 S8 correction: Darwin ps args-last representation
+
+**Status: narrow correction for review before retry; first runtime run failed.** The first actual Darwin probe failed during identity registration because ps rendered the intermediate comm column as `/nix/store/9p6vh` (15 characters) despite `-ww`, while its final args column retained the complete selected executable and exact owned `-D` directory. The parent retained that failed-run observation, independently checked the particular owned PID/birth/pidfile/full args and executable, and manually stopped only that owned server with the pinned pg_ctl. Successful manual stop and subsequent absence are recovery evidence, not probe cleanup PASS or a successful substrate run. This text does not authorize a retry before the corrected contract/source review.
+
+For this representation correction only, supersede A4.8's Darwin command and separate comm field with exactly `/bin/ps -ww -p <registered_owned_pid> -o pid= -o lstart= -o args=`. The args column remains last. Keep the same clear locale/timezone environment, registered PID selection, read-only inside-sandbox execution and bounded retained-Child ownership. No new utility or operation is admitted.
+
+Positive parsing consumes exactly six prefix tokens: PID and the five C-locale UTC lstart tokens. After only the column-separator whitespace, compare the complete remaining args string, removing just its terminating LF, to `<canonical selected postgres executable> -D <canonical owned data dir>`. Preserve path spaces and require the entire string, not a basename, prefix or substring. Reject extra rows, CR/embedded LF, malformed/truncated values, process-title/fallback annotations and the old extra comm-column shape. Status 0 and empty stderr remain required. No separate comm field is retained or compared; the selected executable requirement is enforced through that complete exact args equality. Rendered argv is not independent kernel executable attestation. Parent recovery use of `lsof -d txt` does not become a routine probe observer or new permission.
+
+The installed primary ps manual documents args as command/arguments, lstart as locale-formatted start time, overall wide-output behavior, and limitations of displayed argument reconstruction; it does not establish the intermediate comm rendering as an authenticated executable path. Observed truncation and the retained full args justify this bounded representation change, not weaker matching or broader process authority.
+
+The parent also retained public Apple `adv_cmds` primary source at commit `6bed8737a34dbb54782a18f47dccf933a9967a12`. Its ps `getproclline` skips the saved executable path and reconstructs argv text for both fields; comm's `just_command` selects command-only from that same projection, while args selects command plus arguments. `p_command_and_or_args` truncates a nonfinal column to its field width even with unlimited overall width, whereas final args prints the full string. This source explains the observed rendering and supports omission of a redundant argv projection; it does not establish installed ps binary/source hash equivalence or kernel executable attestation.
+
+Keep the immutable birth/full-args plus pidfile PID/data/start-epoch tuple, existing independent/supervisor time windows, immediate per-stop comparisons, cancellation reconciliation, empty exit-1 absence rule and independent residue checks unchanged. All disclosed second-resolution, rendered-state and check-to-signal-race limits persist. Normal Darwin helper count remains 35, attempt bound 36, stdout-line bound 208, with no deadline extension. Pins, direct dependencies, hosts, environments and sandbox rules are unchanged. The implementer and independent test author update their exact argv/parsers separately, then obtain scoped review before any retry. Neither parser checks nor this amendment retroactively pass the failed runtime or its cleanup.
+
+### A4.10 S8 correction: app-role-visible SHOW and bounded diagnostics
+
+**Status: bounded design/source review required before retry.** The second Darwin probe started and registered all three clusters, then failed during fixed SHOW work with opaque client Display text `db error`. Its exact query and SQLSTATE were not retained. Automatic failure cleanup reported 28 quiescent helpers, actual owned-process absence and root removal; parent residue checks found the prior host baseline unchanged, with no manual intervention. This is a failed substrate run with observed successful failure cleanup for that attempt, not a successful probe or complete prerequisite evidence.
+
+Selected PostgreSQL 18.6 source marks `unix_socket_directories` with `GUC_SUPERUSER_ONLY` (`guc_tables.c:4655`), and the SHOW lookup rejects an invisible parameter unless the role has the required privileges (`guc.c:5449-5456`). The fixed NOSUPERUSER app role has no such grant. This establishes an incompatibility in A4's query contract; its causal connection to the opaque runtime error is source-based inference, not a retained actual SQLSTATE. `max_connections` (`guc_tables.c:2332-2338`) has no restricted visibility flag and is already configured to 32.
+
+For A4's prerequisite only, replace the third fixed query/key `SHOW unix_socket_directories`/`unix_socket_directories` with `SHOW max_connections`/`max_connections`, expected text exactly `32`. The four slots remain server_version, listen_addresses, max_connections, wal_sync_method in that order, one row/one text column each, with exactly 32 SHOW records across the same phases and clusters. Do not add another query, admin connection, role grant or privilege. Socket location remains checked independently through the exact pidfile socket field, owned filesystem/socket objects and configuration, plus explicit driver host_path and PID no-TCP checks. The new setting does not replace these socket assertions. Historical C1-01's service-owned product SQL observation remains a later obligation, requiring role-correct finalization; this prerequisite change does not claim the app role can issue its restricted SHOW.
+
+For connect/query failure, retain a bounded diagnostic in the existing error record: fixed phase (`live`, `crashed`, `recovered`), cluster index, fixed operation token (one of the four setting keys, or `connect`), and server DbError SQLSTATE/primary message when present. Use payload shape `phase=<phase> cluster=<index> operation=<token> sqlstate=<code-or-none> message=<message>`. The SQLSTATE is its five-character code. Replace every Unicode control character in the primary message with ASCII space before serialization or stderr output. Cap the resulting UTF-8 message at 256 bytes including suffix: if longer, keep at most 253 bytes at a UTF-8 boundary and append literal `...`. The complete decoded diagnostic stays within the existing 1,024-byte limit. Existing hex encoding preserves framing but does not replace that control sanitization. For a non-server error, use `sqlstate=none` and a fixed `database_client_failure` category, not raw Display/Debug/source chains. Do not separately append DSN, connection configuration/host/path, credentials, query parameters, statement text or server detail/hint/context. A retained sanitized primary server message may itself name a file or identifier; no absolute absence-of-path claim is made about PostgreSQL's own message. The fixed parameter-free/password-free queries supply no caller secret or DSN to it. Diagnostics preserve the existing worker-join/failure path and describe the actual failing operation, never waive failure or cleanup obligations.
+
+Implementer and independent test author change the exact query/expectation and diagnostic handling separately; the corrected contract/source receives independent review before retry. Every pin, permission, role setting, tool, supported host, helper/deadline bound and sandbox requirement remains intact.
+
+### A4.11 Product C1-01 SHOW role
+
+**Status: scoped source-criteria review PASS; runtime evidence remains pending.** This amendment records the independently reviewed direct-harness resolution for C1-01's restricted `SHOW unix_socket_directories`. It changes no prerequisite probe query, role grant, product public interface, dependency, schema, host, sandbox rule or eligibility gate. The reviewed proposal is bound by SHA-256 `564a76f9904644e7782758562ba8f37b26c9c64f0bc7a47cd6f688771d63c434`; its scoped re-review resolved the read-only-session and fixture-reuse findings. This source review is not a live SQL result, C1 admission or qualification.
+
+For C1-01's service-owned product SQL observation, the direct-harness test owns a separate test-only `mindclade_admin` connection obtained from the accepted future `PgHarness::dsn(Role::Admin)` surface. Before the fixed `SHOW unix_socket_directories`, it sets `default_transaction_read_only = on`, verifies that the effective setting is still `on` and that `current_user` is `mindclade_admin`, and retains that read-only setting for the observer's lifetime. Migration, tamper, lock and all other writes are forbidden through this observer. Session setup, role/read-only verification, SQL, shape or value failure fails C1-01.
+
+The fixed setup, role/read-only verification and assertion SQL live in service-owned `tests/observe.rs` and are invoked by `:durability_tests`. The SHOW returns exactly one text value equal to the owned Unix-socket directory derived independently from the same harness's app DSN. A separate test-owned `mindclade_app` observer uses the same configured-and-verified read-only session discipline for C1-01's `SHOW listen_addresses = ''`. Neither observer returns the expected socket value to itself as an oracle.
+
+C1-06's per-session `fsync`, `synchronous_commit` and `full_page_writes` predicate remains on the `mindclade_app` store session, and `PgStore::connect_with` continues to call `verify_durability` on every new app session. Its separate checksum and WAL-method observations remain required. `verify_durability` does not issue `SHOW unix_socket_directories`, open an admin connection or treat the restricted SHOW as optional.
+
+The accepted future `PgTest::observer().query_json` remains SELECT-only and is not used for this SHOW. No arbitrary SQL helper, fixture admin accessor, public `PgHarness`/`PgStore`/`PgTest` expansion, production admin credential or app-role grant is introduced. TestKit retains C1-01's independent directory, socket, pidfile, HBA and PID-scoped no-TCP checks. A4.10's app-role `SHOW max_connections` remains confined to the prerequisite substrate probe.
+
+Before the later A4.5 test-author dispatch, the C1 stage contract records the exact private connection/helper arrangement implementing this direct-harness shape. Candidate-bound P-PG1–8, K2, complete K3, Linux isolation and all normal RED/GREEN/review/protected-integration gates remain prerequisites; this amendment resolves only the role ownership of the existing product SHOW.
+
+## Related
+
+<CardGroup cols={2}>
+  <Card title="Superpowers specs overview" icon="layers" href="/superpowers/specs/overview">
+    Browse all criteria and plan specifications.
+  </Card>
+
+  <Card title="Integration readiness register" icon="checklist" href="/superpowers/plans/2026-09-23-v1-integration-readiness">
+    Track gates from A through B4 and into C1–C5 qualification.
+  </Card>
+
+  <Card title="D assurance criteria" icon="shield" href="/superpowers/specs/2026-09-26-d-assurance-criteria">
+    Replay, capsule sealing and assessment requirements (D1–D4).
+  </Card>
+
+  <Card title="Agent handoff task register" icon="clipboard" href="/developer/agent-handoff#current-task-register">
+    See the current task register and agent handoff protocol.
+  </Card>
+</CardGroup>

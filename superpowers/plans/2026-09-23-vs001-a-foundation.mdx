@@ -1,0 +1,136 @@
+---
+title: "VS-001 Foundation Hardening Implementation Plan"
+sidebarTitle: "A Foundation Plan"
+description: "Implementation plan for generated publication recovery, semantic compatibility comparison, and trustworthy source evidence retention for VS-001."
+---
+
+This page documents the VS-001 Foundation Hardening implementation plan (Plan A). It is intended for implementers, reviewers, and supervised agents working on the foundation layer of the VS-001 capability slice.
+
+<Warning>
+  Historical phase/task outline with continuing target requirements. Its original checkboxes and bootstrap commands are not the current completion register. Read the [current handoff](/developer/agent-handoff#current-task-register) for source milestones and pending work, and [start here](/developer/start-here) for pinned checks.
+</Warning>
+
+> **For agentic workers:** Use `superpowers:executing-plans`, native sequential execution and a fresh whole-branch review. Each checkbox is one action; expand test cases one at a time while implementing. Written-plan review is required first.
+
+**Goal:** Make generated publication recoverable, compare semantic compatibility, and retain trustworthy source evidence.
+
+**Architecture:** Extend the existing Rust compiler/publisher. A read-only verifier rejects inconsistent publication; a writer lock and owned journal enable recovery. CI and evidence tooling orchestrate checks but do not compile semantics or authorize claims.
+
+**Tech Stack:** Existing pinned Nix/Bazel/Rust/TypeSpec/Node/Python stack; Rust standard filesystem locks; GitHub Actions.
+
+**Spec:** [Design sections 3-4 and 9](/superpowers/specs/2026-09-23-vs001-durable-capability-design).
+
+## Global Constraints
+
+- Preserve Bazel 9.1.1, Rust 1.96.1, TypeSpec compiler/HTTP 1.16.0, Node 22.23.2, pnpm 12.3.4, Python 3.12.14, and the committed Nix lock baseline.
+- Nix supplies tools; Bazel owns product compilation and tests. No downloads or package installation within build/test actions.
+- Architecture YAML remains authoritative. Planned JSON architecture placeholders remain inactive.
+- Keep canonical foundation paths/bytes and existing source labels; preserve all scaffold directories.
+- Require Apple Silicon and Linux evidence; Intel Mac remains configured, untested.
+- Follow the [delivery plan's shared file and integration rules](/superpowers/plans/2026-09-23-vs001-delivery).
+
+## Review Focus
+
+1. First-generation crash after graph replacement must recover without adopting unrelated files: A1.
+2. Concurrent readers/writers and corrupted journals must fail closed rather than mix generations: A1.
+3. Recursive resources and input/output reuse must receive deterministic directional compatibility: A2.
+4. Cancelled/missing CI evidence must remain non-passing: A3.
+5. Exported archives must reject path traversal, symlinks, missing bytes and digest substitution: A3.
+
+## File And Interface Map
+
+- `codegen/src/publication.rs`: owned journal, staged output publication, snapshot verification.
+- `codegen/src/compatibility.rs`: graph-to-graph comparison, never parsing arbitrary graph JSON.
+- `codegen/src/projection.rs`, `main.rs`, `lib.rs`, `generator.rs`: integration and source binding.
+- `codegen/tests/cases/publication.rs`, `compatibility.rs`, existing `projection.rs`: behavior tests, registered in `codegen/tests/foundation.rs` and existing Bazel tests.
+- `scripts/evidence_bundle.py`, `scripts/test_evidence_bundle.py`: content inventory/export verification only.
+- `.github/workflows/foundation.yaml`, `scripts/test_ci_policy.py`: run lifecycle and supported pinned actions.
+- `docs/architecture/implementation-roadmap.md`, `toolchain.md`, `maturity.yaml`, `generated/README.md`, `.gitignore`: truthful status and owned operational paths.
+
+## Task A1: Recoverable Owned Publication
+
+**Interfaces:** In `publication.rs`, define `OwnedOutput { name: String, bytes: Vec<u8> }`, `Publication { outputs: Vec<OwnedOutput> }`, and `publish(root: &Path, publication: &Publication) -> Result<bool, Vec<Diagnostic>>`. Define `verify(root: &Path, publication: &Publication) -> Result<(), Vec<Diagnostic>>` with no writes. Output names must be a fixed allowlisted set supplied by the generator, normalized relative paths without symlinks. The manifest is the final published output. A test-only `PublicationFault` enum identifies journal_synced, first_output_replaced, manifest_replaced, and directory_synced checkpoints; it is not a production environment bypass.
+
+- [ ] Add unit tests in `publication.rs` for name validation and journal decoding. Start with this exact rejection:
+
+```rust
+#[test]
+fn rejects_escaping_output() {
+    let result = validate_output_name("../unowned.json");
+    assert!(result.is_err());
+}
+```
+
+Define `validate_output_name(&str) -> Result<(), Diagnostic>` in this module. Include absolute paths, duplicate names, symlinks, unknown journal fields and malformed digests. Add `validate_output_name("graph.json").is_ok()` as the positive control.
+
+- [ ] Run `nix develop --no-write-lock-file -c cargo test -p mindclade-codegen rejects_escaping_output --locked`. Observe the missing implementation assertion/compile failure, not a missing tool.
+- [ ] Implement owned-name validation and exact journal schema. Add a private `write_and_sync(path: &Path, bytes: &[u8]) -> io::Result<()>` using create_new/write_all/sync_all; sync parent directories on supported platforms and propagate failures. Never truncate a destination before ownership checks.
+- [ ] Add a subprocess fixture driver in `codegen/tests/cases/publication.rs` using the existing projection fixture builder. `run_fault_case(checkpoint: &str) -> serde_json::Value` creates a fresh temporary source root, launches a child with a test-only fault hook, kills it at the barrier, launches a recovery writer, and returns observed hashes/file inventory. It must perform real subprocess termination, not only return a fabricated status. Assert:
+
+```rust
+#[test]
+fn first_generation_recovers() {
+    let observed = run_fault_case("first_output_replaced");
+    assert_eq!(observed["reader_during_interruption"], "non_passing");
+    assert_eq!(observed["recovered_bytes_equal_expected"], true);
+    assert_eq!(observed["unowned_bytes_unchanged"], true);
+}
+```
+
+- [ ] Observe each fault scenario fail under the old sequential writer. Add separate scenarios for existing publication, post-manifest crash, invalid journal, disk-write error, and two simultaneous writers with intervening read-only checks.
+- [ ] Implement persistent lock inode and OS lock, staged byte hashes, synced write-ahead journal, manifest-last replacement, and strict recovery of only recorded old/new states. Use lock RAII; a killed process must not leave a permanently held lock. Preserve unknown partial files and report recovery failure. Read-only checks double-read manifest/journal and verify every declared hash.
+- [ ] Replace `write_atomic` orchestration in `projection.rs` with this publisher. Extend generator input inventory and ignore only exact owned operational journal/staging/lock patterns; do not ignore broad generated drift. Regenerate through Codegen, then test no-op bytes and filesystem metadata for `--check`.
+- [ ] Run Cargo tests, the existing projection suite, and `nix develop --no-write-lock-file -c bazel test //codegen:tests`. Inspect two-process tests on both required hosts. Commit `fix(codegen): recover interrupted owned projections` with explicit paths and refreshed tree.
+
+## Task A2: Directional Graph Compatibility
+
+**Interfaces:** Add `Direction::OldClientNewServer`, `ChangeClass::{Compatible, Breaking, Unsupported}`, `CompatibilityChange { subject: Identity, code: String, class: ChangeClass, reason: String }`, and `CompatibilityReport { old_graph: Digest, new_graph: Digest, policy: Digest, changes: Vec<CompatibilityChange> }`. `compare(old: &MindcladeGraph, new: &MindcladeGraph, direction: Direction) -> CompatibilityReport`; `report.is_compatible() -> bool` is false for breaking or unsupported. CLI: `compat --old-input PATH --new-input PATH --direction old-client-new-server --out PATH`; exit 0 compatible, 2 breaking/unsupported, 1 invalid input/I/O.
+
+- [ ] Create `codegen/tests/cases/compatibility.rs`. Define `echo_graph(request_optional: bool, response_extra: bool) -> MindcladeGraph` by compiling a copy of the existing Echo SemanticInput fixture with precisely those two mutations. It must call Compiler and seal, never construct an unvalidated graph. Add:
+
+```rust
+#[test]
+fn strict_response_addition_is_breaking() {
+    let old = echo_graph(true, false);
+    let new = echo_graph(true, true);
+    let report = compare(&old, &new, Direction::OldClientNewServer);
+    assert!(!report.is_compatible());
+    assert!(report.changes.iter().any(|c| c.code == "response-field-added"));
+}
+```
+
+- [ ] Run the new filtered Cargo test and observe missing comparison/failing classification.
+- [ ] Implement stable namespace/name/kind matching, reject ambiguous matches, compute transitive input/output usage, and compare fields recursively with visited pairs. Apply the spec's strict response rule and opaque-revision treatment. Sort changes by subject/code/reason; bind report to graph and policy digests.
+- [ ] Add explicit tests for input optional addition, newly required field, type/status/route/media changes, deletions, revision-only change, same type in both directions, recursive model references, unknown change category, malformed input, and permutation-stable report bytes. Unsupported is non-passing.
+- [ ] Wire CLI through the existing frontend parser and Compiler, update the generator source inventory, and run Rust/Bazel checks plus CLI exit-code tests. Commit `feat(codegen): compare directional capability compatibility`.
+
+## Task A3: CI And Verifiable Evidence Retention
+
+**Interfaces:** `scripts/evidence_bundle.py` exposes `export_bundle(source: Path, destination: Path, metadata: dict) -> str` and `verify_bundle(destination: Path) -> dict`. Export copies only declared regular files into a new exclusive directory, writes a canonical SHA-256 index, verifies readback, and returns the index digest. Metadata requires candidate/base SHA, platform, workflow URL/run attempt when CI, tool versions, command status, and evidence classification. CLI subcommands `export --source PATH --destination PATH --metadata PATH` and `verify --bundle PATH`; never overwrite an existing bundle or infer qualification.
+
+- [ ] Add focused Python tests, including this failure case:
+
+```python
+def test_missing_receipt_is_not_success(self):
+    with tempfile.TemporaryDirectory() as directory:
+        root = pathlib.Path(directory)
+        with self.assertRaises(ValueError):
+            export_bundle(root, root / "archive", {"candidate": "a" * 40})
+```
+
+Import pathlib/tempfile and the two proposed functions in the new test module. Add exclusive-destination, symlink/traversal, corrupt readback, failed/cancelled command, wrong candidate and moved-directory verification tests.
+
+- [ ] Run `nix develop --no-write-lock-file -c python3 -m unittest discover -s scripts -p test_evidence_bundle.py` and record relevant failure.
+- [ ] Implement structured strict JSON metadata and canonical inventory, stream file hashing, owned export, and verification. A non-passing bundle can be retained but never represented as passing; malformed or missing required evidence raises ValueError. No cloud publishing credentials or semantic compilation in this script.
+- [ ] Add failing policy tests for feature cancellation, uncancelled main runs, SHA pins and action runtime support. Resolve current official checkout/upload-action releases to commit SHAs and inspect their `action.yml`; record the exact source/runtime review in `toolchain.md`, with no mutable tags in workflow YAML.
+- [ ] Implement groups so main has a unique run ID and feature/PR groups are stable within event/ref. Set `cancel-in-progress` true only for non-main. Keep read-only permissions, persist-credentials false, immutable checks, always-upload receipts, and missing-file error. Keep archive exports a separate explicit action, not a silent repository-write permission increase.
+- [ ] Correct roadmap status to distinguish existing cross-host source passes from still-missing independent acceptance/protection. Add archival policy: owner-controlled destination and successful retrieval required; longer CI artifact retention alone does not satisfy it. Leave archive and governance gates blocked until supplied.
+- [ ] Run Python policy tests, scaffold/tree/link checks, and full pinned aggregate; push branch for a Linux run and record its actual outcome. Commit `ci: preserve candidate evidence and cancel obsolete feature runs`.
+
+## Related
+
+- [VS-001 Delivery Plan](/superpowers/plans/2026-09-23-vs001-delivery)
+- [VS-001 B: Composition](/superpowers/plans/2026-09-23-vs001-b-composition)
+- [VS-001 C: Durability](/superpowers/plans/2026-09-23-vs001-c-durability)
+- [VS-001 D: Assurance](/superpowers/plans/2026-09-23-vs001-d-assurance)
+- [VS-001 Durable Capability Design](/superpowers/specs/2026-09-23-vs001-durable-capability-design)

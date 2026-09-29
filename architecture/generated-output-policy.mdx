@@ -1,0 +1,85 @@
+---
+title: "Generated Output Policy and Provenance Requirements"
+sidebarTitle: "Output Policy"
+description: "Rules for generated artifacts, required provenance bindings, implemented foundation projections, VS-001 public protocol products, and the explicit scaffold exception."
+---
+
+This page defines the generated output policy for the Mindclade monorepo. Generated outputs are projections from authored contracts and the `MindcladeGraph`. It covers the core rules, required provenance, implemented foundation projections, VS-001 public protocol products, and the explicit scaffold exception.
+
+The [generated-surface ownership ledger](/architecture/generated-surface-ownership) maps every target to its authored boundary. TypeSpec-owned APIs emit Protobuf; an optional planned Protobuf-first input cannot co-own the same contract.
+
+## Rules
+
+- Do not hand-edit generated files.
+- A generated artifact is never semantic authority.
+- Every generated artifact must be reproducible from source authority and Codegen.
+- Generation must emit provenance.
+- Dirty regeneration is a failed source check.
+
+## Required provenance
+
+Generated provenance must bind:
+
+- generator name
+- generator version
+- frontend source path and digest
+- `SemanticInput@v1` digest
+- `MindcladeGraph` digest
+- output path
+- output digest
+- policy version and digest
+- generation time and execution identity in a separate receipt where they would otherwise make canonical output nondeterministic
+
+## Implemented foundation projection
+
+The first retained graph and manifest already exist at `generated/foundation/graph.json` and `generated/foundation/manifest.json`. They are emitted by Rust Codegen from the official frontend's foundation input and immutable typed graph. The implemented [foundation projection policy](https://github.com/Mindclade-org/mindclade-internal-monorepo/blob/main/generated/README.md) defines their exact ownership and canonical byte format.
+
+`FoundationManifest@v1` binds source digests, normalized input digest, graph/output digest, generator version and build-bound implementation fingerprint, dependency locks, and policy identity. It does not hash itself. Generation time, executing commit, host, and manifest digest belong in the untracked generation receipt, outside canonical semantic bytes. These records support reproducibility of the foundation slice; they do not establish independent assurance or release authority.
+
+The generator owns only that graph/manifest pair and refuses symlink destinations and unowned manifests. Integrated VS-001 A1 uses a permanent advisory writer lock, synced staging, and a strict hash-bound recovery journal, publishing the manifest last. This is recoverable multi-file publication, not an atomic snapshot rename. Read-only checks reject an active journal and missing, partial, or stale output; they do not repair it. Managed-writer process-kill recovery is tested; power-loss, network-filesystem, and hostile concurrent mutation guarantees remain unclaimed. The parent/integrator owns regeneration and checks when execution is delegated to it. Later VS-001 consumer, service, and SDK projections remain planned.
+
+## VS-001 public protocol products
+
+The `VS001ProtocolProducts@v1` profile adds `generated/vs001/public/openapi.json`, `public/echo.proto`, `public/mcp.json`, and `public/README.md` to the service catalog, for thirteen owned files. `generated/vs001/public/*` is the single owned VS-001 inventory for these Proto, OpenAPI, MCP, and API-docs surfaces; the reserved `generated/protobuf/`, `protocols/`, `generated/openapi/`, and `generated/mcp/` destinations stay untouched. Proto field numbers come only from the authored `contracts/registries/vs001-proto-fields.yaml`, checked for numbering and reservation compatibility against `vs001-proto-fields.previous.yaml`; Codegen never writes either registry. The manifest binds both registries by path and digest and records the compatibility report. The publisher rejects a downgrade from this profile under its existing lock and before journal recovery mutates anything. These products are structural projections: the Proto is messages-only, the MCP catalog is metadata, and none is a runtime validator, server, or qualification.
+
+Rob accepted the initial field numbers as contract owner on 2026-09-26.
+
+The `VS001CompositionProducts@v1` profile is the live `generated/vs001/` catalog: the thirteen protocol-profile files plus the generated `service/http.rs` HTTP adapter, for fourteen owned files and thirteen non-manifest output digests. `just generate-vs001` selects it through the `compile-vs001-composition` route; the twelve outputs it shares with the protocol profile are byte-identical to protocol mode. Profiles are ordered Unlabelled \< Protocol \< Composition, and the same publisher rejects any downgrade under its existing lock and before journal recovery mutates anything. The adapter's route, method, media, path rule, models, success status, and error alternatives come from the checked operation and its body limit from the transport profile; it targets RuntimeKit's generic handler and is composed only by the non-durable Foundation Echo service. It is not durable admission, a deployment, or a qualification.
+
+## Explicit scaffold exception
+
+ADR-015 permits only manifest-listed placeholders and markers in future generated destinations. They carry `MINDCLADE_SCAFFOLD_STUB` and remain planned. The root `generated/MANIFEST.json` and `generated/PROVENANCE.jsonl` remain explicitly non-evidence stubs, not emitted artifacts, receipts, signatures, or SBOMs. They are distinct from the implemented foundation manifest. Retire placeholders through reviewed Codegen implementation before publishing genuine artifacts.
+
+Reserved targets also include `protocols/`, generated product subtrees, `infra/generated`, and `docs/architecture/generated`. Real outputs require an input manifest, exact generator version/commit, hashes, provenance, owner, regeneration command, drift check, stale-output deletion policy, and exact-byte comparison.
+
+## Mechanical repository inventory
+
+The repository tree is a mechanical file catalogue refreshed by `scripts/validate_repository.py` from Git-visible paths and reviewed layout metadata. It is not a semantic graph view, Codegen artifact, or compiler input lowering. It lives in authored architecture documentation, outside `generated/`. Do not edit the rendered inventory directly. The helper may enumerate paths and validate documentation links, but cannot compile contracts or emit semantic projections. Semantic architecture views remain Codegen-owned under ADR-013.
+
+The [developer-product qualification plan](/architecture/developer-products) specifies canonical output versus variable receipt fields, independent semantic oracles, transitive audience checks, compatibility, and eventual release-set recovery. These are implementation and acceptance requirements, not passing checks today.
+
+## Engineering records and evidence
+
+`WorkPacket@v1` and `GovernanceReport@v1` are non-semantic engineering records, not Codegen projections, compiled policy Decisions, locks, or execution grants. Their paths and identity checks must not introduce another semantic compiler. An approved generated path in a packet declares an output only and grants no permission to edit. Generator execution requires separate authority; manual changes to generated bytes remain forbidden.
+
+Source, generator, lock, policy, or candidate changes invalidate affected output and evidence claims until fresh regeneration/checks and review establish the new identities. Follow the [supervised workflow](https://github.com/Mindclade-org/mindclade-internal-monorepo/blob/main/.agents/workflows/supervised.md) for admission and evidence freshness. The [GitHub runbook](/operations/github-governance) describes future operational archival in private immutable releases under protected `evidence/` tags after the connected loop succeeds. That archive is not a semantic projection or product release, and no publication or Linear closure follows while the loop is BLOCKED.
+
+## Related
+
+<CardGroup cols={2}>
+  <Card title="Generated Surface Ownership" icon="list-check" href="/architecture/generated-surface-ownership">
+    Authored sources and generated surface ledger.
+  </Card>
+
+  <Card title="Developer Products" icon="boxes" href="/architecture/developer-products">
+    Compiler and product qualification plan.
+  </Card>
+
+  <Card title="Service Descriptor" icon="file-code" href="/architecture/service-descriptor-v1">
+    Canonical service descriptor schema.
+  </Card>
+
+  <Card title="Architecture Source Profile" icon="sitemap" href="/architecture/architecture-source-profile">
+    Ownership, maturity, and membership model.
+  </Card>
+</CardGroup>

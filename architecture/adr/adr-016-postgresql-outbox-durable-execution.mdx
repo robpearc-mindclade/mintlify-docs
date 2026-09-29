@@ -1,0 +1,95 @@
+---
+title: "ADR-016: PostgreSQL and the Transactional Outbox as the Durable Execution Substrate"
+sidebarTitle: "ADR-016"
+description: "Records the choice of PostgreSQL 18.6 with a transactional outbox as the sole durable execution substrate, with rejected alternatives and revisit triggers."
+---
+
+This architecture decision record documents the durable execution substrate choice for Mindclade vNEXT. It is for platform engineers, database administrators, and reviewers assessing the C durability criteria and the conditions under which this choice may be revisited.
+
+## Status
+
+| Attribute | Value |
+| --- | --- |
+| Status | Accepted (Rob, 2026-09-26) |
+| Date | 2026-09-26 |
+| Related | [C durability criteria](../../superpowers/specs/2026-09-26-c-durability-criteria), [2026-09-26 design audit](../reviews/2026-09-26-design-audit), [agent handoff](../../developer/agent-handoff) |
+
+## Context
+
+[AGENTS.md](../../../AGENTS.md) and the [architecture laws](../architecture-laws.md#durable-path) already name PostgreSQL state plus a transactional outbox as the durable baseline, and [execution reliability](../execution-reliability.md#admission-and-ownership) elaborates the requirements. No ADR recorded the choice, so the alternatives and the conditions for revisiting them were not written down anywhere. The [C durability criteria](../../superpowers/specs/2026-09-26-c-durability-criteria.md#1-scope-non-goals-and-the-guarantee) say so explicitly, and `docs/architecture/decisions/` holds only a placeholder.
+
+The [2026-09-26 design audit](../reviews/2026-09-26-design-audit.md) found that C1 through C5 amount to a hand-built durable-execution engine with no recorded comparison. Rob approved writing this ADR on 2026-09-26.
+
+The substrate facts are already decided at C checkpoint A ([section 13](../../superpowers/specs/2026-09-26-c-durability-criteria.md#13-decisions-for-rob-consolidated-with-recommendations), [Amendment 1](../../superpowers/specs/2026-09-26-c-durability-criteria.md#amendment-1-2026-09-26-checkpoint-a-approved), recorded as D-3 in the [handoff](../../developer/agent-handoff.md#owner-decisions-recorded-2026-09-26-after-the-closeout)):
+
+- **OD-1:** `postgresql_18` = 18.6 from the locked nixpkgs, pinned behind a version assert. It is supported upstream to 2030-11-14 and enables data checksums by default.
+- **OD-2:** the synchronous `postgres =0.19.14` client, whose required `tokio-postgres`/`postgres-protocol` versions clear the 2026-06-12 advisories. It runs a private current-thread tokio runtime per connection, so tokio enters the lock at C1.
+- **OD-3 to OD-6:** the migration stays in the service, trust authentication is confined to a Unix socket with a non-superuser application role, retries are three attempts with persisted 100 ms and 500 ms delays, and the durable descriptor and configuration profile is a separate reviewed C0 gate.
+
+## Decision
+
+The durable execution substrate is one PostgreSQL cluster holding run state together with a transactional outbox, and nothing else.
+
+### 1. Atomic admission
+
+Durable state and its dispatch event commit in the same PostgreSQL transaction. Delivery is at least once, with inbox deduplication by stable identity, database-timed generations and leases, fenced completion, bounded retries and confirmed cancellation, as the C criteria specify.
+
+### 2. Pinned substrate
+
+PostgreSQL 18.6 and `postgres =0.19.14` per OD-1 and OD-2. The client's embedded tokio runtime is an accepted consequence of that pin, not a licence to introduce a second concurrency model into service code; see [ADR-017](adr-017-runtimekit-transport-engine.md) for the transport side of it.
+
+### 3. Trace context is metadata
+
+W3C `traceparent` and `tracestate` are carried on the admission, outbox and attempt rows through the separately reviewed C criteria amendment. They are never part of the admission key, a content digest, evidence, or the sealed event log.
+
+### 4. Alternatives considered and rejected for now
+
+- **DBOS.** It validates the PostgreSQL-native durable-execution model and stores workflow state in PostgreSQL, but its SDKs are Python, TypeScript, Go and Java. There is no Rust SDK, so the Rust semantic kernel and services cannot use it.
+- **Restate.** It does publish a Rust SDK (`restate-sdk`), but it adds a separate durable-execution runtime whose journal becomes a second source of truth beside PostgreSQL and the sealed graph. That contradicts one authoritative store at VS-001 scope, for no capability the slice needs.
+- **Temporal.** Mature and well understood, and its integration with the OpenAI Agents SDK is generally available, which the design audit dates to March 2026 and which matters for later agent campaigns. It is rejected now for operational cost: a server plus a second state store, for a slice whose guarantee one transaction already provides. The C criteria list Temporal as explicitly out of scope.
+- **A message broker, or any in-memory "durable" store.** Out of scope by the C criteria; neither provides atomic state-plus-event commit.
+
+### 5. Triggers for revisiting
+
+Each trigger requires its own ADR with measured evidence, not an in-place amendment here:
+
+- **Durable timers.** Waits measured in hours or days, schedules and cron-like behaviour, where polling a PostgreSQL table is imprecise or wasteful.
+- **Long GPU jobs and campaigns.** Attempts that outlive a connection, a process, or a deployment, and that need external-job lookup and reconciliation with a paid provider, including multi-day campaign budgets.
+- **Multi-service sagas.** Once [ADR-010](adr-010-modular-monolith-first-deployment.md) splits a service out, cross-service compensation stops being one transaction.
+- **A second language runtime** needing the same durable API, where a per-language hand-built store would be duplicated.
+
+This ADR records a substrate choice. It does not implement, admit, or qualify anything, and it does not grant the durable descriptor or configuration profile, which stays with the C0 gate.
+
+## Consequences
+
+- No workflow engine, broker, or durable-execution SDK enters the locks at C. Adding one is an ADR change with its own dependency review.
+- Outbox delivery repeats. Every consumer deduplicates by stable identity, enforces legal state transitions, and preserves evidence across delivery attempts.
+- PostgreSQL becomes an operational dependency with its own obligations: the checksum-bound migration, recorded durability settings on both hosts, a bounded connection count, and backup and recovery once anything runs outside a test harness.
+- The guarantee stays exactly what the C criteria prove: at-least-once delivery, at most one authoritative completion, and a terminal state within three attempts, across process crashes and PostgreSQL crash restarts. Power loss and operating-system crashes are excluded, and `wal_sync_method` is recorded rather than claimed.
+- Durability alone cannot make an external effect exactly once. Effect keys, persisted intent, and reconciliation before resubmission remain required by [execution reliability](../execution-reliability.md#effects-and-recovery).
+- C1 through C5 remain BLOCKED — not run. Nothing may be labelled durable before the C0 profile gate merges; the B3b compile-fail and labelling tests still enforce that.
+- The fake Clade worker in VS-001 exercises this path for system proof only, never for scientific validation.
+
+## Alternatives
+
+DBOS, Restate, Temporal, and message brokers were considered and rejected as documented in the Decision section above.
+
+## Related
+
+<CardGroup cols={2}>
+  <Card title="ADR-010 Modular Monolith" icon="cubes" href="/architecture/adr/adr-010-modular-monolith-first-deployment">
+    The deployment model that triggers a substrate revisit when services split.
+  </Card>
+
+  <Card title="ADR-017 Transport Engine" icon="network-wired" href="/architecture/adr/adr-017-runtimekit-transport-engine">
+    The RuntimeKit transport decision that interacts with the PostgreSQL client runtime.
+  </Card>
+
+  <Card title="Execution Reliability" icon="shield-halved" href="/architecture/execution-reliability">
+    The requirements that this substrate implements.
+  </Card>
+
+  <Card title="C Durability Criteria" icon="clipboard-check" href="/architecture/superpowers/specs/2026-09-26-c-durability-criteria">
+    The criteria that define the durability guarantee.
+  </Card>
+</CardGroup>

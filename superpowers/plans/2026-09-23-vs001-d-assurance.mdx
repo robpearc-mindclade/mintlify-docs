@@ -1,0 +1,136 @@
+---
+title: "VS-001 Replay And Independent Assessment Implementation Plan"
+sidebarTitle: "VS-001 Assurance"
+description: "Seal replayable execution evidence and obtain an independently assessed, provenance-bound policy decision for the exact VS-001 candidate."
+---
+
+> For agentic workers: Follow the tracked [foundation workflow](https://github.com/Mindclade-org/mindclade-internal-monorepo/blob/main/.agents/workflows/foundation-development.md), or available `superpowers:subagent-driven-development` tooling with equivalent fresh criteria/implementation/task-review and whole-candidate-review separation. The parent owns commands, jobs, receipts, Git and remote operations. No installed plugin is required; this plan grants no operational admission. Written criteria review precedes implementation.
+
+**Goal:** Seal replayable execution evidence and obtain an independently assessed, provenance-bound policy decision for the exact VS-001 candidate.
+
+**Architecture:** Immutable execution capsule, external independent assessment, policy decision, and final qualification envelope form an acyclic chain. Candidate-owned software can verify signatures and demonstrate failure behavior; it cannot establish its own trust root or acceptance authority.
+
+**Tech Stack:** Existing pinned stack, core typed references, generated internal assurance DTOs, PostgreSQL replay, ed25519-dalek strict verification, read-only Linux CI and verified evidence exports.
+
+**Spec:** [Design sections 8-10](/superpowers/specs/2026-09-23-vs001-durable-capability-design).
+
+## Global Constraints
+
+- Preserve Bazel 9.1.1, Rust 1.96.1, TypeSpec compiler/HTTP 1.16.0, Node 22.23.2, pnpm 12.3.4, Python 3.12.14, and the committed Nix lock baseline.
+- Nix supplies tools; Bazel owns product compilation and tests. No downloads or package installation within build/test actions.
+- Architecture YAML remains authoritative. Planned JSON architecture placeholders remain inactive.
+- Implementation, acceptance criteria and assurance must not all be controlled by the implementation owner. Candidate test keys never count as acceptance.
+- No scientific, production, release or deployment qualification is inferred from this engineering slice.
+- Require exact-candidate Apple Silicon/Linux evidence; Intel Mac remains configured, untested.
+- Missing independent owner/protected execution/trust custody/archival evidence is BLOCKED, not approved. Follow [integration rules](/superpowers/plans/2026-09-23-vs001-delivery).
+
+## Review Focus
+
+1. Forged typed references or mismatched artifact bytes must fail before evidence is sealed: D1.
+2. Capsule traversal/symlinks, missing inputs and schema changes must fail without touching a live store: D2.
+3. Decision/capsule references must not create a digest cycle or compare wall-clock noise as semantic output: D1-D2.
+4. Self-signed assessment, altered criteria, wrong revision, failed/missing platform evidence or revoked key must never approve: D3.
+5. Review of an earlier revision or an expired/unretrievable evidence location cannot establish final acceptance: D4.
+
+## File And Interface Map
+
+- `services/foundation_echo/src/execution/{provenance.rs,capsule.rs,replay.rs}`: factual capture and replay, no acceptance authority.
+- `services/foundation_echo/tests/{provenance.rs,replay.rs}`: artifact binding and fresh-store replay tests.
+- `contracts/typespec/internal/assurance.tsp`: completed schema fields for typed records introduced in B1; evolve via Codegen, not hand-authored duplicate DTOs.
+- `contracts/registries/vs001-acceptance-policy.yaml`: proposed versioned policy, authoritative only after separate owner approval.
+- `tools/qualification/vs001/{Cargo.toml,BUILD.bazel,src/lib.rs,src/main.rs,src/assessment.rs,src/policy.rs,tests/verification.rs}`: small independently reviewable verifier/evaluator harness.
+- `tests/qualification/vs001/{criteria.yaml,negative-assessments.json}`: candidate expectations/negative fixtures until separately owned; no production private keys.
+- `docs/architecture/reviews/2026-09-23-vs001-acceptance.md`, `docs/architecture/evidence/vs001-index.json`: factual acceptance status and verified archive identities, not prefilled success.
+- Existing maturity/roadmap/VS-001/execution reliability docs, CODEOWNERS, workflow/justfile: update only to actual observed/assigned state.
+
+### Task D1: Bound Artifacts, Evidence And Acyclic Capsule
+
+**Interfaces:** Generated `ExecutionCapsuleV1` fields: schema, immutable Run/packet references, source inventory/candidate/base, graph/manifest/descriptor/runtime/lock digests, schema/workflow/policy/criteria references, ordered causal events, declared input/output/evidence inventories. Each inventory entry is `{path, size_bytes, digest, media_type}` with normalized relative path. No self digest, Assessment or Decision field in the execution capsule. `seal_execution(snapshot: &ExecutionSnapshot, destination: &Path) -> Result<Digest, CapsuleError>`; CapsuleError covers invalid_reference, integrity, path, version, missing_input and I/O. ExecutionSnapshot is the store's consistent read-only transaction view of immutable admission/events/outputs, with independently verified byte inventory.
+
+- [ ] Add PgTest `completed_snapshot() -> ExecutionSnapshot` using C2-C3 to produce a real completed Run. Add this regression:
+
+```rust
+#[test]
+fn corrupted_artifact_cannot_be_sealed() {
+    let mut t = PgTest::new();
+    let mut snapshot = t.completed_snapshot();
+    snapshot.output_bytes[0].bytes.push(b'!');
+    assert!(seal_execution(&snapshot, t.capsule_path()).is_err());
+    t.finish();
+}
+```
+
+Define `output_bytes: Vec<OwnedOutput>` as an untrusted capture buffer until sealing verifies each recorded ArtifactRef. `capsule_path(&self) -> &Path` returns a fresh owned destination in the test harness.
+
+- [ ] Observe failure before sealing, then implement exact binding to candidate/base, source/compiler/runtime/descriptor/locks/packet/Run/Attempt/evaluator/criteria. Reuse core typed constructors and canonical JSON, extending core serialization only through checked deserialization tests. A mutable database row is never the content of an immutable typed reference.
+- [ ] Store canonical fake NOVA result bytes separately from provenance and immutable ArtifactRecord seal. A record does not hash its own digest; bind the artifact's payload digest and the enclosing record's reference explicitly. Canonical generated products exclude time/host; execution receipts preserve actual observed time/platform.
+- [ ] Implement seal from a consistent PostgreSQL snapshot, exclusive destination creation and content inventory validation. Use A1's publication rules where publishing multiple owned files; reject output paths outside the owned capsule root. Events use causal sequence and stable references; observed timestamps remain available in receipts.
+- [ ] Test changed source/graph/manifest/runtime/descriptor/lock/packet/evaluator reference, missing artifact, forged kind, partial snapshot, reordered causal sequence and repeat sealing. Require exact canonical bytes for identical snapshots. Commit `feat(vs001): seal provenance-bound execution capsules`.
+
+### Task D2: Fresh-Store Sealed Replay
+
+**Interfaces:** `replay(capsule_root: &Path, harness: &mut PgHarness) -> Result<ReplayResult, CapsuleError>`, with ReplayResult `{ capsule_digest: Digest, artifacts: Vec<ArtifactRef>, normalized_events_digest: Digest, observations: Vec<CriterionObservation> }`. CriterionObservation is the generated record `{criterion_id, stimulus_digest, expected_digest, observed_digest, outcome}`; outcome is Pass/Fail/Blocked. The function accepts only a newly created empty PgHarness, never a DSN string or existing database. `normalize_events(events) -> Result<Vec<ReplayEvent>, CapsuleError>` removes only documented receipt fields and retains state/generation/result/causal semantics.
+
+- [ ] Add fresh-store replay tests that take D1's completed capsule through all C4 fault schedules. First acceptance assertion:
+
+```rust
+#[test]
+fn replay_reproduces_exact_artifact_bytes() {
+    let mut t = PgTest::new();
+    let sealed = t.sealed_completed_capsule();
+    let mut replay_db = PgHarness::start().expect("real postgres");
+    let replayed = replay(&sealed.root, &mut replay_db).expect("valid capsule");
+    assert_eq!(replayed.artifacts, sealed.artifacts);
+    assert_eq!(replayed.normalized_events_digest, sealed.normalized_events_digest);
+    assert_eq!(t.read_replayed_bytes(&replay_db), sealed.artifact_bytes);
+    replay_db.stop().expect("clean teardown");
+    t.finish();
+}
+```
+
+PgTest gains `sealed_completed_capsule() -> SealedFixture` with fields root, artifacts, normalized_events_digest and artifact_bytes populated from actual D1 sealing, and `read_replayed_bytes(&PgHarness) -> Vec<Vec<u8>>` using independent SQL reads.
+
+- [ ] Observe failure before replay, then verify inventory before loading any executable/input data, check schema/workflow/generator compatibility, restore immutable logical IDs, and replay recorded stimuli/fault ordering through the same typed ports into a fresh store. No filesystem/network access outside declared fixture and owned test database is allowed during replay.
+- [ ] Add malformed/unknown capsule schema, missing byte, extra unlisted executable input, path traversal, symlink, corrupted digest, old workflow, changed policy/evaluator and nonempty-database tests. Keep failed replay diagnostics/evidence; never rewrite the capsule to match observed output.
+- [ ] Add repeated/relocated replay tests on both hosts; distinguish causal/artifact equivalence from wall-clock/process-ID differences. Execute the real database path, not re-reading the original stored response. Commit `feat(vs001): replay sealed execution in isolated stores`.
+
+### Task D3: Fail-Closed Assessment And Policy Evaluation
+
+**Interfaces:** `verify_assessment(envelope: &[u8], trust: &TrustBundle, expected: &CandidateBinding) -> Result<VerifiedAssessment, AssessmentError>`; VerifiedAssessment has private fields and cannot be directly deserialized/constructed. TrustBundle is loaded from an acceptance-owner-controlled source, not from the candidate/capsule. CandidateBinding includes candidate/base, graph/manifest/runtime/descriptor/source/locks/capsule/policy/criteria/evaluator digests, platform requirements and CI run identity. AssessmentError includes malformed, untrusted_key, revoked_key, invalid_signature, wrong_binding and missing_evidence. `decide(claim: &Claim, policy: &TrustedPolicy, assessment: Result<VerifiedAssessment, AssessmentError>) -> DecisionRecord`; TrustedPolicy likewise cannot be loaded merely because a candidate supplied it.
+
+Signed envelope is `{schema, key_id, payload, signature}`; signature is strict Ed25519 over domain-separated canonical payload bytes (`MindcladeAssessment@v1` plus LF). Payload contains the bindings, assessor identity, criteria observations and evidence bundle digests. Reject duplicate/unknown JSON keys and noncanonical payload representations. Pin the verification crate through reviewed Cargo/Bazel locks. No signing private key is in repository, CI source job, candidate or test result.
+
+- [ ] Create the proposed policy/criteria with exact required observations from the design acceptance matrix. Request the separate owner's review/freeze before real assessment. Independently controlled runner must verify actual GitHub run conclusion/SHA/attempt/artifact download via authenticated read-only access; arbitrary candidate-supplied CI JSON is not authoritative.
+- [ ] Add unit fixtures using explicit TEST ONLY keys and this rejection test:
+
+```rust
+#[test]
+fn a_candidate_key_cannot_approve_itself() {
+    let fixture = AssessmentFixture::signed_by_candidate();
+    let result = verify_assessment(&fixture.envelope, &fixture.owner_trust, &fixture.expected);
+    assert!(matches!(result, Err(AssessmentError::UntrustedKey)));
+}
+```
+
+`AssessmentFixture` lives only in `tests/verification.rs`; constructors generate fixed canonical payloads, test keys, CandidateBinding and a distinct owner trust root. Include `owner_signed_pass()` and `owner_signed_failure()` positive/negative controls without identifying either as real acceptance.
+
+- [ ] Observe relevant verifier/policy failure. Implement strict signature/canonical decoding, external trust lookup, key revocation and exact binding comparison. Bind accepted criterion IDs/results to the frozen policy; unknown or missing criteria cannot pass. Policy mapping is Approved for trusted complete pass, Rejected for trusted failed criteria, Blocked for unavailable/untrusted/inapplicable evidence, and NeedsHumanReview only where the trusted policy requires it.
+- [ ] Test wrong candidate/base/digests, replaced evaluator, changed criteria, revoked key, invalid signature, duplicate JSON key, missing Mac/Linux receipts, failed/cancelled CI, self-declared reviewer identity and changed trust/policy files inside the candidate. A modified candidate policy must not be accepted by the external owner-controlled verifier.
+- [ ] Provide `verify-assessment` and `decide` CLI commands with explicit trust/policy/candidate paths supplied by the independent runner. Missing external authority emits a Blocked result and nonzero exit, not a placeholder Approved decision. Whole-branch reviewer examines privilege/ownership boundaries separately from implementation correctness.
+- [ ] Run verifier policy tests and B4's boundary checks with the new assessment dependencies and owner-role coverage. Reject an implementation-to-acceptance authority edge even if package compilation succeeds; actual independent identity and trust custody remain external checks. Commit `feat(assurance): verify independently bound VS-001 assessments`. Record the implementation as a candidate harness until independently owned/accepted.
+
+### Task D4: Independent Run, Final Envelope And Handoff
+
+**Interfaces:** `seal_qualification(execution_digest: Digest, assessment: &VerifiedAssessment, decision: &DecisionRecord, destination: &Path) -> Result<Digest, CapsuleError>` writes `QualificationEnvelope@v1` containing only immutable reference inventory and observed outcome. It cannot label a Blocked/Rejected decision Approved. Evidence index records bundle digest, owner, retrieval location, verified retrieval timestamp and access/retention classification; it contains no credentials.
+
+- [ ] Add envelope tests proving changing capsule/assessment/decision invalidates the final seal, the capsule does not include its own assessment/decision, and a blocked decision cannot be relabeled by envelope metadata. Observe failures, implement acyclic sealing, and commit `feat(assurance): seal VS-001 assessment envelopes` with focused tests.
+- [ ] Obtain an actual separate acceptance owner and trust custody. Have that owner freeze policy/criteria/evaluator and designate a protected independent execution environment. If unavailable, stop the acceptance portion with Blocked evidence while preserving all completed source/runtime work. Do not fabricate an account, signature, approval or protected branch.
+- [ ] Obtain fresh whole-branch review after all implementation tasks; retain findings/rulings and review candidate. Repair issues, then rerun Apple Silicon and Linux checks on the exact final source candidate. A changed candidate requires new bound evidence, even if an earlier commit passed.
+- [ ] Independently fetch/verify the source-test and runtime evidence bundles, replay the sealed capsule in a fresh database, assess each criterion, and produce the signed assessment using the owner's environment. Evaluate the owner-controlled policy and seal the final envelope. A Rejected or Blocked outcome does not meet VS-001 acceptance.
+- [ ] Export the complete bundle through A3's verifier to an approved owner-controlled archive and verify retrieval. Record both CI transport URLs and durable archive identity/access/retention policy. A local duplicate without an approved retention policy is only an interim backup.
+- [ ] Update roadmap/maturity/VS-001 check table and acceptance report with exact observed candidate/base, run URLs/attempts, tools, review identity, artifacts, policy decision and blockers. Keep public source-check docs distinct from protected assessment evidence. Documentation-only closeout commits identify the previously assessed source candidate and never claim their own later SHA was that candidate.
+- [ ] Run documentation/tree/scaffold/whitespace checks, commit closeout docs, push the branch, and integrate only under current repository policy. If a merge changes tested source, regenerate evidence and assessment. After authorized integration verify SHA parity, archive receipts, and clean only this task's merged clean branches/worktrees. No force deletion of unrelated work.
+
+## Completion Rule
+
+This plan is complete only when an authorized independent assessment and policy Decision approve the exact engineering claim and the required evidence is retrievable. Implemented verifier code, a passing test-key example, a fresh code review, or a source-only merge exception cannot substitute for that outcome. Missing branch protection may permit a newly authorized source-only merge, but does not by itself provide independent acceptance or change the qualification decision.

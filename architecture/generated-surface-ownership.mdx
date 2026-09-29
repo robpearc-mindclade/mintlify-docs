@@ -1,0 +1,80 @@
+---
+title: "Generated Surface Ownership Ledger"
+sidebarTitle: "Surface Ownership"
+description: "The authored-source to generated-surface mapping for the Mindclade monorepo, covering all projection boundaries, current status, and activation controls."
+---
+
+This page records the accepted target and partial source boundary for generated surface ownership in the Mindclade monorepo. It is an explanatory ownership reference, not an activation of generators or an allocation of a second copy of an output. ADR-002, ADR-003, ADR-013, and the [output policy](/architecture/generated-output-policy) govern.
+
+<Warning>
+  Status: explanatory ownership reference, 2026-09-23. This records the accepted target and the partial source boundary; it does not activate generators or allocate a second copy of an output.
+</Warning>
+
+## Protobuf is generated for TypeSpec-owned APIs
+
+For VS-001 and TypeSpec-owned APIs, the authored interface is TypeSpec. Codegen consumes the official frontend's normalized input, seals `MindcladeGraph`, and lowers its validated meaning to Protobuf alongside OpenAPI and other projections. Do not hand-maintain a matching `.proto` contract, generate TypeSpec back from that output, or use emitted Proto as an additional semantic input for the same contract. The default [layered image](/architecture/platform-diagram) therefore shows Protobuf only among generated bindings and projections.
+
+The original blueprint also reserves `contracts/protobuf/` and `codegen/frontend/protobuf/` for a **planned optional Protobuf-first frontend**. That is permitted only where a reviewed ownership decision intentionally chooses Protobuf as the authored authority for a distinct contract. It is not implemented by the current TypeSpec frontend, and an empty directory does not select it. Such a contract must still enter `SemanticInput` and the same Codegen/graph pipeline. No contract may have competing authored TypeSpec and Protobuf definitions. Published Proto can be a validated projection or published copy of a Proto-first contract; its publication destination is never a second authored owner.
+
+## Surface ownership ledger
+
+Paths below are repository ownership boundaries. Where several projection paths are reserved, the introducing generator must choose one owned inventory and explicit packaging/copy rules; the table is not permission to emit divergent copies into every directory. "Planned" includes sealed placeholders. Authored helpers and generated subtrees must remain distinguishable within a product root.
+
+| Surface | Authored authority or handwritten code | Generated content and target boundary | Current boundary |
+| --- | --- | --- | --- |
+| Normalized frontend input | TypeSpec declarations and reviewed frontend adapter under `contracts/typespec/` and `codegen/frontend/typespec/` | Versioned `SemanticInput`, source locations/inventory and normalized language facts; build intermediates feed Rust Codegen. | Partial TypeSpec foundation/declaration source. Protobuf/domain frontends planned. |
+| Compiled graph and manifest | Contracts, compiler, source/lock identities and projection policy | `generated/foundation/graph.json` and `generated/foundation/manifest.json`; one graph with typed views. | Actual retained compiler-emitted pair. Root `generated/MANIFEST.json` and `PROVENANCE.jsonl` remain stubs. |
+| Protobuf messages/services and descriptors | TypeSpec-owned API meaning by default; stable field-number registry is authored compatibility input, not another message definition. Optional distinct Proto-first ownership as above. | VS-001: messages-only `generated/vs001/public/echo.proto`, numbered only from the authored `contracts/registries/vs001-proto-fields.yaml` and checked against `vs001-proto-fields.previous.yaml`. | B2b source: `generated/vs001/public/*` is the single owned VS-001 inventory; the reserved `generated/protobuf/` and `protocols/protobuf/` destinations stay untouched. No services, descriptors bundles or runtime ingress validation. Rob accepted the initial numbers as contract owner on 2026-09-26. |
+| OpenAPI | Validated public/internal operation, type, error, audience and transport meaning | VS-001: structural OpenAPI 3.1 `generated/vs001/public/openapi.json` for the public payload closure. | B2b source: `generated/vs001/public/*` is the single owned VS-001 inventory; the reserved `generated/openapi/` and `protocols/openapi/` destinations stay untouched. Internal documents remain planned. Do not author parallel OpenAPI semantics to fix an emitter. |
+| JSON Schema | Authored schema/resource declarations and resolved graph constraints | Projected resource/artifact/deployment/policy schemas under declared `generated/jsonschema/` / `protocols/jsonschema/` destinations. | Planned. `contracts/schemas/` is authored only where it intentionally owns source; it must not ingest its own emitted schema. |
+| Rust and TypeScript VS-001 products | Compiler target policy and reviewed handwritten consumer/runtime helpers | Checked public client/DTOs and internal Rust DTOs from one borrowed target IR; fourteen-file `VS001CompositionProducts@v1` `generated/vs001/` inventory (the thirteen protocol-profile files plus `service/http.rs`); the thirteen-file protocol, nine-file service and seven-file descriptor-free routes remain compatibility profiles, and a publication is never downgraded to an earlier profile. | Reviewed bounded B2a source checkpoint `041b62e` has full local/Linux source checks. B2b public protocol products have a reviewed source checkpoint (field numbers accepted by Rob as contract owner on 2026-09-26). The composition profile is B3b Stages C/D source, integrated at `72b762d` through PR #18 (checks and limits in the [handoff checkpoints](https://github.com/Mindclade-org/mindclade-internal-monorepo/blob/main/docs/developer/agent-handoff.md)). Later edits require fresh candidate validation; durability and acceptance remain pending. See the [product checkpoint](/architecture/reviews/2026-09-23-vs001-products). |
+| Broader language SDKs | `products/sdk/` ergonomics, transport/runtime support and packaging | Typed bindings/validators/client operations under declared `generated/sdk/` or product `generated/` boundaries. | Planned. Entire SDK roots are not disposable generated code. |
+| CLI and consoles | `products/cli/`, `products/console/`, `products/admin/` behavior, interaction and state | Generated API bindings, resource metadata and declared UI assets; products consume public APIs/SDKs. | Planned. Generated bindings do not generate all business/UI logic. |
+| MCP | `products/mcp/` authorization, runtime, sandbox and adapter implementation | VS-001: labelled `McpToolCatalog@v1` tool metadata in `generated/vs001/public/mcp.json`. | B2b source: `generated/vs001/public/*` is the single owned VS-001 inventory; the reserved `generated/mcp/` destination stays untouched. It is not an MCP server. Tool metadata neither implements an effect nor authorizes invocation. |
+| RuntimeKit service composition | Authored descriptor and capability/port implementation; handwritten `platform/runtimekit/` lifecycle, `platform/testkit/` test collaborators and `services/foundation_echo/` composition | VS-001: checked runtime configuration `service/config.rs` and the HTTP adapter `service/http.rs` from Codegen; further transport adapters defined at activation. | B3a source emits `service/descriptor.json` and `service/config.rs`; local aggregate publication verification passed. B3b Stages A/B (`0d44a36`) add RuntimeKit's configuration ABI and bounded transport. B3b Stages C/D (integrated at `72b762d`, PR #18) add the Codegen-emitted `service/http.rs` adapter over RuntimeKit's generic handler, test-only TestKit supplies a manual clock, fixed identity, cancellation-aware fault barriers and recording telemetry, and `services/foundation_echo/` composes the adapter with a non-durable TestAdmission port as a library and binary: partial VS-001 with no PostgreSQL/outbox. Domain logic, durable SQL/migrations and fixtures remain authored. RuntimeKit does not import Codegen, Echo, YAML or TestKit. |
+| Native operator C ABI | Operator semantics, handwritten CPU/TileLang implementations and parity tests | ABI declarations/registration/bindings under declared `compute/native/generated/` and operator generated ownership. | Planned. Kernels and numerical correctness are not created by ABI emission. |
+| Terraform and CDK | Authored `infra/terraform/` modules/environment intent and `products/cdk/` constructs/helpers | Deployment/resource-derived modules, providers, bindings or synthesis projections in declared `generated/terraform/`, `generated/cdk/`, product generated or `infra/generated/` inventories. | Planned. Do not label all Terraform modules or all CDK code generated. |
+| Kubernetes and GitOps | Authored base components/policies/environment parameters and service descriptors | Environment manifests, application/policy bundles and deployment plans under declared generated deployment ownership. | Planned. Promotion and live reconciliation are separate governed actions. |
+| API and descriptor docs | Authored explanatory docs and source contracts/descriptors | VS-001: the public API reference `generated/vs001/public/README.md`. | B2b source: `generated/vs001/public/*` is the single owned VS-001 inventory; other generated docs destinations remain planned. This foundations package and its illustrative raster/Mermaid are authored documentation, not Codegen output. |
+| Architecture views and atlas | Active `docs/architecture/model/architecture.yaml`, reviewed ownership and descriptors | Compiler-derived views/diagrams/indexes in `docs/architecture/generated/` or other declared projection paths. | Planned. Reserved JSON models and generated Markdown are stubs, not active authority or a completed atlas. |
+| Design system | Authored design intent/tokens and product components | Only declared token/component projections and generated bindings under product generated ownership. | Planned. The directory name does not make every component generated. |
+| Conformance fixtures and cases | Independently authored expectations, negative controls and acceptance criteria | Declared contract-derived fixtures/cases under generated test ownership. | Planned beyond existing foundation fixtures; generated expectations alone cannot qualify their generator. |
+| SBOMs, signatures and attestations | Reviewed release inputs, trusted tools, signer and policy | Build/release-produced inventories and signed evidence with exact hashes under declared provenance ownership. | Planned for releases. Cryptographic signing is a governed tool action, not semantic compilation or proof of independent trust by itself. |
+
+`protocols/graphql/` and event projection directories are reserved target surfaces; their presence selects no GraphQL runtime or duplicate event authority. Any future activation must establish authored ownership and the same controls before use.
+
+## Generated does not mean every machine-written file
+
+Three mechanisms must not be conflated:
+
+1. **Semantic products:** Codegen owns normalization, graph meaning, target IR, emitted semantic projections and their provenance. It may orchestrate pinned target tools; those tools do not rediscover Mindclade semantics.
+2. **Mechanical maintenance:** the full repository tree is enumerated by `scripts/validate_repository.py`; lockfiles are produced by approved package tools; build intermediates come from the pinned build. These have no independent semantic authority and are not claims of a completed Codegen architecture view.
+3. **Observed execution evidence:** receipts, test reports and external build/signing records describe actual execution. Canonical output hashes and variable receipt envelopes are distinct. `WorkPacket@v1` and `GovernanceReport@v1` are non-semantic engineering records, never generated capabilities or self-authorizing grants.
+
+## Required control before activating any target
+
+Each generator must declare its authored inputs, exact generator/tool and source identities, semantic graph, owner, complete output inventory, byte hashes, provenance, regeneration command, read-only drift check, and stale-file deletion policy. Remove only reviewed owned placeholders; never reseal changed stubs. Keep authored extension points outside disposable output zones. A missing output, unowned path, ambiguous authority, or unexplained drift is non-passing.
+
+`nix develop --no-write-lock-file -c just generate-foundation` emits the owned foundation pair. `nix develop --no-write-lock-file -c just generate-vs001` emits the fourteen-file VS-001 composition catalog through the same compiler, binding the explicit architecture input, frontend descriptor inventory, and current/previous proto field-number registries. `just verify-generated` inside the pinned shell checks both inventories without repair. These commands emit only the VS-001 `generated/vs001/public/*` Proto/OpenAPI/MCP/README products, not the reserved `generated/protobuf/`, `protocols/`, `generated/openapi/`, or `generated/mcp/` destinations, or the planned infra catalogue.
+
+The integration owner executes generation and consumer checks when authorized. See the [developer start here](https://github.com/Mindclade-org/mindclade-internal-monorepo/blob/main/docs/developer/start-here.md) for prerequisites and ownership.
+
+## Related
+
+<CardGroup cols={2}>
+  <Card title="Generated Output Policy" icon="file-shield" href="/architecture/generated-output-policy">
+    Rules and provenance requirements for generated artifacts.
+  </Card>
+
+  <Card title="Semantic Compilation" icon="code" href="/architecture/foundations/semantic-compilation">
+    Codegen, MindcladeGraph, and target lowering.
+  </Card>
+
+  <Card title="Developer Products" icon="boxes" href="/architecture/developer-products">
+    Compiler and product qualification plan.
+  </Card>
+
+  <Card title="Service Descriptor" icon="file-code" href="/architecture/service-descriptor-v1">
+    Canonical service descriptor schema.
+  </Card>
+</CardGroup>

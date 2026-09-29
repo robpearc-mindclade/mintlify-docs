@@ -1,0 +1,176 @@
+---
+title: "VS-001 Durable Execution Implementation Plan"
+sidebarTitle: "C Durability Plan"
+description: "Implementation plan for exercising the generated public capability through PostgreSQL durability, internal scheduling and deterministic worker recovery."
+---
+
+This page documents the VS-001 Durable Execution implementation plan (Plan C). It is intended for implementers, reviewers, and supervised agents working on the durable execution layer.
+
+<Warning>
+  This plan grants no operational admission. Written criteria review precedes implementation. The parent owns commands, jobs, receipts, Git and remote operations.
+</Warning>
+
+> **For agentic workers:** Follow the tracked [foundation workflow](https://github.com/Mindclade-org/mindclade-internal-monorepo/blob/main/.agents/workflows/foundation-development.md), or available `superpowers:subagent-driven-development` tooling with equivalent fresh criteria/implementation/task-review and whole-candidate-review separation.
+
+**Goal:** Exercise the generated public capability through genuine PostgreSQL durability, internal scheduling and a deterministic worker, including all required recovery failures.
+
+**Architecture:** One Rust process composes typed admission, transactional store, dispatcher, scheduler and worker ports. PostgreSQL is authoritative for state and fences; TestKit controls time/fault interleavings but does not emulate the durable database.
+
+**Tech Stack:** Existing pinned toolchain, generated internal Rust contracts, synchronous postgres driver, PostgreSQL from locked nixpkgs, RuntimeKit/TestKit and generated TypeScript client.
+
+**Spec:** [Design sections 5-8](/superpowers/specs/2026-09-23-vs001-durable-capability-design).
+
+## Global Constraints
+
+- Preserve Bazel 9.1.1, Rust 1.96.1, TypeSpec compiler/HTTP 1.16.0, Node 22.23.2, pnpm 12.3.4, Python 3.12.14, and the committed Nix lock baseline.
+- Nix supplies tools; Bazel owns product compilation and tests. No downloads or package installation within build/test actions.
+- Architecture YAML remains authoritative. Planned JSON architecture placeholders remain inactive.
+- PostgreSQL/outbox/scheduling/workers are internal; no new public async API, broker, external effect provider or deployment.
+- Preserve success status 200 and exact Echo response. HTTP timeout/disconnect is not cancellation.
+- Require real PostgreSQL with fsync, synchronous_commit and full_page_writes enabled for durability evidence. Never pass a fake-store result as durable evidence.
+- Require Apple Silicon/Linux; Intel Mac remains configured, untested. Follow [shared integration rules](/superpowers/plans/2026-09-23-vs001-delivery).
+
+## Review Focus
+
+1. Concurrent same-key admission or uncertain commit ACK must resolve one logical Run: C2.
+2. Reordered/duplicate outbox delivery must not create a second completion or regress state: C3.
+3. Expired/stale workers must fail their write fence even when holding computed bytes: C3.
+4. Cancellation versus completion/restart must preserve pending status until termination confirmation: C4.
+5. Client deadline/retry and real database/process crashes must preserve committed output and evidence: C4-C5.
+
+## File And Interface Map
+
+- `services/foundation_echo/src/execution/{mod.rs,store.rs,admission.rs,dispatch.rs,scheduler.rs,worker.rs,recovery.rs,cancellation.rs}`: domain behavior behind typed ports.
+- `services/foundation_echo/migrations/0001_execution.sql`: reviewed, checksum-bound initial schema.
+- `services/foundation_echo/tests/{durability.rs,admission.rs,dispatch.rs,recovery.rs,public_durable.rs}`: real-store integration tests.
+- `platform/testkit/src/{postgres.rs,worker.rs,faults.rs}`: owned database lifecycle, deterministic fake work, process/barrier injection.
+- `scripts/verify_vs001.py`, `scripts/test_verify_vs001.py`: command orchestration/receipt collection, no domain semantics.
+- `flake.nix`, `tools/build/foundation.bzl`, workspace/lock/build files: PostgreSQL/driver closure and real Bazel actions.
+- Root `justfile`, workflow and truthful maturity/execution docs: final integration only after tests pass.
+
+## Task C1: PostgreSQL Harness And Schema
+
+**Interfaces:** TestKit `PgHarness::start() -> Result<PgHarness, TestError>`, `dsn(&self) -> &str`, `restart(&mut self) -> Result<(), TestError>`, and explicit `stop(self) -> Result<(), TestError>`. Start Nix-provided initdb/postgres in an owned temporary directory with a local Unix socket and no TCP listener. TestError distinguishes unavailable tool, startup, timeout, command failure and cleanup. Missing PostgreSQL is a failed required test, not a skip. Drop performs best-effort cleanup but teardown errors are asserted by explicit stop.
+
+`PgStore::connect(dsn: &str) -> Result<PgStore, StoreError>` and `migrate(&mut self) -> Result<(), StoreError>`; StoreError categories are database, incompatible_version, integrity, conflict, stale_lease and invalid_transition. Test fixture `PgTest::new() -> PgTest` owns PgHarness/PgStore and fails the test if startup/migration fails; `finish(self)` verifies teardown. Never point this helper at an ambient DSN.
+
+- [ ] Add failing harness tests: unapproved DSN cannot enter replay/test paths, missing tools cannot pass, migrations execute once, changed migration checksum fails, restart preserves committed rows, and cleanup leaves unrelated directories/processes intact.
+- [ ] Pin the postgres crate and expose PostgreSQL executables from the existing Nix lock through declared Bazel tool/data dependencies. Record actual PostgreSQL version from both hosts. Do not use Docker, SQLite or host PATH fallbacks. Update affected Cargo/Bazel locks and Nix hashes through the integration owner.
+- [ ] Implement the owned cluster harness, startup readiness deadline and explicit shutdown. Use filesystem permissions 0700, an isolated local test role/database, and a test-only trust configuration confined to the private Unix socket. No production credentials or public listener.
+- [ ] Write the schema with tables from the design. Add migration checksum/version table, unique `(tenant, environment, capability, request_id)`, unique Run/generation Attempt, unique Run authoritative completion, stable outbox/inbox identities, foreign keys and legal-state constraints. Run references bind immutable admission bytes; mutable state is a projection of versioned immutable events, not a mutation of a referenced artifact.
+- [ ] Add this SQL assertion to `durability.rs` via the real driver's query API:
+
+```sql
+SELECT current_setting('fsync') = 'on'
+   AND current_setting('synchronous_commit') = 'on'
+   AND current_setting('full_page_writes') = 'on' AS durable_settings;
+```
+
+The test must assert the single returned Boolean is true. Verify the migration creates all constraints using deliberate violating inserts rolled back inside tests, not schema-name inspection alone.
+
+- [ ] Run `//platform/testkit:postgres_tests` and `//services/foundation_echo:durability_tests` in Nix/Bazel on both required hosts. Commit `feat(testkit): provide isolated durable PostgreSQL fixtures`.
+
+## Task C2: Atomic Admission And Idempotency
+
+**Interfaces:** `PgStore::admit(&mut self, admission: &Admission) -> Result<AdmissionResult, StoreError>`, with `AdmissionResult::{Created(RunRef), Existing(RunRef)}`. `RunRef` aliases the kernel `Reference<targets::Run>` to immutable admission content. The generated Admission DTO and constructors come from B1. `PgTest::admission(request_id: &str, message: &str) -> Admission` fills fixed, validated packet/context fixtures; `snapshot(&mut self) -> serde_json::Value` independently queries rows/counts for assertions. `inject_fault(&mut self, checkpoint: &str)` is a TestKit-only barrier/failure adapter, not production user input.
+
+- [ ] Add the atomic rollback regression:
+
+```rust
+#[test]
+fn rollback_leaves_neither_run_nor_outbox() {
+    let mut t = PgTest::new();
+    let admission = t.admission("r-1", "hello");
+    t.inject_fault("after_run_insert_before_outbox");
+    assert!(t.store.admit(&admission).is_err());
+    let observed = t.snapshot();
+    assert_eq!(observed["runs"], 0);
+    assert_eq!(observed["outbox"], 0);
+    t.finish();
+}
+```
+
+- [ ] Observe this test fail before transaction implementation, then insert Run, initial immutable event and outbox row within one PostgreSQL transaction. Validate packet/input/reference bytes before mutation. Derive stable dispatch identity from immutable Run admission, not current wall clock.
+- [ ] Implement conflict resolution using unique constraints and row locks: identical canonical input returns Existing; different input returns Conflict. Avoid select-then-insert without a constraint. On uncertain acknowledgement, query by admission key and compare digest before retry.
+- [ ] Add two-connection synchronized admission tests for same/different payloads, distinct tenants/environments/capabilities, reordered object keys, missing urgent versus false, changed array order, unknown schema and malicious client context. Query actual database counts and reference digests, not only method return values.
+- [ ] Kill the service child after COMMIT but before admission response, restart it, and retry the same admission. Assert same Run, one dispatch identity and preserved first event. Run the admission target plus C1 regression tests. Commit `feat(execution): admit runs with atomic outbox and idempotency`.
+
+## Task C3: Dispatch, Ownership And Fenced Completion
+
+**Interfaces:** `PgStore::dispatch_batch(&mut self, limit: u16) -> Result<u16, StoreError>`; `claim(&mut self, worker: &Identity) -> Result<Option<Lease>, StoreError>`; `complete(&mut self, completion: &Completion) -> Result<CompletionResult, StoreError>`. `CompletionResult::{Committed(ArtifactRef), AlreadyCommitted(ArtifactRef)}`; stale/expired/wrong-tenant or incompatible completion is an error. `ArtifactRef` aliases kernel `Reference<targets::Artifact>`. `FakeWorker::compute(&self, lease: &Lease, request: &EchoRequest) -> Completion` emits deterministic canonical fake-NOVA bytes and provenance references, never scientific evidence.
+
+- [ ] Extend PgTest with `admitted_lease(request_id: &str) -> Lease`, `expire_and_reassign(&Lease) -> Lease` through test-only SQL/barriers, and `completion(&Lease, message: &str) -> Completion`. Add:
+
+```rust
+#[test]
+fn stale_generation_cannot_publish() {
+    let mut t = PgTest::new();
+    let stale = t.admitted_lease("r-1");
+    let current = t.expire_and_reassign(&stale);
+    assert!(current.generation > stale.generation);
+    let rejected = t.completion(&stale, "wrong");
+    assert!(t.store.complete(&rejected).is_err());
+    assert_eq!(t.snapshot()["artifacts"], 0);
+    let accepted = t.completion(&current, "hello");
+    assert!(t.store.complete(&accepted).is_ok());
+    assert_eq!(t.snapshot()["artifacts"], 1);
+    t.finish();
+}
+```
+
+- [ ] Observe failures without fencing. Implement bounded dispatch claims with `FOR UPDATE SKIP LOCKED`, transactional inbox deduplication and scheduling state, then delivered marking. Preserve stable IDs; legal transition checks block reordered/duplicate regression.
+- [ ] Implement claim under a row lock with incremented positive generation and database-time lease expiry. Persist attempt before work; detect generation exhaustion. Worker identity and tenant must match at completion.
+- [ ] Implement completion in one transaction: lock Run, check current generation/owner/lease/state/cancellation, validate artifact hashes and references, insert artifact bytes/provenance/evidence/terminal event, set succeeded. Put the fence before every authoritative artifact/evidence/state write, not just scheduler claim.
+- [ ] Test concurrent claims, duplicate deliveries, reordered terminal events, lease expiration without reassignment, wrong owner/tenant, corrupt artifact digest, and duplicate matching/mismatching completions. After a lost completion ACK return the committed ArtifactRef; never recompute a second authoritative result.
+- [ ] Run dispatch/durability tests and inspect SQL row counts, event identities and exact artifact bytes. Commit `feat(execution): fence internal worker publication`.
+
+## Task C4: Recovery, Retry And Confirmed Cancellation
+
+**Interfaces:** `PgStore::request_cancel(&mut self, request: &CancelRequest) -> Result<CancelResult, StoreError>` and `confirm_cancel(&mut self, confirmation: &CancelConfirmation) -> Result<CancelResult, StoreError>`, where CancelResult is Pending, Cancelled or AlreadyTerminal. `reconcile(&mut self) -> Result<RecoveryReport, StoreError>` returns counts/references of recovered committed results, retry-eligible attempts and unresolved terminations. `record_failure(&mut self, lease: &Lease, fault: FaultClass) -> Result<(), StoreError>` uses generated FaultClass Transient/Deterministic/Uncertain. Unknown classifications are rejected.
+
+- [ ] Add TestKit `run_recovery_case(name: &str) -> serde_json::Value` that launches real child processes against PgHarness, coordinates fault barriers, terminates/restarts the service or database, then independently queries observations. Add:
+
+```rust
+#[test]
+fn cancellation_needs_termination_confirmation() {
+    let observed = run_recovery_case("cancel_after_worker_start");
+    assert_eq!(observed["before_confirmation"], "cancel_requested");
+    assert_eq!(observed["after_confirmation"], "cancelled");
+    assert_eq!(observed["authoritative_artifacts"], 0);
+}
+```
+
+- [ ] Observe relevant failures, then implement persisted retry_wait with at most three attempts and delays 100/500 ms. Deterministic failures stop immediately; uncertain commits reconcile by stable IDs before retries. TestKit advances persisted eligibility/lease fixtures without sleeping; production uses database time.
+- [ ] Implement the cancellation/terminal race with the same Run row lock as completion. Pending cancellation fences publication but remains pending until supervisor-observed termination. For queued work, confirm no executor was dispatched before marking cancelled. Unknown live-process state remains unresolved. Record the confirmation observation as evidence.
+- [ ] Implement restart reconciliation for queued/outbox work, dead-worker attempts, committed-but-unacknowledged results, retry waits and pending cancellation. Fail on unsupported persisted schema/workflow/policy versions rather than reinterpretation.
+- [ ] Exercise child-kill checkpoints before/after admission commit, dispatch handoff, lease acquisition, completion commit and cancellation confirmation; restart PostgreSQL and verify durable settings/results. Exercise both orderings of cancellation/completion and cancellation/reassignment, including stale worker final writes. Assert no second artifact, preserved events and no skipped unresolved effects.
+- [ ] Run the full recovery target repeatedly with deterministic schedules on both hosts. Commit `feat(execution): recover crashes and confirm cancellation`.
+
+## Task C5: End-To-End Generated Client On The Durable Path
+
+**Interfaces:** `DurableAdmission` implements B3's AdmissionPort using PgStore and internal scheduler/worker supervision. It waits for committed terminal state under a bounded request deadline; maps validation/conflict/unavailable to the generated public 400/409/503 errors. It never exposes Run/Attempt references in the client. `scripts/verify_vs001.py` exposes `run_checks(root: Path, runner=subprocess.run) -> dict`; executes declared Bazel targets with `check=True`, records command/exit/artifact receipts and raises on missing/failed required work.
+
+- [ ] Add Node client tests against the actual Bazel-built service + PgHarness, not TestAdmission. Send Echo, disconnect mid-flight, retry same requestId, and repeat with different payload. Check generated 200/409/503 handling and independently query one logical Run/outbox/result.
+- [ ] Add orchestration regression test:
+
+```python
+def test_failed_durable_target_cannot_be_passing(self):
+    failure = subprocess.CalledProcessError(1, ["bazel", "test"])
+    with mock.patch("verify_vs001.subprocess.run", side_effect=failure):
+        with self.assertRaises(subprocess.CalledProcessError):
+            run_checks(ROOT)
+```
+
+Import unittest/mock/subprocess/pathlib, define ROOT from the test file, and make run_checks resolve subprocess.run at call time so the mock exercises the real fail-closed path. Missing readiness/result files must also fail even if a child returns exit 0.
+
+- [ ] Observe failures, wire the internal durable modules through the compiled descriptor and lifecycle, then implement receipt orchestration. Admission is disabled until database migration/required dependency checks pass. Graceful shutdown stops new requests and preserves unresolved work; it does not truncate outbox/events.
+- [ ] Add `just verify-vs001` without conflating it with `verify-foundation`. Extend aggregate verification with explicit durable target results; Linux workflow runs identical commands under the locked toolchain. Record runtime maturity partial until Plan D and full independent acceptance pass.
+- [ ] Run generated-client, full fault matrix and existing foundation/scaffold/tree/generated gates on Apple Silicon and Linux for the exact candidate. Rerun B4's boundary gate with the actual PostgreSQL/scheduler/worker dependency graph and reject any transport-to-store bypass or missing model coverage. Commit `feat(vs001): execute generated Echo through durable internal work`.
+
+## Related
+
+- [VS-001 Delivery Plan](/superpowers/plans/2026-09-23-vs001-delivery)
+- [VS-001 A: Foundation Hardening](/superpowers/plans/2026-09-23-vs001-a-foundation)
+- [VS-001 B: Composition](/superpowers/plans/2026-09-23-vs001-b-composition)
+- [VS-001 D: Assurance](/superpowers/plans/2026-09-23-vs001-d-assurance)
+- [VS-001 Durable Capability Design](/superpowers/specs/2026-09-23-vs001-durable-capability-design)

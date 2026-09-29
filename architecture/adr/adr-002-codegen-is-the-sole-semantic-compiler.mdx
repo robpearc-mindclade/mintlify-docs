@@ -1,0 +1,33 @@
+---
+title: "ADR-002: Codegen Is the Sole Semantic Compiler"
+sidebarTitle: "ADR-002 Codegen"
+description: "Codegen is the single semantic compiler for TypeSpec, Protobuf, and domain contracts into a canonical semantic graph."
+---
+
+ADR-002 establishes Codegen as the sole semantic compiler for Mindclade. Inputs such as TypeSpec, Protobuf, and domain contracts normalize into `SemanticInput@v1`, and all downstream outputs are reproducible projections.
+
+| Status | Date | Related |
+| :-- | :-- | :-- |
+| Accepted | 2026-09-22 | Not stated |
+
+## Context
+
+Multiple input formats must be reduced to a single canonical semantic representation so that projections remain consistent and verifiable.
+
+## Decision
+
+Codegen is the sole semantic compiler. TypeSpec, Protobuf, domain contracts, and service descriptors are frontend inputs that normalize into `SemanticInput@v1`.
+
+## Consequences
+
+- OpenAPI, SDK, MCP, docs, Terraform, CDK, C ABI, and architecture output are projections.
+- No downstream generator may reinterpret contract meaning independently.
+- Semantic compatibility compares graph snapshots, not rendered projections.
+
+## Related
+
+<CardGroup cols={2}>
+  <Card title="Architecture" icon="sitemap" href="https://github.com/Mindclade-org/mindclade-internal-monorepo/blob/main/docs/architecture">
+    Architecture documentation directory.
+  </Card>
+</CardGroup>

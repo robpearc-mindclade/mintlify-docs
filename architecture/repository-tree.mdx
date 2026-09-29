@@ -1,0 +1,352 @@
+---
+title: "Repository Tree: Mindclade vNext Mechanical Inventory"
+sidebarTitle: "Repository Tree"
+description: "Mechanical inventory of every Git-visible file in the Mindclade vNext monorepo, with the responsibility map, declared subdivisions and change rules."
+---
+
+This page catalogs every Git-visible file in the Mindclade vNext monorepo. It is a mechanical inventory derived from source paths and the repository layout model, not a semantic graph projection.
+
+<Warning>
+  This file is generated. Do not edit it by hand. Refresh it with `python3 scripts/validate_repository.py --write-tree`.
+</Warning>
+
+The inputs are Git-visible source paths and [`repository-layout.json`](https://github.com/Mindclade-org/mindclade-internal-monorepo/blob/main/model/repository-layout.json). Codegen remains the sole semantic compiler. See the [master blueprint](/architecture/adr/adr-000-master-blueprint), [delivery gates](/architecture/implementation-roadmap), and [maturity](https://github.com/Mindclade-org/mindclade-internal-monorepo/blob/main/maturity.yaml). The [original blueprint scaffold](https://github.com/Mindclade-org/mindclade-internal-monorepo/blob/main/model/blueprint-scaffold.json) records exact source coverage and approved placeholder hashes. See the [alignment review](/architecture/reviews/2026-09-22-original-blueprint-alignment).
+
+{/* PART-A */}
+
+{/* PART-B */}
+
+{/* PART-C */}
+
+{/* PART-D */}
+
+## Complete Responsibility Map
+
+This table covers existing boundaries and planned platform responsibilities. `present` means the root has pre-existing bootstrap source, not that the capability works. `scaffolded` means only approved placeholders exist; implementation maturity stays planned. Owner labels are responsibilities, not proof of separate reviewer identities. CODEOWNERS currently routes review to the repository owner. Activation gates describe the introducing slice's acceptance obligations. A reviewed first contract/test/implementation can make a root present while its maturity and unsatisfied qualification gates remain explicitly open.
+
+| Root | State | Accountable Role | Responsibility | Activation Gate |
+| --- | --- | --- | --- | --- |
+| `.agents/` | present | Agent governance | Supervised governance roles, procedures, candidate policy and provider-neutral prompts, handoff checks and skill guidance. Instructional sources do not implement automation or authorize execution. | Explicit implementation contract, tests, independent acceptance and applicable qualification evidence; stubs remain planned. |
+| `.azuredevops/` | scaffolded | Build engineering | Azure DevOps pipeline adapter; stubs do not activate CI. | Explicit implementation contract, tests, independent acceptance and applicable qualification evidence; stubs remain planned. |
+| `.buildkite/` | scaffolded | Build engineering | Buildkite pipeline adapter; stubs do not activate CI. | Explicit implementation contract, tests, independent acceptance and applicable qualification evidence; stubs remain planned. |
+| `.github/` | present | Repository assurance | Foundation CI and supervised PR template with read-only pinned actions; issue templates remain scaffolded. Configuration is not assurance. | Foundation plan authorizes the workflow source; independent acceptance requires Linux evidence, protected checks and separate reviewers, currently blocked. |
+| `agents/` | scaffolded | Scientific agents | Agent runtime, context, planning, tools, skills, approvals, sandboxing, adapters. | Qualified capabilities, attenuated access, invoker restrictions, budgets and protected evaluation. |
+| `biology/` | scaffolded | Biological semantics | Mindclade-owned biological semantics and scientific entity model. | Protein-first semantic contracts, invalid-input fixtures and cross-binding round-trip evidence. |
+| `codegen/` | present | Compiler | Sole semantic compiler: builds MindcladeGraph and typed SemanticGraph/CapabilityGraph views, lowers target IR and emits projections. | VS-001 compiler and independent conformance tests. |
+| `compute/` | scaffolded | Compute | Tensor, native, kernel, operator, distributed, parity, and performance substrate. | Explicit operator contracts, forward/gradient tolerances and independent numerical evidence before optimization. |
+| `contracts/` | present | Contract owners | Authored interface, resource, science, agent, operator, schema, and registry authority. | Concrete slice contracts, compatibility rules and fixtures before implementations. |
+| `core/` | present | Kernel | Shared primitives: identity, evidence, policy, provenance, artifacts, errors, graph identity, time. | Validated immutable references and canonical serialization before broader domain use. |
+| `data/` | scaffolded | Scientific data | Source ingestion, normalization, datasets, features, lineage, quality, and knowledge systems. | Pinned approved local fixtures, deterministic ingestion, provenance and validated contamination reports. |
+| `docs/` | present | Architecture | Human-facing documentation and generated architecture package. Source models remain machine-readable. | Reviewed changes consistent with accepted ADRs and source checks. |
+| `generated/` | present | Compiler | Disposable generated output with provenance. Never an authority. | Codegen-owned generation, provenance, deterministic regeneration and consumer qualification. |
+| `infra/` | scaffolded | Infrastructure | Authored infrastructure modules and environment configuration. Generated deploy artifacts are projections. | Qualified signed DeploymentPlan, promotion decision and GitOps reconciliation; no direct production apply authority. |
+| `ml/` | scaffolded | Learning | Training, posttraining, evaluation, checkpointing, qualification, recipes. | Frozen validated evaluator, qualified splits and checkpoint lineage; assurance remains independent. |
+| `models/` | scaffolded | Model definitions | Model families and model-specific architecture. | One bounded protein/embedding baseline, reviewed interfaces and matched scientific evaluation. |
+| `platform/` | present | Control plane | Control semantics, RuntimeKit, TestKit, artifacts, events, identity, tenancy, policy, audit, persistence. Only bounded, non-durable RuntimeKit source (B3b configuration ABI and HTTP/1.1 transport) and test-only TestKit source (manual clock, fixed identity, fault barriers, recording telemetry) exist; all manifest-listed stubs and runtime maturity remain planned. | B3b activates only non-durable RuntimeKit source with configuration and transport tests and testonly TestKit source with determinism tests. The VS-001 PostgreSQL transaction, idempotent delivery, recoverable ownership and evidence identity remain required. |
+| `products/` | scaffolded | Developer products | User/developer-facing products: SDKs, CLI, MCP, CDK, console, admin, docs site, design system. | Explicit implementation contract, tests, independent acceptance and applicable qualification evidence; stubs remain planned. |
+| `protocols/` | scaffolded | Compiler | Published protocol projection surfaces and descriptor bundles. | Explicit implementation contract, tests, independent acceptance and applicable qualification evidence; stubs remain planned. |
+| `runtime/` | scaffolded | Model execution | Model execution, inference, batching, serving, distributed runtime, telemetry. | Deterministic fake first; real execution requires scoped eligibility and environment-specific evidence. |
+| `scripts/` | present | Repository maintenance | Non-semantic bootstrap, file inventory and documentation checks. | Focused regression tests; do not interpret or compile contract semantics. |
+| `services/` | present | Deployment shells | Deployable process boundaries; only the bounded Foundation Echo descriptor is an activated compiler input, and only Foundation Echo has a non-durable TestAdmission composition and process of the generated adapter over RuntimeKit. All manifest-listed stubs and runtime maturity remain planned. | B3a activates only the reviewed Foundation Echo compiler input with descriptor/ownership and publication tests. B3b activates only the non-durable Foundation Echo composition and binary with in-process composition and real-process bounds tests (partial VS-001; no durable admission, PostgreSQL or deployment); measured evidence precedes further deployment splits. |
+| `tests/` | present | Independent assurance | Cross-cutting validation with activated VS-001 generated-consumer conformance; remaining manifest-listed scaffold areas are planned. | Explicit implementation contract, tests, independent acceptance and applicable qualification evidence; stubs remain planned. |
+| `tools/` | present | Engineering factory | Repository, architecture, generation, release, qualification, provenance, and developer automation. | Explicit implementation contract, tests, independent acceptance and applicable qualification evidence; stubs remain planned. |
+
+## Declared Subdivisions
+
+These addresses align with the original blueprint and preserved vNEXT additions. Directories have been materialized as explicitly requested stubs where needed. Module-local source/tests/BUILD files are introduced with real implementations. Generated subtrees reserve projections; products/ and services/ reserve authored wrappers.
+
+```text
+declared-responsibilities/
+|-- .agents/
+|   |-- evals/
+|   |-- policies/
+|   |-- prompts/
+|   |-- roles/
+|   |-- skills/
+|   `-- workflows/
+|-- .azuredevops/
+|   |-- pipelines/
+|   `-- templates/
+|-- .buildkite/
+|   |-- hooks/
+|   |-- pipelines/
+|   |-- plugins/
+|   `-- scripts/
+|-- .github/
+|   |-- ISSUE_TEMPLATE/
+|   `-- workflows/
+|-- agents/
+|   |-- adapters/
+|   |-- approvals/
+|   |-- context/
+|   |-- core/
+|   |-- evaluation/
+|   |-- harness/
+|   |-- memory/
+|   |-- orchestration/
+|   |-- planning/
+|   |-- provenance/
+|   |-- sandbox/
+|   |-- sessions/
+|   |-- skills/
+|   |-- subagents/
+|   `-- tools/
+|-- biology/
+|   |-- assays/
+|   |-- cells/
+|   |-- chemistry/
+|   |-- conditions/
+|   |-- entities/
+|   |-- evidence/
+|   |-- interventions/
+|   |-- measurements/
+|   |-- ontologies/
+|   |-- organisms/
+|   |-- provenance/
+|   |-- relationships/
+|   |-- sequences/
+|   |-- states/
+|   |-- structures/
+|   `-- units/
+|-- codegen/
+|   |-- compatibility/
+|   |-- compiler/
+|   |-- conformance/
+|   |-- fixtures/
+|   |-- frontend/
+|   |-- generators/
+|   |-- graph/
+|   |-- ir/
+|   |-- lowering/
+|   |-- registry/
+|   |-- semantic_input/
+|   `-- validation/
+|-- compute/
+|   |-- benchmarks/
+|   |-- compilation/
+|   |-- distributed/
+|   |-- kernels/
+|   |-- memory/
+|   |-- native/
+|   |-- operators/
+|   |-- parity/
+|   |-- tensor/
+|   `-- topology/
+|-- contracts/
+|   |-- agents/
+|   |-- fixtures/
+|   |-- operators/
+|   |-- protobuf/
+|   |-- registries/
+|   |-- schemas/
+|   |-- science/
+|   `-- typespec/
+|-- core/
+|   |-- artifact/
+|   |-- capability/
+|   |-- claim/
+|   |-- decision/
+|   |-- errors/
+|   |-- evidence/
+|   |-- graph/
+|   |-- identity/
+|   |-- implementation/
+|   |-- policy/
+|   |-- provenance/
+|   |-- reference/
+|   |-- run/
+|   `-- time/
+|-- data/
+|   |-- catalog/
+|   |-- connectors/
+|   |-- datasets/
+|   |-- features/
+|   |-- ingestion/
+|   |-- knowledge/
+|   |-- lineage/
+|   |-- normalization/
+|   |-- pipelines/
+|   |-- quality/
+|   |-- retrieval/
+|   |-- sources/
+|   |-- splits/
+|   |-- transforms/
+|   `-- validation/
+|-- docs/
+|   |-- adr/
+|   |-- api/
+|   |-- architecture/
+|   |-- dataset_cards/
+|   |-- developer/
+|   |-- generated/
+|   |-- model_cards/
+|   |-- operations/
+|   |-- runbooks/
+|   |-- security/
+|   |-- specs/
+|   |-- standards/
+|   `-- superpowers/
+|-- generated/
+|   |-- architecture/
+|   |-- cdk/
+|   |-- deployment/
+|   |-- docs/
+|   |-- jsonschema/
+|   |-- mcp/
+|   |-- openapi/
+|   |-- protobuf/
+|   |-- provenance/
+|   |-- sdk/
+|   |-- terraform/
+|   `-- tests/
+|-- infra/
+|   |-- azure_arc/
+|   |-- ci_runners/
+|   |-- clusters/
+|   |-- environments/
+|   |-- generated/
+|   |-- gitops/
+|   |-- gpu/
+|   |-- iam/
+|   |-- kubernetes/
+|   |-- kustomize/
+|   |-- networking/
+|   |-- observability/
+|   |-- security/
+|   |-- storage/
+|   `-- terraform/
+|-- ml/
+|   |-- checkpointing/
+|   |-- evaluation/
+|   |-- objectives/
+|   |-- optimization/
+|   |-- posttraining/
+|   |-- qualification/
+|   |-- recipes/
+|   `-- training/
+|-- models/
+|   |-- common/
+|   |-- nova/
+|   |-- protenix/
+|   |-- registry/
+|   `-- virtual_cell/
+|-- platform/
+|   |-- artifacts/
+|   |-- audit/
+|   |-- authorization/
+|   |-- budgets/
+|   |-- control/
+|   |-- events/
+|   |-- experiments/
+|   |-- identity/
+|   |-- persistence/
+|   |-- policy/
+|   |-- provenance/
+|   |-- registry/
+|   |-- runtimekit/
+|   |-- scheduler/
+|   |-- telemetry/
+|   |-- tenancy/
+|   |-- testkit/
+|   `-- workflow/
+|-- products/
+|   |-- admin/
+|   |-- cdk/
+|   |-- cli/
+|   |-- console/
+|   |-- design_system/
+|   |-- docs_site/
+|   |-- mcp/
+|   `-- sdk/
+|-- protocols/
+|   |-- descriptors/
+|   |-- events/
+|   |-- graphql/
+|   |-- jsonschema/
+|   |-- openapi/
+|   `-- protobuf/
+|-- runtime/
+|   |-- batching/
+|   |-- checkpoint/
+|   |-- compilation/
+|   |-- distributed/
+|   |-- execution/
+|   |-- graph/
+|   |-- inference/
+|   |-- memory/
+|   |-- model/
+|   |-- scheduling/
+|   |-- serving/
+|   |-- telemetry/
+|   `-- tensor/
+|-- services/
+|   |-- agent_service/
+|   |-- api_gateway/
+|   |-- artifact_service/
+|   |-- control_plane/
+|   |-- data_service/
+|   |-- evaluation_service/
+|   |-- experiment_service/
+|   |-- foundation_echo/
+|   |-- inference_service/
+|   |-- knowledge_service/
+|   |-- model_service/
+|   |-- policy_service/
+|   |-- scheduler/
+|   |-- training_service/
+|   `-- workers/
+|-- tests/
+|   |-- compatibility/
+|   |-- conformance/
+|   |-- contract/
+|   |-- end_to_end/
+|   |-- fixtures/
+|   |-- generated/
+|   |-- integration/
+|   |-- qualification/
+|   |-- reproducibility/
+|   |-- scientific/
+|   |-- security/
+|   `-- unit/
+`-- tools/
+    |-- architecture/
+    |-- build/
+    |-- ci/
+    |-- codegen/
+    |-- dev/
+    |-- docs/
+    |-- engineering/
+    |-- migrations/
+    |-- provenance/
+    |-- qualification/
+    |-- release/
+    |-- repo/
+    `-- validation/
+```
+
+## Change Rules
+
+1. Keep original-blueprint placeholders explicitly marked and manifest-listed.
+2. Update the layout, maturity and slice contract together. Activating a planned root requires a reviewed state change, its owner and concrete acceptance gate.
+3. Preserve independent assurance; directory names and CODEOWNERS alone cannot enforce it.
+4. Refresh this inventory and run `just verify`. Changes to architecture laws additionally require ADR review. Scaffolding never proves implementation.
+
+## Related
+
+<CardGroup cols={2}>
+  <Card title="Codebase map" icon="map" href="/developer/codebase-map">
+    Navigate the repository by responsibility and dependency.
+  </Card>
+
+  <Card title="Generated outputs index" icon="file-code" href="/architecture/generated">
+    Browse generated artifacts and their provenance.
+  </Card>
+
+  <Card title="Regenerate outputs" icon="refresh-cw" href="/runbooks/regenerate-generated-outputs">
+    Runbook to refresh all generated artifacts safely.
+  </Card>
+
+  <Card title="Master blueprint" icon="book" href="/architecture/master-blueprint">
+    Top-level architecture contracts and design laws.
+  </Card>
+</CardGroup>

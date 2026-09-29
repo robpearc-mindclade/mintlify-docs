@@ -1,0 +1,89 @@
+---
+title: "Foundation Audit Reconciliation (2026-09-23)"
+sidebarTitle: "Audit Reconciliation"
+description: "Reconciliation of the Mindclade vNEXT blueprint implementation audit, with rechecked evidence, finding disposition, plan changes and remaining open items."
+---
+
+This page records the 2026-09-23 reconciliation of the **Mindclade vNEXT Blueprint Implementation Audit**. Status: audit accepted as scoped foundation evidence and implementation-gap analysis. Planning/documentation reconciliation only; no product gap is closed by this document.
+
+## Scope and verdict
+
+The user supplied the audit covering `bef879d2d5d9e72cc36fec82ec8e17e0ffa1b976`. Its completion label is accurate: **blueprint-aligned executable foundation, with full VS-001 and the platform still pending**.
+
+The audited source tree and the reviewed design-branch baseline `d6f82d4450a9c1bf12fcc8a8f53ba71173eb01b8` differ only in planning documents and the mechanical repository tree. The written VS-001 plans have not implemented any runtime behavior. The supplied audit is not approval to execute those plans, a standing merge exception, or independently controlled VS-001 qualification.
+
+The exact pasted audit text is identified by `sha256:100d511fc458bcc0f0b2e6baecaed49b32e6144532408c92164ecc699d7dc0a9`. Its local attachment/receipt paths are not portable repository authority and are not embedded as dependency paths.
+
+## Rechecked evidence
+
+| Item | Observation during reconciliation | Limitation |
+| --- | --- | --- |
+| Remote main | GitHub branch API returned audited SHA and `protected: false` | Observation as of this review, not permanent state |
+| Linux CI | [Run 35824604803](https://github.com/robpearc-mindclade/mindclade-vnext/actions/runs/35824604803) returned completed/success for the exact audited SHA | Source/build CI, not runtime/qualification |
+| Separate local audit receipt | `FoundationVerificationReceipt@v1`, Darwin arm64, audited candidate, clean tree, status passed, qualification not-qualified | Receipt inspected and hashes verified; full aggregate not rerun during this reconciliation |
+| Receipt artifacts | All 10 listed local artifact digests matched, including Bazel action/event and test records | Artifact integrity is not an independent acceptance identity |
+| Locks | All four receipt lock digests matched the current unchanged foundation lockfiles | Does not authorize updates or qualify future revisions |
+| Blueprint and canonical outputs | The three hashes below matched the audit | Byte identity alone does not establish missing runtime behavior |
+| Source gaps | Validator stubs, graph node types, projection writer, CODEOWNERS, maturity and docs inspected | Publication crash risk remains source-reviewed, not newly crash-tested |
+
+Audit receipt SHA-256: `64689974bfd6fdaf173ff5bf7d8acaead9efd7c8245ba96c1642570021edcc60`.
+
+```text
+original-greenfield-blueprint.md          c23d824ea6d2890bde8d1032ce4e0341cbd98ea4cc217c94eb0cec36c7665c38
+generated/foundation/graph.json           1ae176bb0076b981c0e35cf1d805f01094c466890f2d1f40f9144bcb28fd731b
+generated/foundation/manifest.json        4b99e15e277ccfc920c0f034867d33463887135e61254e10473736b5e66942e1
+```
+
+The audit's 835-file/125-link counts describe its exact revision. New planning documents change inventory counts without adding platform implementation. Its Cargo/Bazel test counts overlap and must not be summed as unique behavioral tests.
+
+## Finding disposition
+
+| Audit finding | Assessment | Plan coverage and closure requirement |
+| --- | --- | --- |
+| 1. Full VS-001 cannot execute | Confirmed, still open | B1-B3 generated contracts/composition, C1-C5 real PostgreSQL execution/recovery, D1-D4 provenance/replay/independent Decision. Require exact-candidate evidence, not directory presence. |
+| 2. Compiler stops at graph/manifest | Confirmed, still open | B1-B3 add graph visibility/views and required Proto/OpenAPI/TypeScript/MCP/docs outputs. CDK/Terraform/deployment and broader graph views stay separate later work; do not claim full compiler/platform completion. |
+| 3. Architecture/ownership enforcement incomplete | Confirmed; exposed a missing explicit task in the initial proposal | Added B4 for active architecture, actual dependency/import edges, descriptor and generated-provenance entrypoints. Source owner-role checks cannot replace external independent identities or protected review, which remain D3-D4 blockers. |
+| 4. Full provenance/promotion are requirements only | Confirmed, still open | D1-D4 implement the bounded engineering chain for VS-001. Scientific provenance, signing releases, deployment synthesis, promotion and GitOps remain separate roadmap gates. An assessment signature is not a release signature. |
+| 5. Publication interruption recovery missing | Confirmed as source-reviewed risk, still open | A1 already specifies real writer-kill checkpoints, concurrent readers/writers, strict ownership and recovery. Only those tests can close the implementation finding. |
+| Stale roadmap cross-host wording | Confirmed, corrected in docs | Record passing Apple Silicon/Linux source evidence for the audited revision; retain independent acceptance/protection blockers. |
+| Stale master blueprint graph wording | Confirmed, corrected in docs | Describe the validated immutable foundation graph accurately while labeling broader views and runtime work planned. |
+
+## Plan change
+
+The [written design](/superpowers/specs/2026-09-23-vs001-durable-capability-design) and [delivery plan](/superpowers/plans/2026-09-23-vs001-delivery) now have **16 tasks** across four stages, with a new [B4 boundary-enforcement task](/superpowers/plans/2026-09-23-vs001-b-composition#task-b4-executable-architecture-and-dependency-enforcement).
+
+B4 preserves YAML authority and Codegen's sole semantic-compiler role. Structured Cargo/Bazel/TypeScript facts are checked against compiled rules. Negative fixtures cover public-to-internal imports, transitive re-exports, RuntimeKit-to-service/test-only dependencies, core layering, unknown ownership, cycles, forbidden dependencies, omitted configurations, missing collectors and stale provenance. The named validator wrappers must invoke real checks and propagate failure rather than become successful stubs.
+
+C5 and D3 rerun B4 after persistence and assessment dependencies are introduced. Independent GitHub identities, protected checks and external trust custody remain distinct requirements. The competing JSON architecture/ownership/dependency placeholders remain inactive.
+
+## Still open
+
+- Implementation and written-plan approval for the proposed VS-001 work.
+- Publication crash-injection and concurrency evidence.
+- Real generated client/service, durable database path, cancellation/recovery, artifacts and sealed replay.
+- Active-boundary enforcement and expanded generated provenance.
+- Separately controlled acceptance criteria/evaluator, authorized independent owner, protected execution and review.
+- Verified durable archival destination/access/retention policy and exact-candidate local/Linux evidence.
+- All later engineering-factory, scientific, release/deployment and production gates.
+
+No maturity level or accepted constitution was changed by this reconciliation. The audit strengthens the next implementation contract; it does not expand VS-001 into an attempt to implement the entire blueprint at once.
+
+## Related
+
+<CardGroup cols={2}>
+  <Card title="VS-001 delivery plan" icon="truck" href="/superpowers/plans/2026-09-23-vs001-delivery">
+    16-task delivery plan across A through D stages.
+  </Card>
+
+  <Card title="B composition plan" icon="diagram-project" href="/superpowers/plans/2026-09-23-vs001-b-composition">
+    B1-B4 tasks and proposed interfaces.
+  </Card>
+
+  <Card title="Codebase finalization" icon="file-check" href="/architecture/reviews/2026-09-23-codebase-finalization">
+    Existing-code review and finalization with Standards and Spec corrections.
+  </Card>
+
+  <Card title="Agent handoff" icon="handshake" href="/developer/agent-handoff">
+    Current task register and work ownership.
+  </Card>
+</CardGroup>

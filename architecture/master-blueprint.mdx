@@ -1,0 +1,200 @@
+---
+title: "Mindclade vNEXT Master Blueprint"
+sidebarTitle: "Master Blueprint"
+description: "Consolidated architecture baseline for Mindclade vNEXT, reconciled 2026-09-23. Executable foundation candidate; VS-001 and scientific verticals are not complete."
+---
+
+Status: Consolidated architecture baseline, reconciled 2026-09-23. Implementation maturity: Executable foundation candidate; VS-001 and scientific verticals are not complete. Finalizing this document does not qualify the platform.
+
+## Authority and scope
+
+The constitution in ADR-000 through ADR-014 remains binding and unchanged. [AGENTS.md](https://github.com/Mindclade-org/mindclade-internal-monorepo/blob/main/AGENTS.md) defines precedence. This blueprint consolidates those decisions and the reconciled [HQ review](/architecture/reviews/2026-09-22-notion-hq); it is subordinate to accepted ADRs and architecture metadata.
+
+The supplied [original blueprint](https://github.com/Mindclade-org/mindclade-internal-monorepo/blob/main/docs/architecture/sources/original-greenfield-blueprint.md) restores compact ownership paths. The [alignment review](/architecture/reviews/2026-09-22-original-blueprint-alignment.md) records all 20 sections and preserved vNEXT additions. ADR-015 authorizes the requested scaffold without changing ADR-000 through ADR-014 or claiming behavior.
+
+For a complete navigable explanation, read the [system design](/architecture/system-design). The [foundations package](/architecture/foundations/overview) details the layered architecture, system context, compiler/products, shared kernel, platform/science/agent flows, delivery and trust. Its [coverage map](/architecture/foundations/blueprint-coverage) resolves the original 20 sections and the agreed image to repository responsibilities. The four responsibilities below are cross-cutting laws; they do not replace the Agent/Science/Model, control, durable-runtime, workload, fabric and cloud layers. The [full repository tree](/architecture/repository-tree) mechanically lists every tracked file, alongside planned responsibilities. It is maintained by the inventory checker; this blueprint does not duplicate its generated inventory. Scaffolded directories and markers remain planned until their reviewed implementation transition.
+
+Use these documents together:
+
+| Question | Canonical Reference |
+| --- | --- |
+| What laws cannot drift? | [Architecture laws](/architecture/architecture-laws) and [ADRs](/architecture/adr/adr-000-mindclade-vnext-architecture-constitution) |
+| What exists and where does future work belong? | [Complete repository tree](/architecture/repository-tree) |
+| How do the platform and engineering flows connect? | [Platform diagram](/architecture/platform-diagram) and [engineering diagrams](https://github.com/Mindclade-org/mindclade-internal-monorepo/blob/main/docs/architecture/engineering/supervised-system-blueprint.md) |
+| Who owns a path and when may it appear? | [Repository layout](https://github.com/Mindclade-org/mindclade-internal-monorepo/blob/main/docs/architecture/model/repository-layout.json) |
+| What is implemented or qualified? | [Maturity](https://github.com/Mindclade-org/mindclade-internal-monorepo/blob/main/docs/architecture/maturity.yaml) |
+| What should be built next and how is it accepted? | [Delivery gates](/architecture/implementation-roadmap) and [VS-001](/architecture/vs-001-semantic-development-loop) |
+| What remains open in this bootstrap? | [Bootstrap status](/architecture/bootstrap-status) |
+| How is supervised engineering admitted and reviewed? | [Supervised development](/developer/supervised-development) and [GitHub governance](https://github.com/Mindclade-org/mindclade-internal-monorepo/blob/main/docs/operations/github-governance.md) |
+
+Do not create a second master specification in Notion, a vendor configuration, or an old monorepo. External documents supply proposals and context; reviewed repository changes establish vNEXT intent. A mechanical file inventory is not MindcladeGraph and does not compile or reinterpret contract semantics.
+
+## Four responsibilities
+
+| Responsibility | Owns | Cannot Imply |
+| --- | --- | --- |
+| Stable Truth | Versioned authored contracts, immutable compiled graphs, typed references, artifacts, provenance, evidence, claims, policies and decisions | That an assertion is scientifically correct simply because its record is immutable |
+| Dynamic Execution | Services, workers, schedules, model/training runs, experiments and agent sessions | Authority to change the source contract, acceptance criteria or credentials |
+| Independent Assurance | Conformance, compatibility, security, replay, numerical, scientific, release and deployment assessment | Self-qualification by the implementation owner or a passing result outside the tested scope |
+| Governed Evolution | Impact analysis, proposals, reviewed policy/architecture changes and evidence-backed work packets | Unreviewed redesign, automatic privilege inheritance or same-run relaxation of success criteria |
+
+State can evolve through authorized transitions. Stable artifacts capture exact versions; corrections create attributable new versions rather than rewriting historical evidence. Logical identities, revisions and content digests are different concepts and must be validated before kernel qualification.
+
+## Semantic compilation and kernel
+
+```text
+Authored TypeSpec / domain contracts / ServiceDescriptor@v1
+  -> official frontend adapters
+  -> versioned SemanticInput@v1
+  -> Rust Codegen: ingest -> normalize -> resolve -> validate
+  -> immutable MindcladeGraph snapshot
+  -> typed views -> compatibility -> typed target IR
+  -> generated protocols, SDKs, MCP, docs, service bindings, C ABI and plans
+```
+
+For TypeSpec-owned APIs, Protobuf is generated. A planned Protobuf-first frontend is reserved only for separately owned contracts; it must not redefine the same API. The [generated-surface ledger](/architecture/generated-surface-ownership) distinguishes all authored code, semantic projections and mechanical/evidence outputs.
+
+TypeSpec's official frontend resolves its language semantics once. Codegen is the sole platform semantic compiler; emitters never independently rediscover meaning. Diagnostics retain source locations. Canonical outputs exclude variable envelope fields such as wall-clock generation time from their semantic identity.
+
+The target MindcladeGraph architecture includes typed SemanticGraph, CapabilityGraph, implementation, resource, service, architecture, assurance, provenance and deployment views. The executable foundation implements Contract, Resource and Capability nodes plus the partial B1 declaration path, with borrowed semantic, capability and public views. B3a adds bounded architecture and service views, with local aggregate verification. Broader deployment, assurance and provenance views remain planned. All views must query one immutable snapshot, not become independent graph authorities. Biological knowledge graphs are versioned domain data governed by compiled schemas, not competing compiler graphs.
+
+The shared kernel is Identity, Reference\<T>, Artifact, Capability, Implementation, Run, Evidence, Claim, Policy, Decision, Provenance and graph references. Datasets, protocols, tensor bundles, models, checkpoints, evaluations and deployment plans use this same identity and evidence law. Typed references bind exact revisions, target kinds and digests; transport DTOs must not weaken those guarantees.
+
+```text
+Capability -> pinned Implementation -> Run -> Artifact / Evidence
+Claim + scoped Evidence + versioned Policy -> Decision -> authorized Action
+Every edge -> typed Reference + exact provenance
+```
+
+At source revision `bef879d2d5d9e72cc36fec82ec8e17e0ffa1b976`, the Rust kernel implements checked identities, SHA-256 digests and typed references, including deserialization invariants. The official TypeSpec Echo frontend feeds a validated, immutable foundation graph with canonical graph/manifest output. This is an implemented compiler subpath, not full service execution or cross-language product qualification. Broader contracts, generated consumers, durable execution, assessment and replay remain VS-001 work. See the [audit reconciliation](/architecture/reviews/2026-09-23-foundation-audit-reconciliation) and [developer-product qualification](/architecture/developer-products).
+
+The subsequently integrated VS-001 A1-A3 source adds recoverable owned publication, directional semantic compatibility and source-evidence retention. The [partial source review](/architecture/reviews/2026-09-23-vs001-partial-source-review) and [VS-001 TODO](/architecture/vs001-todo) bind that scope and its remaining gates. Later B2a source implements bounded generated TypeScript/Rust consumers. B3a adds strict descriptor/architecture compilation and two service projections, integrated at `06a903f` with exact-commit local and Linux checks. B3b adds bounded RuntimeKit configuration/transport (`0d44a36`) and, through PR #18 at `72b762d`, a Codegen-emitted HTTP adapter, test-only TestKit and a non-durable composed Foundation Echo service: non-durable partial VS-001. B4 dependency enforcement is integrated through PR #22 (`b7f69c0`). Durable execution (PostgreSQL/outbox), replay and full VS-001 acceptance remain incomplete. The [current task register](/developer/agent-handoff#current-task-register) owns current source status; older receipts do not qualify later work.
+
+## Domain ownership and dependency direction
+
+The [tree](/architecture/repository-tree) is organized by responsibility, not language or vendor. Original paths are scaffolded under ADR-015 but remain planned, not separately deployed or implemented services. Module-local tests, fixtures and build definitions accompany real implementation; placeholders do not activate or qualify a component.
+
+In the table below, dependencies mean allowed implementation direction, not data flow or permission to directly mutate another domain's storage. Concrete imports and public ports must be checked as modules are implemented.
+
+| Layer | Direction and constraint |
+| --- | --- |
+| core | Foundational value types; no platform, model, runtime or vendor imports |
+| contracts / codegen | Frontend declarations enter Codegen; Codegen depends on core and emits projections; outputs never redefine authored inputs |
+| biology | Canonical biological meaning over the kernel, independent of ML and transport |
+| data / data/knowledge / platform/experiments | Use core and biological contracts; exchange versioned artifacts and observations through explicit ports |
+| compute | Own tensors, operators, kernels and topology; do not import model, learning or service internals |
+| models | Use biological/tensor contracts and compute; do not own training loops, orchestration or APIs |
+| ml | Uses model/compute/data interfaces to train and evaluate; does not own independent qualification |
+| runtime | Uses model execution interfaces and pinned artifacts; no training-loop dependency on ml |
+| platform | Orchestrates governed capabilities and durable work through runtime/storage ports; does not become biological or model authority |
+| platform/runtimekit / platform/testkit | Cross-cutting service foundations and deterministic collaborators, not domain business logic |
+| agents / products | Consume governed generated interfaces; no alternate contract definitions or direct persistence bypass |
+| services | Thin RuntimeKit + generated transport + capability + port composition; modular-monolith-first |
+| infra / tools/build | Build tools and deployment synthesis/adapters, not business semantics or live production mutation authority |
+| tests/qualification / tools/qualification / platform/policy / tools/engineering | Independently assessed artifacts, reviewed policies and admitted engineering work; no circular self-authorization |
+
+Independent expected results and separately scoped evaluators are required even where assurance legitimately imports a shared schema or TestKit helper. CODEOWNERS routing alone does not create independence.
+
+## Durable execution and service composition
+
+```text
+Authenticated capability request + pinned runtime admission inputs
+  -> authorization / tenant scope / budget reservation / idempotency check
+  -> PostgreSQL transaction: Run state + transactional outbox event
+  -> repeatable dispatch -> scheduler -> worker with current ownership
+  -> immutable Artifact + Evidence + Provenance
+  -> independent assessment -> Claim + Policy -> Decision
+  -> sealed replay capsule and versioned status projections
+```
+
+A work item, packet revision, logical Run, attempt, provider job and external effect are distinct. Persist effect intent before calls; reconcile uncertain results before retry. Enforce fencing at authoritative writes and publishers. Cancellation is pending until confirmed. Retries and child runs consume the admitted campaign envelope; reporting failure never redispatches completed work.
+
+These are target runtime concepts. The implemented engineering [WorkPacket@v1](https://github.com/Mindclade-org/mindclade-internal-monorepo/blob/main/docs/developer/work-packet-v1.md) remains a non-semantic record, not a runtime capability or self-authorizing admission artifact.
+
+RuntimeKit supplies lifecycle, configuration, identity, middleware, telemetry, health and shutdown. TestKit supplies deterministic time, stores, events, workers and fake models. Every deployable eventually has [ServiceDescriptor@v1](/architecture/service-descriptor-v1), binding identity, ownership, capabilities, protocols, dependencies, configuration, secret references, health, resources, scaling, topology, telemetry, security, deployment and qualification. Secrets are references, never embedded values.
+
+RuntimeKit belongs at platform/runtimekit and TestKit at platform/testkit. Named service/worker descriptors remain incomplete planned stubs except the bounded `services/foundation_echo/service.descriptor.yaml` compiler input. That authored input and its generated checked configuration do not implement or authorize a deployable process; runtime maturity remains planned until B3b is demonstrated.
+
+Services initially compose in a modular monolith with only necessary worker process boundaries. Further distribution requires operational evidence. PostgreSQL/outbox is the durable baseline; no separate broker or orchestrator is adopted merely because it appears in a source document. See [execution reliability](/architecture/execution-reliability).
+
+## Scientific blueprint
+
+[Programmable biology](/architecture/programmable-biology) defines the scientific detail. The first vertical is protein-first and uses bounded, pinned local fixtures. Acquisition permission, source licences, intended use, lineage, cluster splits, leakage controls and exclusions must be explicit before data adoption.
+
+BiologicalState, Intervention, Condition, Observation, TensorBundle and operator contracts preserve units, coordinates, time, uncertainty and measured versus inferred status. Literature assertions retain exact passages, extraction versions, entity ambiguity, contradiction and retraction history.
+
+Clade Representation supplies shared machinery; Clade-Embed exposes an embedding capability over it, not a duplicate encoder stack. Molecular, cellular, systems, causal and multiscale roles remain planned. Dense matched baselines precede MoE. A cross-scale bridge requires held-out scientific evidence, not matching shapes.
+
+Learning records data/split/checkpoint/operator/environment identities. Evaluators are validated and frozen before campaigns; protected holdouts remain separate from development. Pass, Fail, Inconclusive and Blocked assessments are distinct from execution success. Model registration alone grants no eligibility.
+
+Compute uses explicit operator contracts, CPU references, forward/gradient tolerances and generated C ABI boundaries. TileLang is the future optimized kernel path; no Triton or tch-rs baseline dependency is permitted. Fake CPU artifacts cannot establish GPU performance or biological accuracy.
+
+## Security, products and deployment
+
+Tenant and caller scopes are checked at admission and at effect boundaries. Agents receive explicit paths, tools, network policy, credentials, budgets and stopping rules. Children inherit no authority automatically. Retrieved content is untrusted data; invocation audience matters as well as the agent's own access.
+
+Generated public/internal products require transitive audience closure, explicit compatibility and independent consumer tests. Authored SDK ergonomics live in products/sdk/; emitted bindings live under generated/ or declared generated subtrees. protocols/ holds published projections, not authored semantic authority. Release sets bind independently versioned components and exact digests. Partial publication is reconciled without overwriting immutable versions or prematurely moving discovery pointers.
+
+```text
+Authored deployment intent
+  -> synthesis -> DeploymentPlan -> qualification -> signing
+  -> promotion decision -> GitOps -> reconciliation evidence
+```
+
+CDK and Terraform are synthesis/projection mechanisms, not canonical direct production mutation authorities. Release, runtime eligibility, deployment and scientific decisions retain separate scopes. No deployment occurs in this bootstrap. Retool, Vercel, Notion, trackers and external model providers remain adapters, never semantic authorities.
+
+Raw/quarantined data, licensing, model/generated artifacts, environment and production access are explicit trust boundaries alongside tenant, identity, approval, secret and external-API boundaries. Destructive or irreversible actions need explicit approval. [Provenance requirements](/architecture/provenance-requirements) retain engineering/scientific receipt fields and separate connected qualification. Kubernetes, GCP/Azure and OpenTelemetry remain design targets, not connected proof.
+
+## Build, delivery and change control
+
+Nix supplies the locked authoritative toolchain; Bazel 9.1.1 owns executable foundation compile/test actions. The retained foundation graph and manifest are Codegen outputs. [Toolchain status](/architecture/toolchain) records Apple Silicon and Linux execution for its named candidate. The 2026-09-23 task baseline also records `linux-foundation` success for main `bef879d` in [run 35824604803](https://github.com/robpearc-mindclade/mindclade-vnext/actions/runs/35824604803). These are revision-scoped source results; new candidates need fresh evidence. F0 remains open for independent acceptance and protected review, not for an initial cross-host run. See the [delivery gates](/architecture/implementation-roadmap).
+
+The dependency-ordered program is:
+
+1. Architecture baseline and repository maintenance checks.
+2. Reproducible toolchains and executable build/test targets.
+3. Complete VS-001, including generated consumers, durable execution and replay.
+4. Qualify factory work classes and independent integration/release controls.
+5. One protein-first scientific vertical and shared representation baseline.
+6. Optimized operators, real model execution and additional products as required.
+7. Measured cross-scale models, experiments and governed scientific agents.
+
+A slice specifies owned paths, allowed dependencies, source/base revision, contracts, acceptance criteria, evaluator owner, authority/budget ceilings, expected evidence and failure/recovery behavior. Changes update the source plan, tree and maturity together. Architecture-law changes require ADR review. Missing or unavailable qualification evidence blocks the affected claim; it does not become a passing result through documentation completion.
+
+### Supervised engineering authority
+
+Linear is the single engineering work authority; Notion retains context and outcome links; Git holds technical authority. The dated recorded governance work reference is [MIN-14](https://linear.app/mindclade/issue/MIN-14/vnext-establish-supervised-engineering-authority-and-enterprise), last recorded In Progress; refresh live state and assignment before dispatch. Use the [supervised procedure](/developer/supervised-development) for planner, implementer, fresh reviewer, one integration owner and Rob's roles. Independent criteria precede implementation; parent-owned checks and fresh whole-candidate review precede Rob's engineering acceptance.
+
+WorkPacket@v1 and GovernanceReport@v1 are non-semantic engineering records, not semantic graph inputs, locks, capabilities or grants. They bind reviewed scope, allowed paths, owners, criteria, budgets and stop conditions to exact source, base, candidate and policy identities. Bootstrap admission is BLOCKED until operator-approved accepted-policy and packet digests exist. Changed inputs make dependent evidence stale; the candidate cannot weaken or substitute its policy.
+
+The [operator runbook](https://github.com/Mindclade-org/mindclade-internal-monorepo/blob/main/docs/operations/github-governance.md) requires verified private transfer prerequisites, restricted App credentials outside workers, protected PR/CODEOWNER review, working merge-group checks before queue activation, one-at-a-time human queue admission and main verification. Only then may the operator publish approved immutable private evidence and verify its download before Linear closure. The supplied baseline reports SAML HTTP 403 on destination preflight and unprotected source main. The 2026-09-26 transfer superseded that baseline: [governance status](https://github.com/Mindclade-org/mindclade-internal-monorepo/blob/main/docs/architecture/engineering/governance-status.md) records the live protection, dedicated App and merge queue. The end-to-end loop remains BLOCKED. Documentation does not establish that any transfer, protection or archive exists.
+
+### CI substrate and revision-bound evidence lanes
+
+The protected required context and a capability-specific prerequisite may execute on different Linux substrates when the capability cannot be expressed honestly on the protected aggregate runner. The protected aggregate stays on its maintained baseline and must fail closed when the prerequisite is missing, BLOCKED or FAIL. A compatibility runner is temporary execution substrate, not architectural authority and not permission to weaken the protected context.
+
+Revision-bound evidence stays separated by purpose. Pull-request prerequisite evidence proves the tested PR candidate; merge-group evidence proves the synthetic queue candidate; resulting-main evidence proves the merged revision. A dedicated manual exact-candidate diagnostic may supplement those lanes, but cannot replace their required checks or human review. Changing the source head, integration base, runner image or qualifying policy invalidates the affected evidence.
+
+When a hosted compatibility image is deprecated or cannot meet the frozen capability criteria, move the prerequisite to a reviewed ephemeral managed runner: immutable image, bounded repository/runner-group scope, short-lived registration, non-root execution, explicit network/namespace policy, teardown/TTL reconciliation and retained lifecycle receipts. Qualify the managed runner before cutover and preserve the protected aggregate context across the migration. The dated [ephemeral Linux runner plan](/superpowers/plans/2026-09-28-ephemeral-linux-runner) owns that rollout; the supervised engineering blueprint owns the evidence-lane relationship.
+
+Rob plus fresh agent review does not satisfy independently controlled scientific or release assurance. n8n coordination and Mintlify publication remain follow-on pilots with no installs or second tracker. The separate [Eve factory evaluation](/architecture/reviews/2026-09-23-eve-factory) concerns a candidate, not an adopted execution platform or a change to technical authority.
+
+## Related
+
+<CardGroup cols={2}>
+  <Card title="Architecture foundations" icon="building" href="/architecture/foundations/overview">
+    Layered architecture, compiler flow, and shared kernel details.
+  </Card>
+
+  <Card title="System design" icon="diagram-project" href="/architecture/system-design">
+    Complete navigable explanation of the Mindclade platform.
+  </Card>
+
+  <Card title="ADR-000 Constitution" icon="file-contract" href="/architecture/adr/adr-000-mindclade-vnext-architecture-constitution">
+    Binding architecture constitution that precedes this blueprint.
+  </Card>
+
+  <Card title="Implementation roadmap" icon="road" href="/architecture/implementation-roadmap">
+    Delivery gates, slice scoping, and dependency-ordered program.
+  </Card>
+</CardGroup>

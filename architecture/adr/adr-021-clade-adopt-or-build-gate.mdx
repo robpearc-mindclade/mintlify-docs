@@ -1,0 +1,63 @@
+---
+title: "ADR-021: Clade Adopt-or-Build Gate for Representation and Structure"
+sidebarTitle: "Adopt or Build Gate"
+description: "Proposed ADR establishing a decision gate where Clade capabilities must beat frozen open baselines before being trained internally."
+---
+
+This proposed ADR establishes an adopt-or-build gate for Clade representation and molecular structure capabilities. It is a draft from group D of the 2026-09-26 design audit and decides nothing until reviewed and accepted.
+
+| Attribute | Value |
+| --- | --- |
+| Status | Proposed |
+| Date | 2026-09-27 |
+| Related | ADR-022, ADR-023, ADR-006, ADR-019, ADR-018 |
+
+## Context
+
+The programmable biology plan covers Clade Representation Core and Clade-Embed (protein sequence to residue representation to pooled embedding), then one bounded Clade Molecular task. The master blueprint requires dense matched baselines, and gate S2 of the roadmap exits on frozen independent evaluation. Clade is the family name decided in D-19 (Rob, 2026-09-26).
+
+Open models exist for both roles, with licences that differ by release:
+
+- **ESM C.** EvolutionaryScale's [Cambrian Open License](https://www.evolutionaryscale.ai/policies/cambrian-open-license-agreement) covers ESMC 300M, requires "Built with ESM" attribution, and constrains derivative names. The [Biohub/esm README](https://github.com/Biohub/esm) says models are "available under the MIT license", and the [ESMC-300M](https://huggingface.co/biohub/ESMC-300M) and [ESMC-6B](https://huggingface.co/biohub/ESMC-6B) model cards declare MIT and "other" and prohibit uses barred by Biohub's acceptable use policy.
+- **Boltz-2.** Code and weights are MIT-licensed, and the model jointly predicts complex structures and binding affinities ([boltz](https://github.com/jwohlwend/boltz)).
+- **Protenix.** Code and model parameters are Apache-2.0, but the README states that Protenix-v2 weights "are not released under any open-source license" ([Protenix](https://github.com/bytedance/Protenix)).
+
+## Decision
+
+1. **Build must beat adopt.** Clade-Embed is trained and served as a Mindclade model only if it beats a frozen ESM C baseline on pre-registered tasks and metrics, on sequence-cluster-held-out splits defined under ADR-022, by a pre-registered margin with uncertainty and at a declared cost. Otherwise the Clade-Embed capability is implemented by the adopted ESM C model behind the same capability contract.
+2. **Frozen baseline.** The baseline binds the exact checkpoint digest, licence record, inference configuration, pooling, precision, and hardware. It is frozen, with the evaluator and a protected holdout, before any Clade candidate is scored. Evaluator ownership is independent of the candidate's author (ADR-009).
+3. **Licence at pin time.** The pinned artifact fixes the ESM C size and the terms. The licence is read from that artifact's own licence files and model card, including any acceptable use policy, attribution or naming terms, and recorded with the pin. Uncertain terms block adoption and fine-tuned derivatives until reviewed. Only artifacts whose terms permit the intended use qualify as a baseline or an adoption.
+4. **Same rule for structure.** A Clade Molecular structure capability must beat frozen Boltz-2 and open-weight Protenix baselines on FoldBench low-homology and temporal targets under ADR-022. Otherwise the capability consumes an adopted model. Protenix-v2 weights are excluded unless a licence is obtained.
+5. **Mindclade owns the contract, not the implementation.** The capability contract and its biological semantics are Mindclade's (ADR-006) and compiled by Codegen. An adopted model is an adapter behind it, never a semantic authority, and its outputs are artifacts with provenance (ADR-004).
+6. **Adoption has its own gate.** Licence and provenance record, parity against upstream (ADR-023 `parity/`), security review, and ADR-018 (biosecurity, drafted separately) before any design or generative capability is exposed.
+7. **Comparisons are evidence.** A comparison result is evidence, not a claim (ADR-005). The adopt-or-build outcome is a recorded decision under policy. A new baseline release or a new Clade candidate needs a new comparison, never an edit to the old one.
+
+## Consequences
+
+- "Clade-Embed" names a capability, which a Mindclade-trained model or an adopted model may implement. The S2 exit criteria gain an explicit adopt path.
+- This ADR depends on ADR-022 (splits and benchmarks), ADR-023 (adopted-model slots), and ADR-019 (training substrate). Kernel reuse inside adopted models follows ADR-020.
+- The ESM C terms differ between the 2024 EvolutionaryScale policies and the current Biohub-hosted artifacts. Which terms govern a given checkpoint is a legal-review item, not something this draft decides.
+- Adopting cuts training cost but adds licence, supply-chain, and upgrade work, and capability behaviour can change when upstream releases change. Pins and parity evidence contain that risk.
+- Registry insertion alone still grants no runtime eligibility (programmable biology); ADR-012 governs promotion.
+- Older NOVA-1, Clade-1, AF3, and Protenix catalogue references still select nothing.
+- Nothing here trains, downloads, or adopts a model.
+
+## Alternatives considered
+
+An alternative of always training internally was rejected because the external baselines are competitive and the cost of redundant training is high. An alternative of always adopting was rejected because it would prevent Mindclade from owning differentiated model capability.
+
+## Related
+
+<CardGroup cols={2}>
+  <Card title="Evaluation and Data Split Standards" icon="chart-bar" href="/architecture/adr/adr-022-evaluation-and-data-split-standards">
+    ADR-022, the splits and benchmarks that make the gate decidable.
+  </Card>
+
+  <Card title="Model Organization" icon="folder-tree" href="/architecture/adr/adr-023-model-organization">
+    ADR-023, adopted-model slots and parity.
+  </Card>
+
+  <Card title="Programmable Biology" icon="dna" href="/architecture/programmable-biology">
+    Scientific acceptance detail for capability planning.
+  </Card>
+</CardGroup>

@@ -1,0 +1,97 @@
+---
+title: "Linear Engineering Task Template"
+sidebarTitle: "Linear Template"
+description: "Human template for a Linear engineering task, completed before admission. Defines objective, ownership, acceptance criteria and closure evidence."
+---
+
+This template defines the content of one Linear engineering task, completed before admission. Whoever prepares a task for admission, and its reviewers, use this template.
+
+<Info>
+  This is a human template; it is not WorkPacket@v1 serialization, an execution grant or a second task register. Use this content in one Linear task. Git owns the reviewed technical contract; Notion links provide context.
+</Info>
+
+Complete the fields before admission using the [supervised development procedure](/developer/supervised-development). Unresolved fields are blockers, not implied approval. Its dependencies, evidence and tool/network/environment prompts belong in specification, acceptance descriptions, stop conditions or operator records, not extra fields in the frozen packet schema.
+
+The governance implementation uses [MIN-14](https://linear.app/mindclade/issue/MIN-14/vnext-establish-supervised-engineering-authority-and-enterprise), last recorded as In Progress. Refresh its live assignment and state before dispatch. Keep its acceptance blockers visible; this template does not request or record closure.
+
+## Objective and contract
+
+- Linear task ID and URL:
+- Observable outcome and user need:
+- Explicit exclusions and architecture nodes/dependencies:
+- Reviewed Git specification path, revision and digest:
+- Optional Notion context links:
+- Exact source and integration base revisions:
+- WorkPacket@v1 location and digest:
+- Accepted-policy revision/digest and trusted approval reference:
+- Rob's approval of the exact packet digest:
+
+## Ownership and limits
+
+- Planner identity:
+- Implementer identity:
+- Fresh reviewer identity and independently owned criteria/evaluator:
+- One integration owner and integration checkout:
+- Engineering acceptance owner: Rob; approval reference:
+- Allowed authored paths and owner of each:
+- Allowed generated paths, Codegen owner and regeneration evidence:
+- Known concurrent owners and resolved path conflicts:
+- Allowed tools, network and credential references, with no secret values:
+- Mutation ceiling and explicitly excluded remote effects:
+- Budget, retry limits, expiry and stop conditions:
+- Cancellation owner, pending-effect reconciliation and recovery procedure:
+
+## Acceptance before implementation
+
+For each criterion record the observable result, independent expected result, reviewer/evaluator identity and revision, evidence required, and failure cases. Distinguish source, remote CI, protected review, runtime, scientific, release and deployment scopes. Name the required checks and use the documented commands in the [WorkPacket contract](/developer/work-packet-v1) and [governance tools](/developer/governance-tools), subject to review and operator adoption. Under parent-owned execution, the parent runs validation and supplies receipts to reviewers.
+
+- Criterion and scope:
+- Expected result and independent basis:
+- Evaluator/reviewer and immutable revision:
+- Required check/evidence and environment:
+- Negative or recovery case:
+- Rob's acceptance of the criteria before implementation:
+
+## Handoff and blockers
+
+- Exact candidate and current base revisions; changed paths:
+- GovernanceReport@v1 location/digest and bound packet/policy identities:
+- Checks and receipts, using only PASS/FAIL/BLOCKED statuses; required unexecuted checks are BLOCKED with "not run" in detail:
+- Fresh task and whole-candidate reviews; fixes and re-review references:
+- Missing evidence, stale inputs, scope conflicts and escalation decision:
+- Cancellation state and any unresolved effects:
+- Next responsible owner and required action:
+
+## Closure evidence
+
+- Protected PR and Rob's current CODEOWNER approval of bot-authored changes:
+- Required checks, resolved threads and accepted policy at the reviewed revision:
+- Verified merge-group candidate/base and one-at-a-time queue admission:
+- Resulting main revision and successful required main checks:
+- Immutable private release, protected `evidence/` tag and bundle digest:
+- Downloaded archive verification and Rob's final acceptance:
+- Notion outcome links:
+
+Keep the task open or blocked while any required step is unavailable. The 2026-09-23 SAML/protection blockers prevent end-to-end closure and evidence publication. A source-complete report may be recorded as progress without claiming supervised readiness or independent scientific/release assurance.
+
+## Linear ↔ GitHub integration verification
+
+When the integration itself must be verified, use a bounded documentation-only change tied to a dedicated Linear issue rather than an unrelated production change. Create the branch from Linear's generated branch name so the issue identifier is present, publish the protected PR through the repository's authorized GitHub App, and preserve the normal CODEOWNER, required-check and merge-queue gates.
+
+Treat status transitions as evidence, not authority: draft/open may move the Linear issue to In Progress, ready-for-review may move it to In Review, and only a successful protected merge to `main` with the issue closing reference may close the task as Done. Confirm the PR remains linked in both Linear and GitHub after the merge; automation never waives repository governance.
+
+## Related
+
+<CardGroup cols={2}>
+  <Card title="Supervised development" icon="shield-check" href="/developer/supervised-development">
+    Procedure for resuming and handing off work.
+  </Card>
+
+  <Card title="WorkPacket@v1" icon="file-text" href="/developer/work-packet-v1">
+    Versioned packet contract and admission command.
+  </Card>
+
+  <Card title="Agent handoff" icon="hand" href="/developer/agent-handoff">
+    Current task register and status.
+  </Card>
+</CardGroup>

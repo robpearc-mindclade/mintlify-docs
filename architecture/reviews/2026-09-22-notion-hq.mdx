@@ -1,0 +1,252 @@
+---
+title: "Mindclade HQ Review 2026-09-22: Notion Workspace Source Audit"
+sidebarTitle: "HQ Review"
+description: "Source review of the Mindclade Notion HQ workspace covering 159 pages, 14 biology blueprint systems, and 36 canonical Docs records. Scope: planning vocabulary and relevance triage, not qualification or ADR changes."
+---
+
+This page records the source review of [Mindclade HQ](https://app.notion.com/p/cf3fc9108a5b4a199bef3b54dafe77ca) conducted on 2026-09-22. It triaged 159 fetched pages across Science, Build, Company, Knowledge, Foundation, and Playbooks hubs against the vNEXT architecture baseline. The review is a historical source and adoption record; its earlier no-scaffold scope does not override later explicit scaffold requests or canonical repository paths.
+
+<Warning>
+  This is a source review and planned architecture additions exercise, not qualification, release approval, or an accepted ADR change.
+</Warning>
+
+## Summary
+
+| Attribute | Value |
+| --- | --- |
+| Status | Source review and planned architecture additions, not qualification |
+| Date | 2026-09-22 |
+| Repository baseline | `f76ceae7328d64bf65524ec3cf9fd8d28071ef08` |
+| Authority | [AGENTS.md](https://github.com/Mindclade-org/mindclade-internal-monorepo/blob/main/AGENTS.md), ADR-000 through ADR-014, and repository architecture metadata |
+| Pages reviewed | 159 distinct fetched pages |
+| Docs records queried | 36 (all returned, including four superseded) |
+| System pages followed | 14 (biology blueprint) |
+
+## Scope and coverage
+
+The review examined the workspace map and all six hubs directly. The canonical Docs data source was queried exhaustively: all 36 records returned with no remaining query page. The biology blueprint's 14 system pages, ownership/roadmap pages, current execution kernel, qualification matrix, WF-01 through WF-06, release templates, and relevant project, integration, scientific-data, and developer-product records were followed.
+
+Search results for the legacy Playbooks hub reached the connector's 50-result limit. Explicit child-page traversal and the complete Docs query supplemented that search. Generic task/contact/demo rows and account/access records were not treated as architecture documents. Two legacy template pages, Developer OS and Team Collaboration, returned partial content due to unsupported button blocks (one and four respectively). Several empty template/resource pages supplied metadata but no document body.
+
+Source pages are mutable. Last-edited timestamps describe connector responses at review time; they are not content digests or immutable evidence. No Notion pages were edited. No credentials, raw page exports, or temporary asset URLs are incorporated into this repository.
+
+## Useful additions to vNEXT
+
+| Source | Addition to vNEXT | Boundary |
+| --- | --- | --- |
+| [Biology blueprint and systems](https://app.notion.com/p/3e3ad1d5c56181a697c1dd84e633d653) | [Programmable biology](/architecture/programmable-biology): domain ownership, biological semantics, typed scientific contracts, shared-kernel mapping, protein-first sequence, explicit cross-scale bridges. | Planning vocabulary, not new roots, schemas, trained models, or deployed services. |
+| [Data release](https://app.notion.com/p/3e2ad1d5c56181e0b1e4e378c650a3e3) and [scientific knowledge](https://app.notion.com/p/3e3ad1d5c5618169813ed4ad37f93256) | Pinned source/transform/split provenance, permitted-use checks, validated contamination reports, exact citations, contradiction and retraction history. | Source catalogues do not establish selected datasets, rights, or scientific support. |
+| [WF-04](https://app.notion.com/p/3e2ad1d5c56181e19147e5fa0a480e00), [WF-05](https://app.notion.com/p/3e2ad1d5c56181b88947f66e98e432b6), and [independent results review](https://app.notion.com/p/3dfad1d5c56181ddba38d76a46358b1f) | Validate and freeze evaluators before campaigns; protect holdouts; preserve negative/inconclusive results, uncertainty, controls, and exact checkpoint/runtime context. | Implementation, execution success, scientific assessment, and release qualification remain separate. |
+| [Execution Kernel K1-K8](https://app.notion.com/p/3e2ad1d5c561810290bcfad1a410df60) | [Execution reliability](/architecture/execution-reliability): packet/run/attempt/effect identities, one admission route, fencing, reconciliation, bounded retries, cancellation, atomic reservations. | Elaborates the PostgreSQL/outbox foundation; does not install an orchestrator or promise exactly-once external effects. |
+| [Q01-Q24 matrix](https://app.notion.com/p/3e2ad1d5c56181acbf7efbd9c40c1ef1) and [WF-01](https://app.notion.com/p/3e2ad1d5c56181b99579d87dc437a243) | Concrete [VS-001 checks](/architecture/vs-001-semantic-development-loop) plus scoped later fault cases, exact-candidate evidence, combined-revision acceptance, and honest outcome counts. | All newly specified scenarios are NOT run; a matrix is not a passing test suite. |
+| [Architecture & Contracts](https://app.notion.com/p/3e3ad1d5c5618129afd1f8514331cbe9), [WF-03](https://app.notion.com/p/3e2ad1d5c561816398acd8f9b2e83cc4), and [product packet](https://app.notion.com/p/3e2ad1d5c5618165b91dc78369d52d75) | [Compiler/developer-product qualification](/architecture/developer-products): official frontend parity, independent oracles, compatibility dimensions, audience closure, deterministic outputs, per-product tests, release-set recovery. | Codegen alone owns semantic compilation; target catalogues do not require all products in Phase 0. |
+| [Foundation & Authority Map](https://app.notion.com/p/3e3ad1d5c56181cd90e3c1c33732a322) and [Notion role decision](https://app.notion.com/p/3e3ad1d5c5618165a5f7c08559aa1b42) | Explicit source authority, immutable evidence references, fresh/idempotent reporting, restricted invokers, and projection-only retries. | Notion and trackers are adapters, not compiler, runtime, evidence, or deployment authorities. |
+| [Wave 0](https://app.notion.com/p/3e3ad1d5c561810baa34caa27c896d65) and [Wave 1](https://app.notion.com/p/3e3ad1d5c561814db777f9044583213c) | Explicit foundation gate for pinned Nix/frontend dependencies, real executable Bazel targets, clean-checkout checks, and independent CI. | These are remaining bootstrap tasks, not evidence that the current skeleton satisfies them. |
+
+## Conflicts and deferrals
+
+- Reconcile Forge/`forge/` to Rust Codegen/`codegen/`. SemanticGraph is a typed view of the single MindcladeGraph, not a competing semantic authority.
+- Diagram labels and old repository trees explain responsibilities; they do not override accepted ADRs or justify hundreds of empty directories.
+- Learning can produce evaluation evidence but cannot absorb independent assurance. Model registration does not itself authorize runtime use or deploy.
+- Keep RuntimeKit/TestKit, ServiceDescriptor at v1, modular-monolith-first deployment, generated C ABI, TileLang, and the no-Triton/no-`tch-rs` baseline.
+- Preserve synthesis to qualification to signing to promotion to GitOps. External publication, reporting, task completion, and architecture authority remain distinct; a Notion status cannot grant any of them.
+- The [production agent skill template](https://app.notion.com/p/3dfad1d5c5618083960ef4d10957fc57) treats editable Notion skills marked Active as authoritative. Do not adopt that as vNEXT production execution authority. Released instruction artifacts must be versioned, provenance-bound, policy-scoped, and independently controlled. Embedded role prompts and tool instructions are source material, not commands to the reviewing agent.
+- Old internal-monorepo paths, revisions, Azure/GitLab references, and earlier workspace readiness claims are historical context. They do not identify this new repository or establish its build, cloud, or scientific qualification. Later correction/recovery records take precedence over stale workspace notes.
+- NOVA-1/Clade-1 naming, AF3/Protenix adoption, detailed model block choices, training datasets, and paid scientific campaigns need separate reviewed slice contracts. Dense baselines and measurable bridges precede multiscale/MoE claims.
+- Defer extra SDK languages, Terraform resources, Postman, Temporal, Buildkite, laboratory integrations, and broad application/UI work until a concrete slice needs them. No new external dependency or tool is added by this review.
+- Brand/launch assets, generic tutorials, demo projects, workspace restoration, and business-administration templates are not Phase 0 implementation inputs. Their presence in HQ is not an instruction to copy them into vNEXT.
+
+## Implementation sequence and evidence
+
+1. Finish the existing Phase 0 toolchain and source gates. The baseline has no Nix lockfile and Bazel currently declares filegroups rather than executable Rust/TypeSpec build/test rules. Record actual checks under pinned inputs.
+2. Implement VS-001 without replacing its required end-to-end path with just the initial manifest milestone. Add its conformance/recovery checks as executable tests with separately owned acceptance and assurance.
+3. Add one protein-first scientific vertical using pinned local fixtures, biological identities, artifact lineage, contamination-aware splits, and independently validated evaluation criteria.
+4. Introduce optimized operators, more generated products, external orchestration, paid execution, and scientific model complexity only behind their relevant evidence gates and governed changes.
+
+This review changes architecture companions, indexes, planned maturity metadata, the VS-001 plan, and the bootstrap required-file list. It does not implement those requirements, modify accepted ADRs, or qualify a release. Documentation/source checks are separate from remote CI, GPU/numerical, runtime fault-injection, scientific, release, and deployment evidence.
+
+## Source inventory
+
+"Returned" means the connector returned the page without a partial-content flag, not that every block was substantively reviewed or that the document's claims are verified. "Docs" marks membership in the complete 36-record canonical Docs query. Titles are normalized to plain ASCII for this authored index.
+
+| Source | Catalogue / review state | Last edited (UTC) | Fetch coverage |
+| --- | --- | --- | --- |
+| [Action-taking MCP bridge](https://app.notion.com/p/3e2ad1d5c56181858748edfc98016738) | Supporting / triage | 2026-09-21T03:59:47.110Z | Returned |
+| [Administrator Recovery & Access Packet](https://app.notion.com/p/3e3ad1d5c5618157bd6bdd0369f3b10c) | Supporting / triage | 2026-09-22T19:42:16.522Z | Returned |
+| [AF3 - canonical job path CPU operational gate](https://app.notion.com/p/3e2ad1d5c5618145961dedf1a44b6f0a) | Supporting / triage | 2026-09-21T21:09:34.624Z | Returned |
+| [Agent Development](https://app.notion.com/p/3e1ad1d5c56181e0bf9efb9687b21e33) | Supporting / triage | 2026-09-21T06:19:31.656Z | Returned |
+| [Agent SDK & typed tool adapters](https://app.notion.com/p/3e2ad1d5c561814fa278e880c52c047f) | Supporting / triage | 2026-09-21T03:59:47.110Z | Returned |
+| [Agentic Notion Developer - operating playbook](https://app.notion.com/p/3e2ad1d5c561819b8cfaee611e69b633) | Docs: Needs review | 2026-09-22T20:39:45.701Z | Returned |
+| [Analyst](https://app.notion.com/p/3dfad1d5c561808181bbd1703e3074b6) | Supporting / triage | 2026-09-18T16:25:15.729Z | Returned |
+| [API contracts & service bindings](https://app.notion.com/p/3e2ad1d5c5618137bb42f5bb45eba3d3) | Supporting / triage | 2026-09-21T03:59:47.110Z | Returned |
+| [App Launch Go-to-Market Strategy](https://app.notion.com/p/3d9ad1d5c56180d5876af0d77061d441) | Docs: Needs review | 2026-09-22T19:00:51.883Z | Returned |
+| [Application CLI](https://app.notion.com/p/3e2ad1d5c5618134ac24fac16b12755b) | Supporting / triage | 2026-09-21T03:59:47.110Z | Returned |
+| [Architecture & Contracts - contracts/ + forge/](https://app.notion.com/p/3e3ad1d5c5618129afd1f8514331cbe9) | System blueprint | 2026-09-22T19:09:39.910Z | Returned |
+| [Automation qualification - acceptance matrix & activation plan](https://app.notion.com/p/3e2ad1d5c56181acbf7efbd9c40c1ef1) | Docs: Needs review | 2026-09-22T20:39:17.427Z | Returned |
+| [Azure Repos & CI to Notion - engineering evidence](https://app.notion.com/p/3e2ad1d5c56181269d97cbec573e7285) | Supporting / triage | 2026-09-21T04:00:16.855Z | Returned |
+| [Biological Data - data/](https://app.notion.com/p/3e3ad1d5c5618132bd15f36a6f4c1880) | System blueprint | 2026-09-22T19:15:52.050Z | Returned |
+| [Biological Semantics - biology/](https://app.notion.com/p/3e3ad1d5c56181958f8beb0c32414592) | System blueprint | 2026-09-22T19:09:43.757Z | Returned |
+| [Biological Semantics Foundation - Wave 2](https://app.notion.com/p/3e3ad1d5c56181bc8231e56317f1c904) | Supporting / triage | 2026-09-22T20:16:12.771Z | Returned |
+| [Brainstorming](https://app.notion.com/p/72aad1d5c561836a9999810d4c3a425c) | Supporting / triage | 2026-09-20T02:29:00.015Z | Returned |
+| [Brand Guidelines](https://app.notion.com/p/3d9ad1d5c561802a9423e71accc1e2d3) | Docs: Needs review | 2026-09-22T19:00:50.248Z | Returned |
+| [Brand Kit](https://app.notion.com/p/90d9932e89664715a8b1cc264fcae5c0) | Docs: Unset | 2026-09-18T03:02:29.868Z | Returned |
+| [Build - Product & Engineering](https://app.notion.com/p/3dfad1d5c56181499ba2c567d4e85ef2) | Supporting / triage | 2026-09-22T20:13:53.017Z | Returned |
+| [Canonical Workspace Object Model](https://app.notion.com/p/3e3ad1d5c561812da762dfc9d984761b) | Supporting / triage | 2026-09-22T19:04:23.563Z | Returned |
+| [ChatGPT to/from Notion - scoped on-demand development](https://app.notion.com/p/3e2ad1d5c561810ab1eed6f9d0b4af15) | Supporting / triage | 2026-09-21T04:00:16.855Z | Returned |
+| [Company](https://app.notion.com/p/3dfad1d5c56181ceb10ef8ebd4559e1d) | Supporting / triage | 2026-09-22T19:34:08.219Z | Returned |
+| [Company OS - configuration and acceptance record](https://app.notion.com/p/3e2ad1d5c561811e9adaf65b5bd0c3cf) | Docs: Superseded | 2026-09-22T19:32:58.283Z | Returned |
+| [Company OS - Final Plan & Office Agent Prompt](https://app.notion.com/p/3e2ad1d5c56181e0a129df643f5a5358) | Docs: Superseded | 2026-09-22T19:32:56.781Z | Returned |
+| [Company pack](https://app.notion.com/p/302ad1d5c5618328acca817e4cb82903) | Supporting / triage | 2026-09-20T02:28:58.915Z | Returned |
+| [Compute & Operators - compute/](https://app.notion.com/p/3e3ad1d5c56181e58700fdf445508d39) | System blueprint | 2026-09-22T19:10:00.966Z | Returned |
+| [Connect To MySQL](https://app.notion.com/p/cb8ad1d5c5618361a698811e58f1a742) | Supporting / triage | 2026-09-20T02:39:25.025Z | Returned |
+| [Content calendar](https://app.notion.com/p/843ad1d5c56183329b8901ff0a9796ab) | Supporting / triage | 2026-09-20T02:28:59.514Z | Returned |
+| [CRM](https://app.notion.com/p/0bead1d5c56182269fa701c33678927e) | Supporting / triage | 2026-09-20T02:28:59.800Z | Returned |
+| [Data & Models](https://app.notion.com/p/3e1ad1d5c561813d9fb3ead609969cce) | Supporting / triage | 2026-09-22T18:41:50.067Z | Returned |
+| [Database Inventory & Recovery Matrix](https://app.notion.com/p/3e3ad1d5c5618153acc5e303548f930f) | Supporting / triage | 2026-09-22T19:39:00.775Z | Returned |
+| [Databases](https://app.notion.com/p/cc3ad1d5c561830f9fbe01abd169b064) | Supporting / triage | 2026-09-20T02:30:30.786Z | Returned |
+| [Decision - Confirm recovery of original operational databases](https://app.notion.com/p/3e2ad1d5c56181079b8bcaaf106fb3d0) | Docs: Needs review | 2026-09-22T20:16:51.966Z | Returned |
+| [Decision - Notion operating role and system-of-record boundaries](https://app.notion.com/p/3e3ad1d5c5618165a5f7c08559aa1b42) | Docs: Reviewed | 2026-09-22T20:39:48.844Z | Returned |
+| [Developer Experience & Applications - sdk/ + apps/ + services/](https://app.notion.com/p/3e3ad1d5c56181df93b4d94dd791be30) | System blueprint | 2026-09-22T19:08:27.492Z | Returned |
+| [Developer OS](https://app.notion.com/p/396ad1d5c56183788f8e0114b4538be0) | Supporting / triage | 2026-09-20T02:39:13.067Z | Partial (1 unsupported block) |
+| [Development Roadmap - Vertical Build Order](https://app.notion.com/p/3e3ad1d5c561811ca784d03393858e63) | Supporting / triage | 2026-09-22T19:24:11.716Z | Returned |
+| [Documentation-search MCP](https://app.notion.com/p/3e2ad1d5c561812e96e0f6a211e67954) | Supporting / triage | 2026-09-21T03:59:47.110Z | Returned |
+| [Engineering setup (GitHub + Visual Studio)](https://app.notion.com/p/04d003e9b10644b3934eadd7aa3f8265) | Supporting / triage | 2026-09-18T00:48:00.335Z | Returned |
+| [Evaluation & Release](https://app.notion.com/p/3e1ad1d5c56181a1b140c04d3ddc7002) | Supporting / triage | 2026-09-21T21:12:06.524Z | Returned |
+| [Execution Kernel - workflow, policy & recovery contract](https://app.notion.com/p/3e2ad1d5c561810290bcfad1a410df60) | Docs: Needs review | 2026-09-22T20:39:35.632Z | Returned |
+| [Experiments & Protocols - experiments/](https://app.notion.com/p/3e3ad1d5c56181449827f3a767ea2f85) | System blueprint | 2026-09-22T19:19:35.895Z | Returned |
+| [First model & runtime - qualification](https://app.notion.com/p/3e2ad1d5c56181f1ac8efea4fc0d391a) | Supporting / triage | 2026-09-22T20:16:24.035Z | Returned |
+| [Forge - APIs & Developer Products](https://app.notion.com/p/3e2ad1d5c5618168bd79d50345acce3d) | Supporting / triage | 2026-09-22T18:41:55.792Z | Returned |
+| [Forge to Notion - generated-product evidence](https://app.notion.com/p/3e2ad1d5c561810f845bcb92c8684d18) | Supporting / triage | 2026-09-21T04:00:16.855Z | Returned |
+| [Forge Production Vertical - Wave 1](https://app.notion.com/p/3e3ad1d5c561814db777f9044583213c) | Supporting / triage | 2026-09-22T20:28:49.223Z | Returned |
+| [GitHub to Notion - authorized repository references](https://app.notion.com/p/3e2ad1d5c5618138a245e508a9b66390) | Supporting / triage | 2026-09-21T04:00:16.855Z | Returned |
+| [Icon families and styles - documentation spec](https://app.notion.com/p/6ecede75eb5d4ca189155676824ac8b9) | Docs: Draft | 2026-09-18T15:25:13.073Z | Returned |
+| [Infrastructure & Operations - infra/](https://app.notion.com/p/3e3ad1d5c56181de8927dde4ad1c0929) | System blueprint | 2026-09-22T19:08:27.492Z | Returned |
+| [Integrations setup (GitHub, Google, Microsoft)](https://app.notion.com/p/07ac87b989b1406aaabe4fe1f6a788c8) | Supporting / triage | 2026-09-18T16:51:59.805Z | Returned |
+| [Internal SDK - Go](https://app.notion.com/p/3e2ad1d5c56181f3a85ff0457cb061f5) | Supporting / triage | 2026-09-21T03:59:47.110Z | Returned |
+| [Internal SDK - Python](https://app.notion.com/p/3e2ad1d5c5618199ad47fde9bb1d6a50) | Supporting / triage | 2026-09-21T03:59:47.110Z | Returned |
+| [Internal SDK - Rust](https://app.notion.com/p/3e2ad1d5c56181d88454c920ae190c3d) | Supporting / triage | 2026-09-21T03:59:47.110Z | Returned |
+| [Internal SDK - TypeScript](https://app.notion.com/p/3e2ad1d5c5618105a1eaeb67a02ce2bc) | Supporting / triage | 2026-09-21T03:59:47.110Z | Returned |
+| [Java Basics](https://app.notion.com/p/865ad1d5c561836d92d88156359fc0b1) | Supporting / triage | 2026-09-20T02:39:23.580Z | Returned |
+| [Knowledge & Decisions](https://app.notion.com/p/3dfad1d5c56181e2896bdad0a3e6e7d0) | Supporting / triage | 2026-09-22T20:40:03.535Z | Returned |
+| [Learning, Evaluation & Qualification - ml/](https://app.notion.com/p/3e3ad1d5c56181d08700e3fc3825ad17) | System blueprint | 2026-09-22T19:15:57.419Z | Returned |
+| [Linear to Notion - delivery projection](https://app.notion.com/p/3e2ad1d5c5618167825cd9f745ffb32b) | Supporting / triage | 2026-09-21T04:00:16.855Z | Returned |
+| [Marketplace Agent drafts](https://app.notion.com/p/197ad1d5c5618389a856019e28b1c31a) | Supporting / triage | 2026-09-22T19:58:35.190Z | Returned |
+| [Meeting Notes - Copy into Meetings](https://app.notion.com/p/80560e17ce9146c6aa5e913357d827ca) | Supporting / triage | 2026-09-20T13:36:14.535Z | Returned |
+| [Meetings](https://app.notion.com/p/5e2ad1d5c56183cfbe00016b0dd6cb46) | Supporting / triage | 2026-09-20T02:30:30.681Z | Returned |
+| [Meetings Tracker](https://app.notion.com/p/521ad1d5c561833b9f6f011d1a66f063) | Supporting / triage | 2026-09-20T02:30:31.804Z | Returned |
+| [Microsoft 365 to/from Notion - versioned reporting](https://app.notion.com/p/3e2ad1d5c56181899acbd02d0ac98b77) | Supporting / triage | 2026-09-21T04:00:16.855Z | Returned |
+| [Mindclade Design System - Build Record](https://app.notion.com/p/3dfad1d5c5618163aff2db8521980c02) | Supporting / triage | 2026-09-18T15:34:57.793Z | Returned |
+| [Mindclade Foundation - Wave 0](https://app.notion.com/p/3e3ad1d5c561810baa34caa27c896d65) | Supporting / triage | 2026-09-22T20:28:46.445Z | Returned |
+| [Mindclade HQ](https://app.notion.com/p/cf3fc9108a5b4a199bef3b54dafe77ca) | Supporting / triage | 2026-09-22T20:47:31.675Z | Returned |
+| [Mindclade Notion UI & Workspace Standards](https://app.notion.com/p/57a8aafbccf24cb1a391c8017a85f0e4) | Supporting / triage | 2026-09-22T18:51:15.909Z | Returned |
+| [Mindclade OS](https://app.notion.com/p/3715a24f0e764433805a503265b1ba79) | Supporting / triage | 2026-09-22T23:01:43.764Z | Returned |
+| [Mindclade OS - Framer Launch Brief](https://app.notion.com/p/14bf9c9c1cbe44d0982a459297017f3c) | Supporting / triage | 2026-09-20T13:07:50.350Z | Returned |
+| [Mindclade OS Template - Start Here](https://app.notion.com/p/7eaa73b13182439298fc4872ab97a711) | Supporting / triage | 2026-09-20T13:07:50.428Z | Returned |
+| [Mindclade Programmable Biology Blueprint](https://app.notion.com/p/3e3ad1d5c56181a697c1dd84e633d653) | Supporting / triage | 2026-09-22T20:22:59.858Z | Returned |
+| [Mindclade update - Workspace build - 2026-09-20](https://app.notion.com/p/3dfad1d5c5618169a8aacf8b25cb41b1) | Docs: Superseded | 2026-09-22T19:32:53.190Z | Returned |
+| [Mindclade workspace - adoption & access review](https://app.notion.com/p/3dfad1d5c5618195ae1bcea162843be9) | Supporting / triage | 2026-09-22T20:16:07.085Z | Returned |
+| [Mindclade workspace - guide & template provenance](https://app.notion.com/p/3dfad1d5c56181229899ca41f50f876d) | Docs: Draft | 2026-09-18T09:29:05.027Z | Returned |
+| [Mobile App Launch](https://app.notion.com/p/3d9ad1d5c56180cda51dfe058ffe9f7f) | Supporting / triage | 2026-09-22T19:00:45.368Z | Returned |
+| [Model Runtime - runtime/](https://app.notion.com/p/3e3ad1d5c56181bb8323c7c13dcd9785) | System blueprint | 2026-09-22T19:15:59.294Z | Returned |
+| [New Code Snippet Template](https://app.notion.com/p/783ad1d5c561828c94d381b9d3b05d45) | Supporting / triage | 2026-09-20T02:39:24.612Z | Returned |
+| [New doc](https://app.notion.com/p/3dfad1d5c56180bebc4cdc1e9ccea5f9) | Docs: Unset | 2026-09-18T00:44:26.048Z | Returned |
+| [New doc](https://app.notion.com/p/3dbad1d5c56180b1b565d81119981a07) | Docs: Unset | 2026-09-14T16:14:59.254Z | Returned |
+| [New doc](https://app.notion.com/p/3d9ad1d5c561806fa150c4c61c19e068) | Supporting / triage | 2026-09-18T09:19:43.367Z | Returned |
+| [New project](https://app.notion.com/p/3e1ad1d5c5618089b462dd6062972d5a) | Supporting / triage | 2026-09-22T19:00:48.425Z | Returned |
+| [New project](https://app.notion.com/p/3d9ad1d5c561809caa56cb53c6d74d68) | Supporting / triage | 2026-09-18T09:19:21.118Z | Returned |
+| [Notion to recovery storage - workspace exports](https://app.notion.com/p/3e2ad1d5c56181f2b132c7237d870607) | Supporting / triage | 2026-09-21T21:09:52.794Z | Returned |
+| [Notion Custom Agents - maintenance activation](https://app.notion.com/p/3e2ad1d5c5618130b267c2fa7d1a81fb) | Supporting / triage | 2026-09-21T04:00:16.855Z | Returned |
+| [Notion Maintenance - role contracts and agent instructions](https://app.notion.com/p/3e2ad1d5c56181548d4bcf06b71dbe87) | Docs: Needs review | 2026-09-22T20:39:41.678Z | Returned |
+| [Notion readiness review - 2026-09-18](https://app.notion.com/p/3dfad1d5c56181d0831ae0ce8601daed) | Docs: Superseded | 2026-09-22T19:32:55.228Z | Returned |
+| [Notion Setup - Final Acceptance Record](https://app.notion.com/p/3e3ad1d5c56181c7b4d5f23c82d38672) | Supporting / triage | 2026-09-22T20:08:46.110Z | Returned |
+| [NOVA Model Family - models/nova/](https://app.notion.com/p/3e3ad1d5c56181ee9399d82bcab1f0a5) | System blueprint | 2026-09-22T19:19:33.919Z | Returned |
+| [NOVA Representation & Embed - models/nova/representation + embed](https://app.notion.com/p/3e3ad1d5c56181f1a3f7f69a8d8e1fc4) | System blueprint | 2026-09-22T19:10:04.094Z | Returned |
+| [NOVA-1 - working-name model candidate](https://app.notion.com/p/3e2ad1d5c56181b08b59cbd7758f3f04) | Supporting / triage | 2026-09-21T21:08:36.308Z | Returned |
+| [NOVA-Embed Protein Vertical - Wave 5](https://app.notion.com/p/3e3ad1d5c56181db8f07eaafa237e3d5) | Supporting / triage | 2026-09-22T20:16:18.116Z | Returned |
+| [PDB - candidate provenance](https://app.notion.com/p/3e2ad1d5c56181cbab9df845bae873eb) | Supporting / triage | 2026-09-21T21:07:53.175Z | Returned |
+| [Platform & Control Plane - platform/](https://app.notion.com/p/3e3ad1d5c56181e7818ac616e9aab62c) | System blueprint | 2026-09-22T19:19:29.914Z | Returned |
+| [Playbooks & Templates](https://app.notion.com/p/3dfad1d5c56181929497d3f76e4c6c86) | Supporting / triage | 2026-09-22T20:46:20.681Z | Returned |
+| [Postman to Notion - API qualification summaries](https://app.notion.com/p/3e2ad1d5c561815d9e39e487aafe07d1) | Supporting / triage | 2026-09-21T04:00:16.855Z | Returned |
+| [Postman collections & API scenarios](https://app.notion.com/p/3e2ad1d5c56181258f20db74b09a1cd5) | Supporting / triage | 2026-09-21T03:59:47.110Z | Returned |
+| [Production-Grade Agent Skill Template](https://app.notion.com/p/3dfad1d5c5618083960ef4d10957fc57) | Supporting / triage | 2026-09-18T17:14:38.375Z | Returned |
+| [Project Manager](https://app.notion.com/p/0ddad1d5c56182a2bc8201631c32afa3) | Supporting / triage | 2026-09-20T02:30:50.563Z | Returned |
+| [Projects](https://app.notion.com/p/cadad1d5c56183ccba7a019b4607f73f) | Supporting / triage | 2026-09-20T02:30:30.645Z | Returned |
+| [Projects](https://app.notion.com/p/956ad1d5c56182ec819d81cf493c6554) | Supporting / triage | 2026-09-20T02:30:31.726Z | Returned |
+| [Projects & tasks](https://app.notion.com/p/670ad1d5c56182d9a5c8015b6a232d0a) | Supporting / triage | 2026-09-20T02:28:59.726Z | Returned |
+| [Protenix - forward and gradient parity](https://app.notion.com/p/3e2ad1d5c56181309099e7d9bde32b36) | Supporting / triage | 2026-09-21T21:09:34.624Z | Returned |
+| [Protenix Rust runtime - qualification candidate](https://app.notion.com/p/3e2ad1d5c56181a586fdda32b4d109ad) | Supporting / triage | 2026-09-21T21:08:36.308Z | Returned |
+| [Public SDK - Go](https://app.notion.com/p/3e2ad1d5c56181bcbc68c23974546c7f) | Supporting / triage | 2026-09-21T03:59:47.110Z | Returned |
+| [Public SDK - Python](https://app.notion.com/p/3e2ad1d5c561819e8a64ce290a94aea7) | Supporting / triage | 2026-09-21T03:59:47.110Z | Returned |
+| [Public SDK - Rust](https://app.notion.com/p/3e2ad1d5c5618169941ad4a5c28c93bb) | Supporting / triage | 2026-09-21T03:59:47.110Z | Returned |
+| [Public SDK - TypeScript](https://app.notion.com/p/3e2ad1d5c561815aa345dd8dbfeb3642) | Supporting / triage | 2026-09-21T03:59:47.110Z | Returned |
+| [Repository Architecture & Ownership](https://app.notion.com/p/3e3ad1d5c561811baf1bc5b7bae47d03) | Supporting / triage | 2026-09-22T18:41:38.115Z | Returned |
+| [RNACentral - candidate provenance](https://app.notion.com/p/3e2ad1d5c56181be92c8fc59553688ba) | Supporting / triage | 2026-09-21T21:07:53.175Z | Returned |
+| [Science](https://app.notion.com/p/3dfad1d5c56181fb89d0de827247ff5c) | Supporting / triage | 2026-09-22T23:08:19.535Z | Returned |
+| [Scientific Agents - agents/](https://app.notion.com/p/3e3ad1d5c56181ef90adc82eb5f17d3b) | System blueprint | 2026-09-22T19:19:37.578Z | Returned |
+| [Scientific artifacts to Notion - qualification receipts](https://app.notion.com/p/3e2ad1d5c561819b9087d115562add00) | Supporting / triage | 2026-09-21T21:09:52.794Z | Returned |
+| [Scientific data - first release qualification](https://app.notion.com/p/3e2ad1d5c56181d3a937ef44d1ca6f2b) | Supporting / triage | 2026-09-22T20:16:21.558Z | Returned |
+| [Scientific data - split and contamination qualification](https://app.notion.com/p/3e2ad1d5c56181e8b24ad9fc87957f1a) | Supporting / triage | 2026-09-21T21:09:34.624Z | Returned |
+| [Scientific Data & Knowledge - Wave 3](https://app.notion.com/p/3e3ad1d5c5618116b644fc4e3f19c297) | Supporting / triage | 2026-09-22T20:16:14.574Z | Returned |
+| [Scientific Knowledge - knowledge/](https://app.notion.com/p/3e3ad1d5c5618169813ed4ad37f93256) | System blueprint | 2026-09-22T19:15:53.981Z | Returned |
+| [Spring and Spring Boot](https://app.notion.com/p/217ad1d5c56182dca3df01c317694fdf) | Supporting / triage | 2026-09-20T02:39:24.249Z | Returned |
+| [SQL](https://app.notion.com/p/637ad1d5c56183388313814ad98a71d8) | Supporting / triage | 2026-09-20T02:39:23.874Z | Returned |
+| [Task Brief - Copy into Tasks](https://app.notion.com/p/8dfd9c1e13694720a0b87d5212cf2efa) | Supporting / triage | 2026-09-20T13:36:14.517Z | Returned |
+| [Tasks](https://app.notion.com/p/2c2ad1d5c56182e281a301c7702a4a3d) | Supporting / triage | 2026-09-20T02:30:30.716Z | Returned |
+| [Tasks](https://app.notion.com/p/6baad1d5c5618368869c0106c6dea2a4) | Supporting / triage | 2026-09-20T02:30:31.752Z | Returned |
+| [Team Collaboration](https://app.notion.com/p/becad1d5c56182ddabde81b60f0fbcb9) | Supporting / triage | 2026-09-20T02:30:29.873Z | Partial (4 unsupported blocks) |
+| [Team Directory](https://app.notion.com/p/7a1ad1d5c56183c49fdd01ca4fdcb25c) | Supporting / triage | 2026-09-20T02:30:31.782Z | Returned |
+| [Team Members](https://app.notion.com/p/9b8ad1d5c561832b8f3d010bff7d715b) | Supporting / triage | 2026-09-20T02:30:30.748Z | Returned |
+| [Template - Architecture decision record](https://app.notion.com/p/3dfad1d5c561815a93b9cb61da9d4c3a) | Docs: Needs review | 2026-09-18T16:48:02.780Z | Returned |
+| [Template - Contract-to-products work packet](https://app.notion.com/p/3e2ad1d5c5618165b91dc78369d52d75) | Docs: Needs review | 2026-09-21T03:58:01.672Z | Returned |
+| [Template - Data release](https://app.notion.com/p/3e2ad1d5c56181e0b1e4e378c650a3e3) | Docs: Needs review | 2026-09-21T21:08:52.463Z | Returned |
+| [Template - Document brief](https://app.notion.com/p/4daee5a839d14e919167ef21ce3df8f8) | Supporting / triage | 2026-09-20T13:34:57.598Z | Returned |
+| [Template - Literature appraisal](https://app.notion.com/p/3dfad1d5c5618198a83fd93668b23c3e) | Docs: Needs review | 2026-09-18T17:10:13.395Z | Returned |
+| [Template - Model & runtime release](https://app.notion.com/p/3e2ad1d5c56181e9aaf1d3b3441ec84d) | Docs: Needs review | 2026-09-21T21:08:53.482Z | Returned |
+| [Template - Notion change packet](https://app.notion.com/p/3e2ad1d5c5618106b50af0622276c776) | Docs: Needs review | 2026-09-21T03:58:01.672Z | Returned |
+| [Template - Onboarding & access review](https://app.notion.com/p/3dfad1d5c56181ba89ffc0a5a664b892) | Docs: Needs review | 2026-09-18T16:48:02.895Z | Returned |
+| [Template - Product brief](https://app.notion.com/p/3dfad1d5c56181f29f6df5fe95df402d) | Docs: Needs review | 2026-09-18T16:48:02.878Z | Returned |
+| [Template - Project brief](https://app.notion.com/p/17a1a8b583354f73ab8cff043849ce9c) | Supporting / triage | 2026-09-20T13:34:57.635Z | Returned |
+| [Template - Results & independent review](https://app.notion.com/p/3dfad1d5c56181ddba38d76a46358b1f) | Docs: Needs review | 2026-09-18T16:48:02.951Z | Returned |
+| [Template - Scientific protocol](https://app.notion.com/p/3dfad1d5c561810aa4ecc5787d596b1d) | Docs: Needs review | 2026-09-18T16:48:02.959Z | Returned |
+| [Template - Weekly operating review](https://app.notion.com/p/3dfad1d5c56181de900ef62e08ba4518) | Docs: Needs review | 2026-09-18T16:48:02.673Z | Returned |
+| [TensorBundle & Operator Stack - Wave 4](https://app.notion.com/p/3e3ad1d5c56181fc8e42fbce626aa986) | Supporting / triage | 2026-09-22T20:16:16.461Z | Returned |
+| [Terraform provider](https://app.notion.com/p/3e2ad1d5c56181d492afef57a92a49d1) | Supporting / triage | 2026-09-21T03:59:47.110Z | Returned |
+| [Today](https://app.notion.com/p/3dfad1d5c56181eca861e183b44ab12d) | Supporting / triage | 2026-09-22T20:47:24.075Z | Returned |
+| [UniProt - candidate provenance](https://app.notion.com/p/3e2ad1d5c56181ed8990c3b3658232c6) | Supporting / triage | 2026-09-21T21:07:53.175Z | Returned |
+| [Versioned docs & executable examples](https://app.notion.com/p/3e2ad1d5c561819a8e46ddaf003cfaf4) | Supporting / triage | 2026-09-21T03:59:47.110Z | Returned |
+| [Virtual cell - feasibility definition](https://app.notion.com/p/3e2ad1d5c5618131b491c2107455e9e9) | Supporting / triage | 2026-09-22T20:16:19.930Z | Returned |
+| [Website Redesign](https://app.notion.com/p/3d9ad1d5c56180d6aab1c3cb3debaa78) | Supporting / triage | 2026-09-22T19:00:46.922Z | Returned |
+| [WF-01 - Specification to verified software](https://app.notion.com/p/3e2ad1d5c56181b99579d87dc437a243) | Docs: Needs review | 2026-09-22T20:39:30.796Z | Returned |
+| [WF-02 - Signal to verified maintenance repair](https://app.notion.com/p/3e2ad1d5c56181a78b4cde064e7c9d06) | Docs: Needs review | 2026-09-22T20:39:24.105Z | Returned |
+| [WF-03 - Contract to qualified developer release set](https://app.notion.com/p/3e2ad1d5c561816398acd8f9b2e83cc4) | Docs: Needs review | 2026-09-22T20:39:21.603Z | Returned |
+| [WF-04 - Evaluation requirement to validated evaluator](https://app.notion.com/p/3e2ad1d5c56181e19147e5fa0a480e00) | Docs: Needs review | 2026-09-22T20:39:33.142Z | Returned |
+| [WF-05 - Approved campaign to trained and evaluated candidate](https://app.notion.com/p/3e2ad1d5c56181b88947f66e98e432b6) | Docs: Needs review | 2026-09-22T20:39:28.461Z | Returned |
+| [WF-06 - Evidence to bounded next iteration](https://app.notion.com/p/3e2ad1d5c56181059de3cda295bf63a8) | Docs: Needs review | 2026-09-22T20:39:19.561Z | Returned |
+| [What this agent can/can't do](https://app.notion.com/p/842ad1d5c5618397bfab810bc6e35f2e) | Supporting / triage | 2026-09-18T01:49:37.148Z | Returned |
+| [Workspace activation & recovery runbook](https://app.notion.com/p/3e2ad1d5c56181d3be10f4750402deb3) | Docs: Needs review | 2026-09-22T20:16:31.595Z | Returned |
+| [Workspace Architecture Review - 2026-09-22](https://app.notion.com/p/3e3ad1d5c56181fd944de943217c44e8) | Supporting / triage | 2026-09-22T20:06:34.364Z | Returned |
+| [Workspace Foundation & Authority Map](https://app.notion.com/p/3e3ad1d5c56181cd90e3c1c33732a322) | Supporting / triage | 2026-09-22T20:25:41.833Z | Returned |
+| [Workspace Map - Start Here](https://app.notion.com/p/3e3ad1d5c5618179b6efc2309a247095) | Supporting / triage | 2026-09-22T19:56:22.365Z | Returned |
+| [Workspace Operations](https://app.notion.com/p/3e1ad1d5c56181ef83d4e5f2c2083bd9) | Supporting / triage | 2026-09-22T19:38:44.491Z | Returned |
+| [Your first doc](https://app.notion.com/p/3d9ad1d5c56180e2a268e688d46d4011) | Docs: Draft | 2026-09-22T19:00:56.449Z | Returned |
+| [Your first project](https://app.notion.com/p/3d9ad1d5c5618081a51cca6801d2ffe7) | Supporting / triage | 2026-09-22T19:00:43.746Z | Returned |
+
+## Related
+
+<CardGroup cols={2}>
+  <Card title="Original Blueprint Alignment" icon="layers" href="/architecture/reviews/2026-09-22-original-blueprint-alignment">
+    Scaffold reconciliation against the original greenfield blueprint with 706 directories and 124 files materialized.
+  </Card>
+
+  <Card title="Layered Docs Alignment" icon="file-text" href="/architecture/reviews/2026-09-23-layered-docs-alignment">
+    Documentation reconciliation against the original blueprint and layered design image.
+  </Card>
+
+  <Card title="Programmable Biology" icon="dna" href="/architecture/programmable-biology">
+    Architecture companion for biological semantics, typed scientific contracts, and cross-scale bridges.
+  </Card>
+
+  <Card title="VS-001 Semantic Development Loop" icon="rotate-cw" href="/architecture/vs-001-semantic-development-loop">
+    Verified engineering pipeline with concrete checks, exact-candidate evidence, and honest outcome counts.
+  </Card>
+</CardGroup>

@@ -1,0 +1,97 @@
+---
+title: "Platform and Execution Design"
+description: "Learn how Mindclade composes thin services, RuntimeKit, durable orchestration, and model execution, and what recovery must prove."
+---
+
+This page explains service composition and how authorized work is intended to run, survive failure, and produce evidence. The audience is platform, runtime, and service developers and reviewers.
+
+The status is target runtime design, 2026-09-23. `platform/` and `runtime/` remain scaffolded. `services/` is present only for the bounded B3a compiler input; service runtime responsibilities remain planned. The kernel/compiler have partial source; they do not provide a running service or durable scheduler. The authoritative bounded design is [VS-001](https://github.com/Mindclade-org/mindclade-internal-monorepo/blob/main/docs/superpowers/specs/2026-09-23-vs001-durable-capability-design.md). Use the [task register](developer/agent-handoff#current-task-register) for implementation order and open gates.
+
+## Four different runtime responsibilities
+
+| Responsibility | Owner | Inputs and outputs | Boundary |
+| --- | --- | --- | --- |
+| Model execution | `runtime/` | Pinned eligible model/checkpoint, tensor and execution contracts to inference or execution artifacts and telemetry. | Owns batching, serving, and model execution; does not own training loops or engineering admission. |
+| Durable platform execution | `platform/control/`, `platform/workflow/`, `platform/scheduler/`, `platform/persistence/` | Authorized capability request and pinned policy/input identities to persisted run/attempt/effect state, dispatch, and evidence. | Coordinates work and recovery; does not become a second semantic compiler or biological authority. |
+| Service process envelope | `platform/runtimekit/` | Compiled descriptor/configuration and injected ports to lifecycle, identity, health, middleware, and telemetry hooks. | Shared process mechanisms, without capability business logic or runtime parsing of authored semantics. |
+| Deterministic validation | `platform/testkit/` | Controlled clocks, identities, fixtures, and faults to observed behavior and assertions. | Test collaborators mirror runtime ports; fake stores do not prove durability and fake models do not prove science. |
+
+The control plane owns authorization, tenant scope, budgets, jobs, and reconciliation. The durable-runtime layer is the persistence and recovery mechanism beneath that control. It is distinct from `runtime/` model execution. An in-process deployment can retain all these logical boundaries. [ADR-007](architecture/adr/adr-007-compute-models-learning-and-runtime-boundaries), [ADR-008](architecture/adr/adr-008-runtimekit-and-testkit), and [ADR-010](architecture/adr/adr-010-modular-monolith-first-deployment) govern this separation.
+
+## Thin service composition
+
+A target service combines RuntimeKit, generated transport, a capability implementation, and explicit infrastructure/domain ports. A public client calls a generated public interface; it cannot import private scheduler, lease, database, or worker types. Services compose existing domain meaning rather than creating their own model, training, agent, or provenance framework.
+
+Every deployable service or worker needs a valid authored [ServiceDescriptor@v1](https://github.com/Mindclade-org/mindclade-internal-monorepo/blob/main/docs/architecture/service-descriptor-v1.md), unless an accepted ADR grants an explicit exception. The Foundation Echo descriptor is bounded B3a compiler input; other named descriptor stubs reserve paths only. No service runtime is implemented by a descriptor. Codegen must validate ownership, capabilities, protocol bindings, dependencies, configuration, secret references, and qualification before generating checked composition data. RuntimeKit consumes that data; it does not import Codegen or interpret source YAML/TypeSpec at startup. Descriptor declaration does not grant deployment permission.
+
+The first VS-001 composition is a local Echo slice in a modular monolith. Its proposed execution state machine is deliberately scoped to the future `services/foundation_echo/src/execution/` package, as specified in VS-001. That is not a second shared runtime framework: reusable platform mechanisms retain their owners, and moving slice behavior into a shared primitive requires a reviewed boundary change. The planned B composition uses explicitly non-durable TestAdmission; the C milestone adds real database-backed durability. A descriptor flag cannot turn the earlier test collaborator into the later implementation.
+
+## Lifecycle and process evidence
+
+RuntimeKit's planned lifecycle makes admission and termination observable:
+
+1. Load and validate compiled configuration, descriptor identity, and required ports before admitting work; resolve secret references without logging values.
+2. Establish configured identity and dependency health. Report readiness only when the service can meet its declared admission requirements.
+3. Validate requests at the generated boundary; enforce configured request, concurrency, and deadline limits before invoking capabilities.
+4. On shutdown, stop new admission, drain bounded work or record unresolved execution, and close owned resources. A closed socket is not confirmation that a worker stopped or a durable run was cancelled.
+
+Liveness, readiness, startup, and dependency health have distinct purposes; exact behavior must be specified and tested for an activated descriptor. This guide does not assign new endpoints, timeout values, or service-level objectives. VS-001 supplies its own exact local limits. Controlled TestKit interleavings must cover readiness and shutdown failure; actual loopback client/server tests must show the process stops. A passing library test alone is insufficient.
+
+## Durable admission and execution
+
+The target durable path is:
+
+```text
+authenticated request + pinned input/policy references
+  → admission, tenant scope, budget and idempotency checks
+  → one transaction: initial Run state + outbox dispatch
+  → repeatable delivery → scheduler claim → current worker attempt
+  → fenced completion: artifact + evidence + terminal state
+  → independent assessment and separately scoped policy decision
+```
+
+Keep work item, immutable admitted packet, logical Run, Attempt, provider job, and effect key distinct. Retrying an attempt must not create a new logical outcome or fresh campaign budget. The same admission key with different canonical request content is a conflict. Persist contract, workflow, schema, policy, and packet versions so recovery cannot silently reinterpret prior work.
+
+The future internal runtime `Admission`/`WorkPacket` contracts in VS-001 are semantic records entering Codegen. They are different from the implemented [engineering WorkPacket@v1](https://github.com/Mindclade-org/mindclade-internal-monorepo/blob/main/docs/developer/work-packet-v1.md), a non-semantic task/admission record. Neither a packet nor its digest is itself a capability, path lock, or authorization grant.
+
+PostgreSQL state plus a transactional outbox is the baseline. Atomic database commit couples state and dispatch intent; it does not make external delivery exactly once. Dispatch can repeat, so receivers deduplicate stable identities and enforce legal transitions. Completion verifies current ownership generation, lease, and state at the authoritative write boundary. A stale worker may still compute; it must not publish authoritative results.
+
+## Failure and recovery obligations
+
+| Failure | Required recovery behavior | Evidence needed before acceptance |
+| --- | --- | --- |
+| Duplicate/reordered admission or dispatch | Reconcile one logical Run; reject conflicting content and prevent terminal-state regression. | Concurrent requests and reordered deliveries against the real store. |
+| Crash before or after commit; lost acknowledgement | Resolve the stable admission/effect identity before repeating the action. | Named crash checkpoints and recovery after database/process restart. |
+| Expired lease or stale ownership generation | Fence authoritative completion and publication; retain attempt history. | Competing workers, expired leases, and stale completion attempts. |
+| Cancellation racing completion | Preserve the legal committed outcome; cancellation remains pending until termination/reconciliation is confirmed. | Controlled lock/interleaving tests and actual executor termination evidence. |
+| External effect timed out | Persist intent first; use provider identity/idempotency or lookup to reconcile. Pause uncertain effects when reliable reconciliation is unavailable. | Adapter-specific fault evidence; orchestration tests cannot prove provider behavior. |
+| Changed schema, policy, workflow, or checkpoint | Resume only under explicit compatibility or migration; preserve original identities. | Version mismatch and migration/rejection fixtures. |
+| Reporting failed after successful work | Retry only the reporting projection, never repeat the completed effect. | Duplicate/stale reporting cases with separate execution identity. |
+
+The detailed [execution reliability](https://github.com/Mindclade-org/mindclade-internal-monorepo/blob/main/docs/architecture/execution-reliability.md) requirements also cover reservations, conservative accounting, and campaign-wide budgets. VS-001's exact tables, transition states, retry bounds, and database-time lease rules remain in its specification; this guide is not an alternate state-machine schema. TestKit controls interleavings, while the durable milestone requires real isolated PostgreSQL with durability settings preserved. No fake database or relaxed durability configuration can support the durable claim.
+
+## Evidence and remaining boundaries
+
+Artifacts identify results; execution receipts record how they were obtained. Replay consumes sealed, hash-verified inputs and versions in a fresh isolated store. Independent assessment consumes those artifacts under frozen criteria. Execution success, reproducibility, scientific support, release eligibility, and deployment acceptance remain different claims.
+
+This page introduces no broker, hosted orchestrator, retry service, or cloud dependency. The [B composition plan](https://github.com/Mindclade-org/mindclade-internal-monorepo/blob/main/docs/superpowers/plans/2026-09-23-vs001-b-composition.md), [C durability plan](https://github.com/Mindclade-org/mindclade-internal-monorepo/blob/main/docs/superpowers/plans/2026-09-23-vs001-c-durability.md), and [D assurance plan](https://github.com/Mindclade-org/mindclade-internal-monorepo/blob/main/docs/superpowers/plans/2026-09-23-vs001-d-assurance.md) retain the implementation and acceptance detail.
+
+## Related
+
+<CardGroup cols={2}>
+  <Card title="Security and assurance" icon="chevron-right" href="/architecture/foundations/security-and-assurance">
+    Authority and claim boundaries.
+  </Card>
+
+  <Card title="Delivery and operations" icon="chevron-right" href="/architecture/foundations/delivery-and-operations">
+    Environment-level recovery and evidence retention.
+  </Card>
+
+  <Card title="VS-001 design spec" icon="chevron-right" href="/superpowers/specs/2026-09-23-vs001-durable-capability-design">
+    Bounded durable capability design.
+  </Card>
+
+  <Card title="ADR-010: Modular monolith" icon="chevron-right" href="/architecture/adr/adr-010-modular-monolith-first-deployment">
+    Deployment posture decision.
+  </Card>
+</CardGroup>

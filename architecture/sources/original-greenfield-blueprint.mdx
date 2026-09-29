@@ -1,0 +1,1791 @@
+---
+title: "Original Greenfield Blueprint: Mindclade Platform Design"
+sidebarTitle: "Greenfield Blueprint"
+description: "Preserved snapshot of the original Mindclade greenfield platform blueprint dated 2026-09-22, covering architecture, repository tree, laws, RuntimeKit, TestKit, and deployment synthesis."
+---
+
+This page preserves the original Mindclade greenfield platform blueprint in full. It records the architectural intent, repository design, and operating principles established on 2026-09-22 before later ADRs refined individual decisions.
+
+<Note>
+  This is a historical source snapshot. The content is preserved verbatim for reference and has been superseded by accepted ADRs and architecture decisions. Use the current ADR index and architecture decisions for authoritative guidance.
+</Note>
+
+## 1. Canonical architecture
+
+Mindclade is an agent-native scientific engineering platform. The repository is the operating environment. External systems are replaceable adapters, not architectural authorities.
+
+```text
+                              MINDCLADE
+
+                               AUTHORING
+                                  |
+          +-----------------------+----------------------+
+          |                       |                      |
+       TypeSpec               Protobuf              Domain IRs
+                                                    - Science
+                                                    - Agent
+                                                    - Operator
+          |                       |                      |
+          +-----------------------+----------------------+
+                                  |
+                           SemanticInput
+                                  |
+                                  v
+                      +--------------------+
+                      | MINDCLADE CODEGEN  |
+                      |   Rust compiler    |
+                      +---------+----------+
+                                |
+                         Semantic Graph
+                                |
+                         Capability Graph
+                                |
+          +-------------+-------+--------+--------------+
+          |             |       |        |              |
+      Protocol IR   Resource IR API IR Agent IR   Operator IR
+          |             |       |        |              |
+          +-------------+-------+--------+--------------+
+                                |
+                       GENERATED SURFACES
+                                |
+      +-----------+----------+-------+-------+-----------+------+
+      |           |          |       |       |           |      |
+   Protobuf    OpenAPI      SDK     MCP  Terraform     CDK   Docs
+                                |
+                                v
+                        MINDCLADE PLATFORM
+                                |
+              +-----------------+------------------+
+              |                 |                  |
+          Agent Plane      Science Plane       Model Plane
+              |                 |                  |
+              +-----------------+------------------+
+                                |
+                         Control Plane
+                                |
+                         Durable Runtime
+                                |
+          +---------------------+--------------------+
+          |                     |                    |
+       Data/Features       Training/Eval         Inference
+          |                     |                    |
+          +---------------------+--------------------+
+                                |
+                        Execution Fabric
+                                |
+                 Kubernetes / CPU / GPU
+                                |
+                         GCP / Azure
+```
+
+### Forge consolidation
+
+Historical drafts used `forge/` as an independent compiler authority. The final greenfield design retires that split.
+
+- `codegen/` is the only compiler/generator root.
+- The normalized Semantic Graph is the compiler authority.
+- "Forge" may remain as a historical product name, compatibility alias, or generated documentation term, but not as a separate top-level compiler system.
+- Any future use of the Forge name must resolve to `codegen/` packages and the Semantic Graph/Capability Graph pipeline.
+
+## 2. Final repository tree
+
+This is the target greenfield repository shape. It is intentionally compact: top-level roots are architectural boundaries, not product wishes.
+
+```text
+mindclade/
+|-- MODULE.bazel
+|-- BUILD.bazel
+|-- .bazelrc
+|-- .bazelversion
+|-- flake.nix
+|-- flake.lock
+|-- Cargo.toml
+|-- Cargo.lock
+|-- rust-toolchain.toml
+|-- pyproject.toml
+|-- uv.lock
+|-- go.mod
+|-- go.sum
+|-- package.json
+|-- pnpm-workspace.yaml
+|-- pnpm-lock.yaml
+|-- buf.yaml
+|-- buf.gen.yaml
+|-- justfile
+|-- AGENTS.md
+|-- CODEOWNERS
+|-- CONTRIBUTING.md
+|-- SECURITY.md
+|-- LICENSE
+|-- README.md
+|
+|-- .agents/
+|   |-- roles/
+|   |-- skills/
+|   |-- policies/
+|   |-- workflows/
+|   |-- prompts/
+|   `-- evals/
+|
+|-- .github/
+|   |-- workflows/
+|   |-- ISSUE_TEMPLATE/
+|   |-- PULL_REQUEST_TEMPLATE.md
+|   `-- dependabot.yml
+|
+|-- .buildkite/
+|   |-- pipeline.yml
+|   |-- pipelines/
+|   |-- hooks/
+|   |-- plugins/
+|   `-- scripts/
+|
+|-- .azuredevops/
+|   |-- pipelines/
+|   `-- templates/
+|
+|-- contracts/
+|   |-- README.md
+|   |
+|   |-- typespec/
+|   |   |-- main.tsp
+|   |   |-- core/
+|   |   |-- resources/
+|   |   |-- services/
+|   |   |-- science/
+|   |   |-- agents/
+|   |   |-- training/
+|   |   |-- evaluation/
+|   |   |-- runtime/
+|   |   `-- events/
+|   |
+|   |-- protobuf/
+|   |   `-- mindclade/
+|   |       |-- common/
+|   |       |-- control/
+|   |       |-- artifacts/
+|   |       |-- data/
+|   |       |-- science/
+|   |       |-- models/
+|   |       |-- training/
+|   |       |-- evaluation/
+|   |       |-- inference/
+|   |       |-- runtime/
+|   |       |-- agents/
+|   |       `-- events/
+|   |
+|   |-- science/
+|   |   |-- entities/
+|   |   |-- measurements/
+|   |   |-- experiments/
+|   |   |-- evidence/
+|   |   `-- claims/
+|   |
+|   |-- agents/
+|   |   |-- capabilities/
+|   |   |-- tools/
+|   |   |-- skills/
+|   |   `-- policies/
+|   |
+|   |-- operators/
+|   |   |-- attention/
+|   |   |-- pairformer/
+|   |   |-- triangle/
+|   |   |-- geometry/
+|   |   `-- diffusion/
+|   |
+|   |-- schemas/
+|   |   |-- artifacts/
+|   |   |-- datasets/
+|   |   |-- features/
+|   |   |-- checkpoints/
+|   |   |-- models/
+|   |   |-- training/
+|   |   |-- evaluation/
+|   |   |-- topology/
+|   |   `-- deployment/
+|   |
+|   |-- registries/
+|   |   |-- generated-products.yaml
+|   |   |-- service-descriptors.yaml
+|   |   |-- capability-registry.yaml
+|   |   `-- ownership.yaml
+|   |
+|   `-- fixtures/
+|
+|-- codegen/
+|   |-- README.md
+|   |
+|   |-- frontend/
+|   |   |-- typespec/
+|   |   |-- protobuf/
+|   |   |-- science/
+|   |   |-- agents/
+|   |   `-- operators/
+|   |
+|   |-- semantic_input/
+|   |   |-- schema/
+|   |   |-- parser/
+|   |   `-- validation/
+|   |
+|   |-- compiler/
+|   |   |-- driver/
+|   |   |-- passes/
+|   |   |-- diagnostics/
+|   |   `-- provenance/
+|   |
+|   |-- graph/
+|   |   |-- semantic/
+|   |   |-- capability/
+|   |   |-- identity/
+|   |   `-- traversal/
+|   |
+|   |-- ir/
+|   |   |-- protocol/
+|   |   |-- resource/
+|   |   |-- api/
+|   |   |-- capability/
+|   |   |-- agent/
+|   |   |-- science/
+|   |   |-- operator/
+|   |   `-- deployment/
+|   |
+|   |-- validation/
+|   |   |-- semantic/
+|   |   |-- compatibility/
+|   |   |-- ownership/
+|   |   `-- architecture/
+|   |
+|   |-- lowering/
+|   |   |-- protobuf/
+|   |   |-- openapi/
+|   |   |-- jsonschema/
+|   |   |-- sdk/
+|   |   |-- mcp/
+|   |   |-- terraform/
+|   |   |-- cdk/
+|   |   |-- docs/
+|   |   `-- architecture/
+|   |
+|   |-- generators/
+|   |-- compatibility/
+|   |-- registry/
+|   |-- conformance/
+|   `-- fixtures/
+|
+|-- core/
+|   |-- artifact/
+|   |-- capability/
+|   |-- implementation/
+|   |-- run/
+|   |-- graph/
+|   |-- identity/
+|   |-- claim/
+|   |-- evidence/
+|   |-- policy/
+|   |-- provenance/
+|   |-- time/
+|   `-- errors/
+|
+|-- biology/
+|   |-- README.md
+|   |-- entities/
+|   |-- sequences/
+|   |-- structures/
+|   |-- chemistry/
+|   |-- measurements/
+|   |-- assays/
+|   |-- cells/
+|   |-- organisms/
+|   |-- ontologies/
+|   |-- relationships/
+|   |-- evidence/
+|   `-- provenance/
+|
+|-- data/
+|   |-- sources/
+|   |   |-- pdb/
+|   |   |-- uniprot/
+|   |   |-- rnacentral/
+|   |   |-- rfam/
+|   |   |-- geo/
+|   |   |-- cellxgene/
+|   |   `-- alphadb/
+|   |
+|   |-- connectors/
+|   |-- ingestion/
+|   |-- normalization/
+|   |-- validation/
+|   |-- transforms/
+|   |-- datasets/
+|   |
+|   |-- features/
+|   |   |-- schemas/
+|   |   |-- transforms/
+|   |   |-- materialization/
+|   |   `-- stores/
+|   |
+|   |-- catalog/
+|   |-- lineage/
+|   |-- quality/
+|   |-- pipelines/
+|   |-- retrieval/
+|   |
+|   `-- knowledge/
+|       |-- graph/
+|       |-- literature/
+|       |-- indexing/
+|       |-- retrieval/
+|       |-- evidence/
+|       `-- search/
+|
+|-- compute/
+|   |-- tensor/
+|   |-- distributed/
+|   |-- topology/
+|   |-- memory/
+|   |-- compilation/
+|   |
+|   |-- operators/
+|   |   |-- registry/
+|   |   |-- generated/
+|   |   |-- cpu/
+|   |   |-- cuda/
+|   |   |-- autograd/
+|   |   `-- numerics/
+|   |
+|   |-- kernels/
+|   |   |-- tilelang/
+|   |   |-- attention/
+|   |   |-- pairformer/
+|   |   |-- triangle/
+|   |   |-- geometry/
+|   |   `-- diffusion/
+|   |
+|   |-- native/
+|   |   |-- abi/
+|   |   |-- tensor/
+|   |   |-- registration/
+|   |   `-- generated/
+|   |
+|   |-- benchmarks/
+|   `-- parity/
+|
+|-- models/
+|   |-- common/
+|   |   |-- config/
+|   |   |-- embeddings/
+|   |   |-- attention/
+|   |   |-- geometry/
+|   |   |-- diffusion/
+|   |   `-- flow/
+|   |
+|   |-- protenix/
+|   |   |-- graph/
+|   |   |-- pairformer/
+|   |   |-- diffusion/
+|   |   |-- heads/
+|   |   |-- state/
+|   |   |-- checkpoint/
+|   |   `-- parity/
+|   |
+|   |-- nova/
+|   |   |-- nova1/
+|   |   `-- nova2/
+|   |
+|   |-- virtual_cell/
+|   |   |-- state/
+|   |   |-- perturbation/
+|   |   |-- dynamics/
+|   |   |-- conditioning/
+|   |   `-- heads/
+|   |
+|   `-- registry/
+|
+|-- ml/
+|   |-- training/
+|   |   |-- engine/
+|   |   |-- task/
+|   |   |-- phase/
+|   |   |-- state/
+|   |   |-- distributed/
+|   |   |-- topology/
+|   |   |-- precision/
+|   |   `-- compilation/
+|   |
+|   |-- objectives/
+|   |-- optimization/
+|   |
+|   |-- checkpointing/
+|   |   |-- schema/
+|   |   |-- save/
+|   |   |-- load/
+|   |   |-- reshard/
+|   |   `-- verification/
+|   |
+|   |-- recipes/
+|   |
+|   |-- posttraining/
+|   |   |-- sft/
+|   |   |-- preference/
+|   |   |-- reinforcement/
+|   |   |-- verifiers/
+|   |   |-- scientific_rewards/
+|   |   |-- agent_trajectories/
+|   |   |-- distillation/
+|   |   |-- synthetic_data/
+|   |   `-- curriculum/
+|   |
+|   |-- evaluation/
+|   |   |-- engine/
+|   |   |-- metrics/
+|   |   |-- benchmarks/
+|   |   |-- scientific/
+|   |   |-- model/
+|   |   |-- agent/
+|   |   |-- regression/
+|   |   `-- reports/
+|   |
+|   `-- qualification/
+|
+|-- runtime/
+|   |-- graph/
+|   |-- model/
+|   |-- tensor/
+|   |-- execution/
+|   |-- scheduling/
+|   |-- batching/
+|   |-- memory/
+|   |-- checkpoint/
+|   |-- distributed/
+|   |-- compilation/
+|   |-- inference/
+|   |-- serving/
+|   `-- telemetry/
+|
+|-- platform/
+|   |-- runtimekit/
+|   |   |-- lifecycle/
+|   |   |-- config/
+|   |   |-- health/
+|   |   |-- identity/
+|   |   |-- middleware/
+|   |   |-- descriptors/
+|   |   |-- telemetry/
+|   |   `-- shutdown/
+|   |
+|   |-- testkit/
+|   |   |-- fixtures/
+|   |   |-- fake_clock/
+|   |   |-- fake_workers/
+|   |   |-- fake_models/
+|   |   |-- fake_storage/
+|   |   |-- fake_identity/
+|   |   `-- assertions/
+|   |
+|   |-- control/
+|   |   |-- jobs/
+|   |   |-- operations/
+|   |   |-- leases/
+|   |   |-- reconciliation/
+|   |   `-- state/
+|   |
+|   |-- workflow/
+|   |-- scheduler/
+|   |
+|   |-- artifacts/
+|   |   |-- cas/
+|   |   |-- manifests/
+|   |   |-- lineage/
+|   |   |-- signing/
+|   |   `-- verification/
+|   |
+|   |-- registry/
+|   |-- events/
+|   |-- identity/
+|   |-- tenancy/
+|   |-- authorization/
+|   |-- policy/
+|   |-- audit/
+|   |-- provenance/
+|   |-- budgets/
+|   |-- telemetry/
+|   |
+|   `-- persistence/
+|       |-- postgres/
+|       |-- outbox/
+|       `-- migrations/
+|
+|-- agents/
+|   |-- core/
+|   |-- harness/
+|   |-- sessions/
+|   |-- context/
+|   |-- memory/
+|   |-- planning/
+|   |-- orchestration/
+|   |-- tools/
+|   |-- skills/
+|   |-- subagents/
+|   |-- approvals/
+|   |-- sandbox/
+|   |-- evaluation/
+|   |-- provenance/
+|   |
+|   `-- adapters/
+|       |-- codex/
+|       |-- claude/
+|       |-- openai/
+|       `-- mcp/
+|
+|-- protocols/
+|   |-- protobuf/
+|   |-- openapi/
+|   |-- jsonschema/
+|   |-- graphql/
+|   |-- events/
+|   `-- descriptors/
+|
+|-- products/
+|   |-- sdk/
+|   |   |-- python/
+|   |   |-- rust/
+|   |   |-- go/
+|   |   `-- typescript/
+|   |
+|   |-- cli/
+|   |
+|   |-- mcp/
+|   |   |-- runtime/
+|   |   |-- tools/
+|   |   |-- resources/
+|   |   |-- prompts/
+|   |   |-- auth/
+|   |   |-- sandbox/
+|   |   `-- servers/
+|   |
+|   |-- cdk/
+|   |   |-- core/
+|   |   |-- app/
+|   |   |-- stage/
+|   |   |-- stack/
+|   |   |-- constructs/
+|   |   |   |-- l1/
+|   |   |   |-- l2/
+|   |   |   `-- l3/
+|   |   |-- providers/
+|   |   |-- builders/
+|   |   |-- factories/
+|   |   |-- synthesis/
+|   |   `-- generated/
+|   |
+|   |-- console/
+|   |   |-- app/
+|   |   |-- components/
+|   |   |-- routes/
+|   |   |-- state/
+|   |   |-- api/
+|   |   `-- generated/
+|   |
+|   |-- admin/
+|   |   |-- app/
+|   |   |-- operations/
+|   |   `-- generated/
+|   |
+|   |-- docs_site/
+|   |   |-- content/
+|   |   |-- api/
+|   |   `-- generated/
+|   |
+|   `-- design_system/
+|       |-- tokens/
+|       |-- components/
+|       `-- generated/
+|
+|-- services/
+|   |-- README.md
+|   |
+|   |-- api_gateway/
+|   |   |-- service.descriptor.yaml
+|   |   |-- src/
+|   |   |-- migrations/
+|   |   `-- tests/
+|   |
+|   |-- control_plane/
+|   |   |-- service.descriptor.yaml
+|   |   |-- api/
+|   |   |-- resources/
+|   |   |-- jobs/
+|   |   |-- scheduler/
+|   |   |-- tenancy/
+|   |   |-- authorization/
+|   |   |-- outbox/
+|   |   |-- migrations/
+|   |   `-- tests/
+|   |
+|   |-- scheduler/
+|   |   |-- service.descriptor.yaml
+|   |   |-- src/
+|   |   `-- tests/
+|   |
+|   |-- artifact_service/
+|   |   |-- service.descriptor.yaml
+|   |   |-- src/
+|   |   |-- storage/
+|   |   `-- tests/
+|   |
+|   |-- data_service/
+|   |   |-- service.descriptor.yaml
+|   |   |-- ingestion/
+|   |   |-- catalog/
+|   |   |-- lineage/
+|   |   `-- tests/
+|   |
+|   |-- knowledge_service/
+|   |   |-- service.descriptor.yaml
+|   |   |-- graph/
+|   |   |-- retrieval/
+|   |   |-- indexing/
+|   |   `-- tests/
+|   |
+|   |-- model_service/
+|   |   |-- service.descriptor.yaml
+|   |   |-- registry/
+|   |   |-- manifests/
+|   |   `-- tests/
+|   |
+|   |-- training_service/
+|   |   |-- service.descriptor.yaml
+|   |   |-- orchestration/
+|   |   |-- jobs/
+|   |   |-- topology/
+|   |   `-- tests/
+|   |
+|   |-- evaluation_service/
+|   |   |-- service.descriptor.yaml
+|   |   |-- orchestration/
+|   |   |-- reports/
+|   |   `-- tests/
+|   |
+|   |-- inference_service/
+|   |   |-- service.descriptor.yaml
+|   |   |-- serving/
+|   |   |-- batching/
+|   |   |-- runtime/
+|   |   `-- tests/
+|   |
+|   |-- agent_service/
+|   |   |-- service.descriptor.yaml
+|   |   |-- sessions/
+|   |   |-- tools/
+|   |   |-- approvals/
+|   |   `-- tests/
+|   |
+|   |-- experiment_service/
+|   |   |-- service.descriptor.yaml
+|   |   |-- protocols/
+|   |   |-- execution/
+|   |   |-- evidence/
+|   |   `-- tests/
+|   |
+|   |-- policy_service/
+|   |   |-- service.descriptor.yaml
+|   |   |-- rules/
+|   |   |-- decisions/
+|   |   `-- tests/
+|   |
+|   `-- workers/
+|       |-- ingestion/
+|       |   |-- service.descriptor.yaml
+|       |   `-- src/
+|       |-- features/
+|       |   |-- service.descriptor.yaml
+|       |   `-- src/
+|       |-- training/
+|       |   |-- service.descriptor.yaml
+|       |   `-- src/
+|       |-- evaluation/
+|       |   |-- service.descriptor.yaml
+|       |   `-- src/
+|       |-- inference/
+|       |   |-- service.descriptor.yaml
+|       |   `-- src/
+|       `-- agents/
+|           |-- service.descriptor.yaml
+|           `-- src/
+|
+|-- infra/
+|   |-- README.md
+|   |
+|   |-- terraform/
+|   |   |-- modules/
+|   |   |   |-- network/
+|   |   |   |-- cluster/
+|   |   |   |-- storage/
+|   |   |   |-- iam/
+|   |   |   |-- observability/
+|   |   |   |-- gpu/
+|   |   |   `-- gitops/
+|   |   |-- dev/
+|   |   |-- staging/
+|   |   `-- production/
+|   |
+|   |-- kubernetes/
+|   |   |-- bases/
+|   |   |-- components/
+|   |   |-- operators/
+|   |   |-- policies/
+|   |   `-- crds/
+|   |
+|   |-- kustomize/
+|   |   |-- bases/
+|   |   |-- overlays/
+|   |   `-- components/
+|   |
+|   |-- gitops/
+|   |   |-- clusters/
+|   |   |-- environments/
+|   |   |   |-- dev/
+|   |   |   |-- staging/
+|   |   |   `-- production/
+|   |   |-- applications/
+|   |   |-- policies/
+|   |   `-- promotion/
+|   |
+|   |-- clusters/
+|   |   |-- local/
+|   |   |-- gcp/
+|   |   |-- azure/
+|   |   `-- external_gpu/
+|   |
+|   |-- gpu/
+|   |   |-- nodepools/
+|   |   |-- scheduling/
+|   |   |-- quotas/
+|   |   |-- topology/
+|   |   `-- validation/
+|   |
+|   |-- networking/
+|   |   |-- dns/
+|   |   |-- ingress/
+|   |   |-- egress/
+|   |   |-- service_mesh/
+|   |   `-- private_connectivity/
+|   |
+|   |-- storage/
+|   |   |-- object/
+|   |   |-- postgres/
+|   |   |-- cache/
+|   |   |-- feature_store/
+|   |   `-- backup/
+|   |
+|   |-- iam/
+|   |   |-- workload_identity/
+|   |   |-- service_accounts/
+|   |   |-- roles/
+|   |   `-- policies/
+|   |
+|   |-- security/
+|   |   |-- network_policies/
+|   |   |-- pod_security/
+|   |   |-- secrets/
+|   |   |-- signing/
+|   |   |-- sbom/
+|   |   `-- supply_chain/
+|   |
+|   |-- observability/
+|   |   |-- opentelemetry/
+|   |   |-- metrics/
+|   |   |-- logs/
+|   |   |-- traces/
+|   |   |-- dashboards/
+|   |   `-- alerts/
+|   |
+|   |-- ci_runners/
+|   |   |-- buildkite/
+|   |   |-- github_actions/
+|   |   |-- gitlab/
+|   |   `-- self_hosted/
+|   |
+|   |-- azure_arc/
+|   |-- environments/
+|   `-- generated/
+|
+|-- generated/
+|   |-- README.md
+|   |-- MANIFEST.json
+|   |-- PROVENANCE.jsonl
+|   |
+|   |-- protobuf/
+|   |   |-- mindclade/
+|   |   |-- descriptors/
+|   |   `-- buf/
+|   |
+|   |-- openapi/
+|   |   |-- public/
+|   |   |-- internal/
+|   |   `-- bundles/
+|   |
+|   |-- jsonschema/
+|   |   |-- resources/
+|   |   |-- artifacts/
+|   |   |-- datasets/
+|   |   |-- deployment/
+|   |   `-- policy/
+|   |
+|   |-- sdk/
+|   |   |-- python/
+|   |   |-- rust/
+|   |   |-- go/
+|   |   `-- typescript/
+|   |
+|   |-- mcp/
+|   |   |-- tools/
+|   |   |-- resources/
+|   |   |-- prompts/
+|   |   `-- servers/
+|   |
+|   |-- terraform/
+|   |   |-- modules/
+|   |   |-- providers/
+|   |   `-- examples/
+|   |
+|   |-- cdk/
+|   |   |-- constructs/
+|   |   |-- stacks/
+|   |   `-- bindings/
+|   |
+|   |-- docs/
+|   |   |-- api/
+|   |   |-- architecture/
+|   |   |-- resources/
+|   |   `-- descriptors/
+|   |
+|   |-- architecture/
+|   |   |-- views/
+|   |   |-- diagrams/
+|   |   |-- indexes/
+|   |   `-- atlas/
+|   |
+|   |-- deployment/
+|   |   |-- kubernetes/
+|   |   |-- gitops/
+|   |   |-- policies/
+|   |   `-- bundles/
+|   |
+|   |-- tests/
+|   |   |-- conformance/
+|   |   |-- compatibility/
+|   |   `-- fixtures/
+|   |
+|   `-- provenance/
+|       |-- receipts/
+|       |-- sbom/
+|       |-- signatures/
+|       `-- attestations/
+|
+|-- tests/
+|   |-- README.md
+|   |-- unit/
+|   |-- integration/
+|   |-- end_to_end/
+|   |-- contract/
+|   |-- conformance/
+|   |-- compatibility/
+|   |-- generated/
+|   |-- qualification/
+|   |   |-- source/
+|   |   |-- runtime/
+|   |   |-- deployment/
+|   |   |-- security/
+|   |   `-- science/
+|   |
+|   |-- reproducibility/
+|   |   |-- datasets/
+|   |   |-- training/
+|   |   |-- evaluation/
+|   |   `-- inference/
+|   |
+|   |-- scientific/
+|   |   |-- data_quality/
+|   |   |-- model_parity/
+|   |   |-- benchmark_corpus/
+|   |   `-- claim_review/
+|   |
+|   |-- security/
+|   |   |-- policy/
+|   |   |-- supply_chain/
+|   |   |-- authz/
+|   |   `-- tenancy/
+|   |
+|   `-- fixtures/
+|       |-- contracts/
+|       |-- datasets/
+|       |-- artifacts/
+|       |-- services/
+|       `-- deployments/
+|
+|-- tools/
+|   |-- README.md
+|   |
+|   |-- codegen/
+|   |   |-- generate.py
+|   |   |-- check.py
+|   |   |-- diff.py
+|   |   `-- publish.py
+|   |
+|   |-- architecture/
+|   |   |-- generate.py
+|   |   |-- validate.py
+|   |   |-- render_atlas.py
+|   |   |-- ownership_lint.py
+|   |   `-- tests/
+|   |
+|   |-- ci/
+|   |   |-- run-checks.sh
+|   |   |-- source-validation.sh
+|   |   |-- changed-targets.py
+|   |   `-- lanes/
+|   |
+|   |-- repo/
+|   |   |-- verify-tree.py
+|   |   |-- inventory.py
+|   |   |-- owners.py
+|   |   `-- hygiene.py
+|   |
+|   |-- qualification/
+|   |   |-- qualify-source.py
+|   |   |-- qualify-runtime.py
+|   |   |-- qualify-deployment.py
+|   |   |-- qualify-science.py
+|   |   `-- receipts.py
+|   |
+|   |-- release/
+|   |   |-- bundle.py
+|   |   |-- sign.py
+|   |   |-- promote.py
+|   |   `-- verify.py
+|   |
+|   |-- provenance/
+|   |   |-- attest.py
+|   |   |-- verify.py
+|   |   |-- sbom.py
+|   |   `-- lineage.py
+|   |
+|   |-- validation/
+|   |   |-- arch-lint.py
+|   |   |-- dependency-lint.py
+|   |   |-- generated-provenance.py
+|   |   `-- descriptor-lint.py
+|   |
+|   |-- docs/
+|   |   |-- build.py
+|   |   |-- linkcheck.py
+|   |   `-- publish.py
+|   |
+|   |-- dev/
+|   |   |-- bootstrap.sh
+|   |   |-- doctor.sh
+|   |   |-- shell.sh
+|   |   `-- fixtures.py
+|   |
+|   `-- migrations/
+|       |-- check.py
+|       |-- apply.py
+|       `-- rollback.py
+|
+`-- docs/
+    |-- README.md
+    |
+    |-- architecture/
+    |   |-- README.md
+    |   |-- atlas/
+    |   |-- context/
+    |   |-- platform/
+    |   |-- codegen/
+    |   |-- engineering/
+    |   |-- agents/
+    |   |-- science/
+    |   |-- data/
+    |   |-- models/
+    |   |-- training/
+    |   |-- evaluation/
+    |   |-- runtime/
+    |   |-- experiments/
+    |   |-- deployment/
+    |   |-- security/
+    |   |-- provenance/
+    |   |-- views/
+    |   |-- decisions/
+    |   |-- model/
+    |   `-- generated/
+    |
+    |-- adr/
+    |-- specs/
+    |-- standards/
+    |-- developer/
+    |-- security/
+    |-- operations/
+    |-- runbooks/
+    |-- model_cards/
+    |-- dataset_cards/
+    |-- api/
+    `-- generated/
+```
+
+## 3. Root responsibilities
+
+| Root | Responsibility |
+| --- | --- |
+| `contracts/` | Authored interface, resource, science, agent, operator, schema, and registry authority. |
+| `codegen/` | Sole compiler/generator. Parses authored inputs, builds Semantic Graph and Capability Graph, emits projections. |
+| `core/` | Shared primitives: identity, evidence, policy, provenance, artifacts, errors, graph identity, time. |
+| `biology/` | Mindclade-owned biological semantics and scientific entity model. |
+| `data/` | Source ingestion, normalization, datasets, features, lineage, quality, and knowledge systems. |
+| `compute/` | Tensor, native, kernel, operator, distributed, parity, and performance substrate. |
+| `models/` | Model families and model-specific architecture. |
+| `ml/` | Training, posttraining, evaluation, checkpointing, qualification, recipes. |
+| `runtime/` | Model execution, inference, batching, serving, distributed runtime, telemetry. |
+| `platform/` | Control semantics, RuntimeKit, TestKit, artifacts, events, identity, tenancy, policy, audit, persistence. |
+| `agents/` | Agent runtime, context, planning, tools, skills, approvals, sandboxing, adapters. |
+| `protocols/` | Published protocol projection surfaces and descriptor bundles. |
+| `products/` | User/developer-facing products: SDKs, CLI, MCP, CDK, console, admin, docs site, design system. |
+| `services/` | Deployable processes. Services orchestrate platform/domain packages; they do not duplicate domain frameworks. |
+| `infra/` | Authored infrastructure modules and environment configuration. Generated deploy artifacts are projections. |
+| `generated/` | Disposable generated output with provenance. Never an authority. |
+| `tests/` | Cross-cutting test, conformance, compatibility, qualification, reproducibility, and scientific validation suites. |
+| `tools/` | Repository, architecture, generation, release, qualification, provenance, and developer automation. |
+| `docs/` | Human-facing documentation and generated architecture package. Source models remain machine-readable. |
+
+## 4. Architecture laws
+
+1. One semantic authority: the normalized Semantic Graph is the compiler authority after authored inputs are parsed and validated.
+2. One compiler: `codegen/` owns parse, normalize, validate, resolve, lower, plan, and emit.
+3. Generated output is disposable. It is regenerated, byte-checked, and provenance-tracked; it is never hand-edited into authority.
+4. Thin services only. Services own deployment process boundaries and orchestration, not duplicate training, runtime, data, or agent frameworks.
+5. Every diagram box must resolve to one of: repository package, generated artifact, external boundary, or explicitly marked future capability.
+6. External systems are adapters. GitHub, Linear, Notion, Retool, Datadog, cloud providers, and model providers may integrate, but they do not become source authority.
+7. Contracts and descriptors lead. Runtime behavior, SDKs, MCP tools, CDK, Terraform, docs, and deployment manifests derive from contracts and source descriptors wherever practical.
+8. Provenance is mandatory. Engineering and scientific claims require receipts, immutable artifacts, hashes, inputs, tool versions, and review state.
+9. Qualification is fail-closed. Missing CI, missing cloud proof, missing connected runtime proof, or missing scientific evidence is `BLOCKED`, not `PASS`.
+10. No duplicate roots. If two roots implement the same compiler, runtime, provenance, agent, training, or artifact system, one must become the owner and the other must become an adapter, generated surface, or be removed.
+11. Architecture is generated from source models. Posters and atlas diagrams are outputs, not hand-maintained authority.
+12. Authored boundaries must be owned. Every source package has a code owner, maturity state, dependency policy, and validation lane.
+
+## 5. Dependency and ownership rules
+
+### Core direction
+
+```text
+contracts + architecture source models
+        |
+        v
+codegen
+        |
+        v
+generated projections
+        |
+        +--> protocols
+        +--> products/sdk
+        +--> products/mcp
+        +--> products/cdk
+        +--> infra/generated
+        +--> docs/generated
+
+core
+        |
+        v
+biology / data / compute / models / ml / runtime / platform / agents
+        |
+        v
+services
+        |
+        v
+public APIs and event streams
+        |
+        v
+products: console / CLI / SDK / MCP / admin / docs site
+```
+
+### Rules
+
+- `core/` cannot depend on `services/`, `products/`, or cloud-specific infra.
+- `contracts/` cannot import generated products as authority.
+- `codegen/` reads authored contracts, architecture models, descriptors, and registries; it emits into `generated/`, `protocols/`, and generated subtrees.
+- `generated/` cannot be imported as source authority by `contracts/` or `codegen/`.
+- `services/` may depend on domain packages and `platform/`, but must not reimplement domain packages internally.
+- `products/sdk` consumes generated protocol/API surfaces and stable public runtime helpers.
+- `products/console`, `products/cli`, and `products/mcp` consume public APIs, SDKs, and descriptors, not private service internals.
+- `infra/` owns deployable topology source. Environment-specific generated manifests must be derived and checked.
+- `docs/architecture/generated` is generated from `docs/architecture/model` and repository descriptors.
+- `tests/qualification` can depend broadly, but production code cannot depend on tests.
+
+## 6. Generated vs authored boundaries
+
+### Authored authority
+
+These are hand-maintained source-of-truth surfaces:
+
+- `contracts/typespec`
+- `contracts/protobuf` only where Protobuf is intentionally authored authority
+- `contracts/science`
+- `contracts/agents`
+- `contracts/operators`
+- `contracts/schemas`
+- `contracts/registries`
+- `codegen/**`
+- `core/**`
+- `biology/**`
+- `data/**`
+- `compute/**`
+- `models/**`
+- `ml/**`
+- `runtime/**`
+- `platform/**`
+- `agents/**`
+- `services/**`
+- `infra/terraform/**`
+- `infra/kubernetes/bases/**`
+- `infra/gitops/environments/**` source overlays
+- `docs/architecture/model/**`
+- `tools/**`
+
+### Generated projections
+
+These are generated and must be reproducible:
+
+- `generated/**`
+- `protocols/openapi/**`
+- `protocols/jsonschema/**`
+- published Protobuf descriptors
+- `products/sdk/**/generated`
+- `products/mcp/**/generated`
+- `products/cdk/**/generated`
+- `products/console/**/generated`
+- `infra/generated/**`
+- environment deployment bundles emitted from deployment IR
+- `docs/architecture/generated/**`
+- API docs and descriptor docs emitted from contracts
+
+### Required generated output controls
+
+Every generated surface must have:
+
+- Input manifest.
+- Generator version and commit.
+- Content hash.
+- Provenance receipt.
+- Owner.
+- Regeneration command.
+- Drift check.
+- Stale-file deletion policy.
+- Exact-byte comparison in source validation.
+
+## 7. RuntimeKit
+
+`platform/runtimekit` is the standard runtime envelope for every deployable service and worker. It prevents each service from inventing its own lifecycle, configuration, health, identity, telemetry, and shutdown behavior.
+
+RuntimeKit owns:
+
+- Process lifecycle: start, ready, drain, shutdown.
+- Configuration loading and validation.
+- Service identity and workload identity integration.
+- Health checks: liveness, readiness, startup, dependency health.
+- Middleware: request IDs, auth context, policy checks, tenant boundaries.
+- Telemetry: logs, metrics, traces, spans, exemplars, service metadata.
+- Error mapping and failure classification.
+- Event/outbox hooks.
+- Artifact/provenance hooks.
+- Service descriptor loading.
+- Local development entrypoints.
+
+Every service must register a `ServiceDescriptor@v1` and run inside the RuntimeKit envelope unless explicitly exempted by an ADR.
+
+## 8. TestKit
+
+`platform/testkit` is the standard test harness for deterministic service, runtime, and agent validation.
+
+TestKit owns:
+
+- Fake clock and deterministic time.
+- Fake identity and tenant contexts.
+- Fake artifact store and content-addressed storage.
+- Fake event bus/outbox.
+- Fake workers and schedulers.
+- Fake model/runtime endpoints.
+- Database and migration fixtures.
+- Generated contract fixtures.
+- Assertion helpers for provenance, telemetry, policy, and descriptor behavior.
+- Golden test support for generated surfaces.
+
+TestKit must not become a second runtime. It mirrors RuntimeKit interfaces and allows focused validation without live cloud dependencies.
+
+## 9. ServiceDescriptor@v1
+
+Every deployable process has one descriptor at:
+
+```text
+services/<service_name>/service.descriptor.yaml
+```
+
+Workers use the same schema:
+
+```text
+services/workers/<worker_name>/service.descriptor.yaml
+```
+
+Minimal descriptor shape:
+
+```yaml
+apiVersion: mindclade.dev/ServiceDescriptor@v1
+kind: Service
+metadata:
+  name: inference-service
+  package: services/inference_service
+  maturity: planned | experimental | partial | production
+  owner: team-or-person
+  description: Serves qualified model releases for inference workloads.
+
+contracts:
+  resources:
+    - contracts/typespec/services/inference
+  protobuf:
+    - contracts/protobuf/mindclade/inference
+  events:
+    publishes:
+      - mindclade.inference.result.v1
+    subscribes:
+      - mindclade.model.release.qualified.v1
+
+runtime:
+  runtimekit: required
+  language: go | rust | python | typescript
+  entrypoint: path/to/main
+  configSchema: contracts/schemas/deployment/inference-service.schema.json
+  health:
+    liveness: /healthz
+    readiness: /readyz
+    startup: /startupz
+
+dependencies:
+  services:
+    - artifact-service
+    - model-service
+  storage:
+    - model-artifacts
+    - inference-results
+  databases:
+    - control-plane-postgres
+  queues:
+    - inference-requests
+
+security:
+  identity: workload-identity
+  tenancy: required
+  authorization:
+    policy: contracts/agents/policies/inference-policy.yaml
+  secrets:
+    - model-registry-reader
+
+artifacts:
+  reads:
+    - model-manifest
+    - checkpoint
+  writes:
+    - inference-result
+    - evidence-bundle
+
+provenance:
+  emitsReceipts: true
+  requiredFields:
+    - input_artifact_hash
+    - model_release_hash
+    - runtime_version
+    - policy_decision_id
+
+telemetry:
+  metrics:
+    - request_count
+    - latency
+    - batch_size
+    - model_version
+  traces: required
+  logs: structured
+
+deployment:
+  environments:
+    - dev
+    - staging
+    - production
+  topology:
+    cpu: required
+    gpu: optional
+  scaling:
+    minReplicas: 1
+    maxReplicas: 20
+
+qualification:
+  source:
+    - generated-drift-check
+    - contract-conformance
+    - unit-tests
+  runtime:
+    - runtimekit-health
+    - testkit-fixtures
+  deployment:
+    - kubernetes-schema-check
+    - policy-check
+```
+
+Descriptor rules:
+
+- The descriptor is authored.
+- Codegen consumes it to synthesize deployment IR, docs, checks, service catalog entries, and topology diagrams.
+- CI validates descriptor schema, owner, maturity, dependency policy, and existence of referenced paths.
+- Missing descriptor means the process is not a recognized Mindclade service.
+
+## 10. Deployment synthesis, qualification, and GitOps
+
+Deployment is generated from contracts, service descriptors, architecture source models, and environment parameters.
+
+```text
+authored contracts
+        |
+authored ServiceDescriptor@v1
+        |
+authored infra/environment parameters
+        |
+        v
+codegen deployment lowering
+        |
+        v
+Deployment IR
+        |
+        +--> Terraform modules/projections
+        +--> CDK constructs/projections
+        +--> Kubernetes manifests
+        +--> GitOps applications
+        +--> policy bundles
+        +--> architecture topology views
+        +--> qualification manifests
+        |
+        v
+source validation and exact-byte drift checks
+        |
+        v
+signed release bundle
+        |
+        v
+GitOps promotion
+        |
+        v
+cluster reconciliation
+        |
+        v
+runtime telemetry and provenance receipts
+```
+
+### Qualification lanes
+
+Qualification is staged and fail-closed.
+
+| Lane | Proves | Does not prove |
+| --- | --- | --- |
+| Source qualification | Tree integrity, architecture laws, generated drift, static checks, unit tests. | Live deployment, remote CI, cloud runtime, scientific validity. |
+| Runtime qualification | RuntimeKit/TestKit behavior, service health, local integration, descriptor behavior. | Production readiness without connected infrastructure. |
+| Deployment qualification | Manifest validity, policy conformance, topology synthesis, GitOps bundle integrity. | Successful production rollout unless connected GitOps confirms it. |
+| Connected qualification | Cloud/provider/runtime integration against real services. | Scientific claim validity by itself. |
+| Scientific qualification | Data lineage, numerical parity, benchmarks, review state, claim evidence. | Infrastructure health by itself. |
+| Release qualification | Signed artifacts, SBOM, provenance, release notes, promotion evidence. | Future environment behavior after drift. |
+
+### GitOps flow
+
+```text
+main branch
+  |
+  v
+source validation
+  |
+  v
+generated deployment bundle
+  |
+  v
+signed release artifact
+  |
+  v
+environment promotion PR
+  |
+  v
+GitOps controller reconciliation
+  |
+  v
+post-deploy verification
+  |
+  v
+provenance receipt + telemetry evidence
+```
+
+No deployment is considered qualified until the relevant environment produces evidence. A valid manifest is not a deployed system.
+
+## 11. Engineering provenance model
+
+Engineering provenance binds intent to production behavior.
+
+```text
+requirement
+  -> spec
+  -> ADR
+  -> contract
+  -> source
+  -> generated artifact
+  -> test
+  -> evaluation
+  -> build
+  -> signed artifact
+  -> deployment
+  -> telemetry
+  -> incident
+  -> remediation
+  -> updated requirement
+```
+
+Required engineering receipt fields:
+
+- Requirement or issue ID.
+- Spec path.
+- ADR path when architecture changes.
+- Contract path and version.
+- Source paths and commit.
+- Generated artifact manifest.
+- Test commands and outcomes.
+- Build environment.
+- Artifact hashes.
+- SBOM reference.
+- Signature and signer identity.
+- Deployment target and environment.
+- Telemetry evidence reference.
+- Review/approval state.
+
+Engineering provenance is used to answer:
+
+- Why does this system exist?
+- Which contract defines it?
+- Which generated outputs came from it?
+- Which tests qualified it?
+- Which artifact was deployed?
+- Which environment is running it?
+- What telemetry confirms behavior?
+
+## 12. Scientific provenance model
+
+Scientific provenance binds data, computation, model behavior, inference, and claims.
+
+```text
+source record
+  -> quarantined raw object
+  -> curated record
+  -> entity
+  -> dataset snapshot
+  -> split manifest
+  -> feature set
+  -> experiment
+  -> training run
+  -> checkpoint
+  -> model manifest
+  -> evaluation report
+  -> qualified release
+  -> inference result
+  -> artifact
+  -> evidence
+  -> claim
+```
+
+Required scientific receipt fields:
+
+- Source database or lab source.
+- Source access date and license.
+- Raw object hash.
+- Curation transform and version.
+- Entity identifiers and ontology mappings.
+- Dataset snapshot hash.
+- Split manifest hash.
+- Feature schema and transform version.
+- Experiment protocol.
+- Training run configuration.
+- Code commit and environment.
+- Checkpoint hash.
+- Model manifest hash.
+- Evaluation metrics and benchmark corpus.
+- Review state: computed, retrieved, inferred, human-reviewed, or rejected.
+- Claim scope and uncertainty.
+
+Scientific provenance is used to answer:
+
+- Where did this data come from?
+- What transformation touched it?
+- Which model saw it?
+- Which checkpoint produced the result?
+- Which evaluation supports the claim?
+- Is the claim association, prediction, causal claim, or hypothesis?
+- What evidence is missing?
+
+## 13. Architecture source models
+
+`docs/architecture/` is the canonical architecture package. It must separate views rather than maintain a single God diagram.
+
+```text
+docs/architecture/
+|-- README.md
+|-- model/
+|   |-- architecture.v1.json
+|   |-- ownership.v1.json
+|   |-- dependencies.v1.json
+|   |-- deployment.v1.json
+|   |-- provenance.v1.json
+|   `-- maturity.v1.json
+|
+|-- generated/
+|   |-- index.md
+|   |-- landscape.md
+|   |-- context.md
+|   |-- development-platform.md
+|   |-- engineering-graph.md
+|   |-- codegen-semantic-graph.md
+|   |-- agent-fabric.md
+|   |-- scientific-planes.md
+|   |-- deployment-topology.md
+|   |-- trust-security.md
+|   |-- artifact-provenance.md
+|   `-- atlas.md
+|
+|-- views/
+|-- atlas/
+|-- decisions/
+`-- generated-diagrams/
+```
+
+Architecture model requirements:
+
+- Every component has a repository path or external boundary marker.
+- Every component has a maturity state: `planned`, `experimental`, `partial`, or `production`.
+- Every edge has a dependency type.
+- Every generated view is reproducible from model plus repository descriptors.
+- Architecture drift is a CI failure.
+- The Platform Atlas poster is generated from the model. It is never edited as the source of truth.
+
+## 14. VS-001 semantic development loop
+
+`VS-001` is the standard development loop for changing Mindclade semantics.
+
+```text
+1. Intent
+   |
+2. Requirement / issue / experiment question
+   |
+3. Contract or descriptor delta
+   |
+4. SemanticInput construction
+   |
+5. Codegen compiler pipeline
+      parse
+      normalize
+      validate
+      resolve
+      lower
+      plan
+      emit
+   |
+6. Semantic Graph and Capability Graph update
+   |
+7. Generated projections
+      Protobuf
+      OpenAPI
+      JSON Schema
+      SDK
+      MCP
+      Terraform/CDK
+      docs
+      architecture views
+      deployment bundles
+   |
+8. Runtime implementation or adapter update
+   |
+9. TestKit validation
+   |
+10. Source qualification
+   |
+11. Connected/runtime/scientific qualification where required
+   |
+12. Signed release and GitOps promotion
+   |
+13. Telemetry/provenance feedback
+   |
+14. Architecture model update if reality changed
+```
+
+### VS-001 exit criteria
+
+A semantic change is not complete until:
+
+- Authored source and generated outputs are in sync.
+- The Semantic Graph validates.
+- Compatibility checks pass or the breaking change is explicitly approved.
+- Service descriptors and deployment IR reflect changed runtime surfaces.
+- Architecture generated views reflect changed components and edges.
+- Provenance receipts can identify input, generator, source commit, output, and validation evidence.
+- Qualification status is accurately recorded.
+
+## 15. Development platform and engineering graph
+
+Mindclade's development platform is itself part of the product.
+
+```text
+ideas / research / operations
+        |
+        v
+requirements + specs + ADRs
+        |
+        v
+contracts + architecture models + descriptors
+        |
+        v
+agent-assisted implementation
+        |
+        v
+Bazel / Nix / language-native checks
+        |
+        v
+Buildkite / GitHub Actions / Azure or GitLab source validation
+        |
+        v
+qualification receipts
+        |
+        v
+release and GitOps
+        |
+        v
+telemetry and incident feedback
+```
+
+The Engineering Graph links:
+
+- Requirements.
+- Specs.
+- ADRs.
+- Contracts.
+- Source packages.
+- Generated artifacts.
+- Tests.
+- CI lanes.
+- Releases.
+- Deployments.
+- Telemetry.
+- Incidents.
+- Remediations.
+
+This graph lets agents and humans answer "what should I edit, what will break, what evidence do I need, and what can I safely claim?"
+
+## 16. Scientific planes
+
+Mindclade separates scientific concerns into planes:
+
+| Plane | Owns |
+| --- | --- |
+| Biological Semantics | Entities, relationships, ontologies, measurements, evidence, claims. |
+| Knowledge Plane | Literature, source databases, graph retrieval, indexing, evidence search. |
+| Data Plane | Ingestion, normalization, validation, datasets, features, lineage, quality. |
+| Model Plane | Model families, configurations, checkpoints, manifests, parity. |
+| Training/Evaluation Plane | Recipes, objectives, distributed training, posttraining, metrics, reports. |
+| Runtime Plane | Execution, serving, batching, inference, checkpoint loading, telemetry. |
+| Experiment Plane | Protocols, simulation/execution, analysis, evidence, registry. |
+| Agent Plane | Scientific workflows, tools, approvals, context, memory, traceable decisions. |
+
+No plane may hide provenance or duplicate another plane's authority.
+
+## 17. Trust and security boundaries
+
+Trust boundaries must be visible in architecture and enforced in code.
+
+Required boundaries:
+
+- Tenant boundary.
+- Workload identity boundary.
+- Human/agent approval boundary.
+- Secret boundary.
+- External API boundary.
+- Data license boundary.
+- Raw/quarantined data boundary.
+- Model artifact boundary.
+- Generated artifact boundary.
+- Deployment environment boundary.
+- Production access boundary.
+
+Security controls:
+
+- Workload identity for services.
+- Least-privilege service accounts.
+- Policy-as-code for authorization decisions.
+- Signed generated and release artifacts.
+- SBOM for release bundles.
+- Network policy for service communication.
+- Tenant-aware audit logs.
+- Provenance receipts for sensitive actions.
+- Manual approval gates for destructive or irreversible operations.
+
+## 18. External tool policy
+
+Do not introduce an external tool, SaaS product, framework, database, queue, workflow engine, agent framework, or infrastructure dependency unless it solves a demonstrated requirement that existing Mindclade platform primitives cannot reasonably satisfy.
+
+Approved posture:
+
+- GitHub, Buildkite, cloud providers, Datadog, Linear, Notion, Figma, Retool, and similar systems are adapters.
+- Kubernetes is the execution abstraction.
+- GCP/Azure provide cloud substrate.
+- OpenTelemetry is the observability contract.
+- TypeSpec and Protobuf are authored/projection inputs, not competing runtime systems.
+- Mindclade owns contracts, orchestration semantics, provenance, capability graph, scientific domain logic, and qualification semantics.
+
+## 19. What must be marked planned
+
+Any architecture component without source, tests, descriptors, generated outputs, and qualification receipts must be marked:
+
+- `planned` if it is design intent only.
+- `experimental` if prototypes exist without stable contracts.
+- `partial` if source exists but surfaces, checks, or evidence are incomplete.
+- `production` only when source, runtime, deployment, security, and operational evidence are all present for the claimed environment.
+
+Architecture diagrams must show this status rather than implying all boxes are equally real.
+
+## 20. Final operating principle
+
+Mindclade's architecture should be legible to both humans and agents:
+
+- Contracts say what exists.
+- Codegen explains how projections are made.
+- Descriptors say what runs.
+- Architecture models say how pieces relate.
+- Tests say what is checked.
+- Qualification says what can be claimed.
+- Provenance says why the claim is trustworthy.
+
+The repository is the source of truth. Posters, dashboards, generated docs, SDKs, MCP tools, deployment bundles, and architecture views are all projections.
+
+## Related
+
+<CardGroup cols={2}>
+  <Card title="Architecture overview" icon="sitemap" href="/architecture/overview">
+    Current architecture index and navigation.
+  </Card>
+
+  <Card title="Architecture laws" icon="scale-balanced" href="/architecture/architecture-laws">
+    The canonical architecture laws and dependency rules.
+  </Card>
+
+  <Card title="System design" icon="diagram-project" href="/architecture/system-design">
+    High-level system design and platform boundaries.
+  </Card>
+
+  <Card title="Implementation roadmap" icon="road" href="/architecture/implementation-roadmap">
+    Maturity states and delivery sequencing.
+  </Card>
+</CardGroup>

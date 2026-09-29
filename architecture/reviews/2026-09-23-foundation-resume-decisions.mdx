@@ -1,0 +1,122 @@
+---
+title: "Foundation Resume Decisions: B2a Interface and Vertical Source Freeze"
+sidebarTitle: "Resume Decisions"
+description: "Reviewed interface freeze decisions for B2a generated consumer work, G1 source closure, and the real vertical sequence. Recovery context for integration owners."
+---
+
+This page records foundation resume decisions from 2026-09-23. It preserves consequential session decisions in repository context for recovery. These decisions constrain B2a generation and the real vertical sequence (B1a → B2a → B3a → B2b → B3b → B4 → C1–C5 → D1–D2). This document is recovery context, not independent operational authorization.
+
+## Scope and outcome
+
+| Date | Scope | Outcome |
+| --- | --- | --- |
+| 2026-09-23 | Foundation resume decisions for B2a, G1, and real vertical | Reviewed source closure with preserved decisions; contract-owner acceptance remains separate |
+
+## B2a preserved decisions and implemented checkpoint
+
+The following reviewed choices constrained B2a generation and are preserved for recovery. The [checked-product record](2026-09-23-vs001-products) identifies the implemented target IR, generated clients/DTOs, tests, and source checkpoint `041b62e`. B1a reference rules remain implemented; contract-owner acceptance of the non-passing wire/baseline transition is still separate and pending. Historical proposal wording below records design decisions, not a claim that these APIs are still absent.
+
+1. **Transport profile representation.** Represent the reviewed transport profile explicitly in compiler-private `codegen/src/target_ir.rs` as `Vs001TransportProfile` with fixed profile identity `VS001TransportProfile@v1` and inclusive `max_body_bytes = 65536`. Populate it explicitly when lowering this bounded VS-001 product; never infer it from a scalar name or pretend TypeSpec supplied it. Bind `target_ir` bytes in the generator fingerprint and profile identity/value in the VS-001 manifest. B3 descriptor compilation must compare its limit to this same profile. This is a reviewed transport constraint from the design, not a new semantic compiler.
+2. **HTTP base URL and media-type behavior.** Adopt proposed origin-only absolute http/https baseUrl behavior and urgent omitted/undefined/false behavior. Use compact JSON with no final LF for HTTP requests. Response media-type grammar: trim optional ASCII SP/HTAB around the whole header and separator; case-insensitive `application/json`; optional single semicolon parameter `charset=utf-8`, permitting SP/HTAB around equals and optional double quotes around utf-8; reject any other whitespace/control, parameter, duplicates, or trailing separator. Freeze examples before implementation. Redirect option is error; no automatic redirects/retries. TS strict type checking also enables `exactOptionalPropertyTypes`; model optional urgent explicitly as `boolean | undefined` so the declared runtime allowance is reflected in types.
+3. **Public TS and Rust error classes.** `EchoError` with readonly `kind="api"`, status/code as the exact correlated authored alternatives, and message. `EchoValidationError` with `kind="validation"`. `EchoProtocolError` with `kind="protocol"`. `EchoTransportError` with `kind="transport"`, readonly `cause` holding the identical original rejection/reason, and readonly `aborted` boolean. Pre-aborted signal rejects before fetch as `EchoTransportError` with `cause` identical to `signal.reason` and `aborted=true`. A fetch rejection wraps its original cause; abort classification must use the supplied signal state, not turn an HTTP 503 into an abort. Rust `EchoError` has the three exact proposed domain variants and fixed status/code mapping; no transport variant. No new wire variant.
+4. **Exact generated catalog for B2a.** Public `client.ts`, `rust/mod.rs`, `rust/public.rs`, `rust/internal.rs`, `rust/wire.rs`, `graph.json`, `manifest.json` below `generated/vs001`. Shared generated Rust wire routines and module glue avoid duplicated parsers and keep authored consumer wrappers outside emitter ownership. Compiled JS stays in Bazel output/runfiles. `emit(bundle)` returns deterministic product outputs in the existing Publication container; projection integration adds graph and exact source-bound manifest before publisher/verify. It must never submit an incomplete container to publication. No ambient filesystem reads in lower/emit. Existing foundation products and publisher checks remain intact.
+5. **Generated Rust type signatures.** Generated Rust types expose checked `from_json(&[u8])`, `validate(&self)`, and `to_json(&self)` returning a generated `WireError`; explicit null for optional urgent rejects. Kernel conversions use checked `TryFrom<GeneratedRef>` into the matching sealed kernel reference, no retagging. Prefer private fields plus validating constructors/accessors so serde serialization cannot bypass invariants; if fields remain public, `Serialize`/`Deserialize` and every transport/bridge path must enforce validation. Freeze concrete consumer calls before emitters; no assumption that constructing a Rust struct validates it. Internal artifact text-to-bytes conversion must validate its unchanged canonical inner text before returning UTF-8 bytes.
+
+Parent independently computed the two escaped-body fixture lengths using compact UTF-8 JSON: exactly 65536 and 65537 bytes; no product implementation used. These checks do not constitute generated-client execution.
+
+## Why the B2 constraints matter
+
+The explicit profile prevents transport policy being invented from scalar names. A narrow origin/media-type grammar and correlated errors keep transport behavior predictable without changing authored wire alternatives. Checked constructors, JSON paths, and reference bridges prevent serialization or struct construction from bypassing kernel invariants. A complete deterministic publication container avoids partial generation weakening the existing recoverable publisher. B3 must use the same admitted body limit; descriptor composition must not introduce a competing runtime YAML compiler. These are constraints on future reviewed work, not conformance results or accepted contract baselines.
+
+## G1: implemented source interface closure
+
+The parent reports reviewed source closure at `f6437c8d6c2e6de5115c5714505632de8a4ca0d3`; exact source checks and their limits are in the [handoff](../../developer/agent-handoff#source-and-evidence-checkpoints). Consult [governance tools](../../developer/governance-tools#g1-source-implementation-tested-checkout-and-execution-binding), actual [binding verifier](https://github.com/Mindclade-org/mindclade-internal-monorepo/blob/main/tools/engineering/github_binding.py), [audit](https://github.com/Mindclade-org/mindclade-internal-monorepo/blob/main/tools/engineering/github_audit.py), and [receipt producer](https://github.com/Mindclade-org/mindclade-internal-monorepo/blob/main/scripts/capture_workflow_binding.py) before changing interfaces.
+
+- Preserve separate `execution-transport` and `execution-binding` checks. Supported observation contradictions FAIL even when trust prerequisites are missing; unavailable provenance remains BLOCKED. No accepted pins or trust escape hatch were supplied by G1; O3 must separately establish all production trust inputs.
+- PR `--candidate` is source head. Run/check/job `head_sha` stays source head; `tested_sha` is the separately corroborated checkout with ordered base/head parents. Reobserve anchors after retrieval; stale success cannot replace the current failed/incomplete attempt. G2 separately owns queue binding.
+- Main `--candidate` is resulting main. The supported source/fixture relationship is an ordinary two-parent merge plus independently retained prior PR provenance and equal tested/resulting trees. Squash, rebase, and queue-main joins are not implemented by this profile. A bare tree hash or main receipt cannot supply custody.
+- Keep `github_audit.main`'s existing decoded REST interface. Additive keyword-only callbacks are `accepted_identity`, `artifact_request`, `artifact_custody`, `retained_pr`, `executed_identity`; their exact signatures are in governance-tools. Any injected dependency marks the whole report fixture; omitted remote/trust dependencies never fall through to live readers in fixture mode. The existing explicit-repo local Git preflight remains available without a Git callback.
+- `github_binding.verify_run_binding` is a pure bounded verifier, not I/O or trust authentication. Audit imports its sibling from trusted `TOOL_ROOT` and re-exports the same error classes. Accepted runtime/tool custody remains external.
+- Accepted identity must bind immutable workflow/producer revisions and exact bytes plus `standalone-capture-v1`. Actual executed identity and retained artifact custody are independent prerequisites; workflow names, receipt claims, logs, or self-computed hashes cannot establish them. Production loaders remain BLOCKED.
+- The additive one-file workflow-binding receipt carries actual checkout/run/attempt and explicit PR anchors. Push/dispatch anchors are null; missing PR values do not fall back to `GITHUB_SHA`. Current CI's candidate-local producer is untrusted transport. Existing v1 report/verification/evidence top-level schemas remain unchanged; old source-only receipts remain readable without backfilled fields.
+- The exact artifact name includes run ID/attempt; API linkage has no invented attempt field. Bounded archive parsing and independent retained bytes/digest precede binding. The live binary adapter accepts direct HTTPS 200 only from api.github.com and follows no redirects, so normal redirected downloads may remain BLOCKED. G1 claims no live download or protected execution success.
+
+G2 must preserve this fail-closed separation and define its retained queue/base/member/run relationship through fresh criteria. G3 later consumes independently regenerated B4 facts. Neither may silently adopt candidate-edited evaluator/policy bytes or relabel a source fixture as protected operational evidence.
+
+## B2a interface freeze for the real vertical
+
+Source implementation proposal, 2026-09-23. This resolves the three questions in the independently prepared B2a acceptance corpus before emitter work; it does not adopt an expanded compatibility baseline or grant operational acceptance.
+
+- Adopt the recommended checked Rust signatures and private fields exactly: `from_json(&[u8]) -> Result<Self, WireError>`, `validate(&self) -> Result<(), WireError>`, `to_json(&self) -> Result<Vec<u8>, WireError>`; validating `new` constructors and read-only accessors from the corpus. Reference constructors fix the authored literal target; conversions use checked kernel constructors. No unchecked serde entry point. Internal record constructors accept their nonliteral fields in the sealed graph's canonical field-name order, documented in emitted source; public Echo constructors retain the exact named signatures in the corpus. Literal schema/workflow/kind fields are fixed by constructors and checked on deserialization.
+- Invalid client factory input throws `EchoValidationError` synchronously, with zero fetch calls. Require a raw absolute HTTP(S) origin plus at most one root slash. Reject raw whitespace/control, backslash, credentials, non-root paths, and any query/fragment delimiter before WHATWG URL normalization. Scheme/host case and default-port normalization use `URL.origin`; output route is origin plus the authored route. The URL is not limited to loopback. Validate fetch availability at construction; do not require a global fetch when an injected function exists.
+- A rejected body read is `EchoTransportError`, preserving the identical reason and supplied signal state. A successfully read malformed body is protocol error. For combined failures: validate requestId/body and byte size first, then check a pre-aborted signal, then invoke fetch once. A returned valid authored HTTP error remains an API error even if the signal becomes aborted afterward. No retries.
+
+All other frozen behavior comes from the independently reviewed B2a acceptance corpus, the tracked foundation resume decisions and B2a plan. Runtime products derive contract types/constraints from the sealed graph; constants in the independently authored test corpus do not become a second compiler or production schema. Body limit remains explicit `VS001TransportProfile@v1` policy, not a type-name inference.
+
+## Independent criteria review
+
+Reviewed 2026-09-23 against the independently reviewed B2a acceptance corpus: approved for the bounded B2a source interface. These choices resolve the constructor, raw-origin/factory, and body-read questions. Canonical field-name order is consistent with the sealed graph; fixed literal fields and exact public Echo constructors preserve the intended boundary. Request-validation-before-pre-abort and signal-based body-read classification are deterministic and retain the existing error alternatives. No additional interface correction is required. B1a acceptance/review, implementation checks, and expanded compatibility-baseline disposition remain separate and pending as applicable.
+
+Corpus notation correction before transcribing byte fixtures: R06's raw JSON must contain **one** reverse solidus before `u006d`, as below. The doubled notation in the original table would instead spell a distinct literal-backslash key. Likewise, the six ASCII bytes for an escaped NUL are one reverse solidus followed by `u0000`; do not copy an extra reverse solidus from the prose. The byte-length arithmetic already assumes the correct six-byte escape. This corrects fixture notation only.
+
+```json
+{"message":"a","\u006dessage":"b"}
+```
+
+No tests, builds, network, Git, or implementation were run for this review.
+
+## Additive Rust interface review
+
+Reviewed 2026-09-23: approve these additions as consistent with the B2a corpus:
+
+```rust
+pub enum EchoError {
+    InvalidInput { message: String },
+    IdempotencyConflict { message: String },
+    Unavailable { message: String },
+}
+// Borrowing accessors on EchoError:
+// status(&self) -> u16
+// code(&self) -> &'static str
+// message(&self) -> &str
+// Checked accessor on the generated Completion model:
+// artifact_json_bytes(&self) -> Result<Vec<u8>, WireError>
+```
+
+The generated status/code mapping must derive from the authored HTTP alternatives and literal codes (400/invalid_input, 409/idempotency_conflict, 503/unavailable), not a second runtime table or independent emitter schema. A variant cannot carry a caller-selected mismatching code/status. No transport variant or error-message length limit is added; existing checked serialization/decoding obligations remain.
+
+Emit the artifact accessor from the field's effective canonical-JSON format, including any resolved scalar alias constraints, rather than the model/field display name. It validates the unchanged inner string and returns its exact UTF-8 bytes, including the single canonical terminal LF. Invalid inner text returns `WireError`; it must never be repaired, reordered, or normalized. Shared generated wire helpers may implement this check without a runtime dependency on Codegen. The method is a byte conversion, not verification that a separate claimed digest matches those bytes or proof of artifact storage/qualification.
+
+This is interface/criteria approval only; no implementation or commands beyond scratch-file reading/writing were performed.
+
+## B3a descriptor and generated configuration freeze
+
+The independently reviewed source design separates descriptor-free `compile_with_architecture` from pure `compile_services`, which receives explicit bytes and seals one architecture-bound graph. The [compiler plan](../../superpowers/plans/2026-09-23-foundation-compiler-completion#task-b3a-compile-a-precise-descriptor-and-shared-architecture-views) records the real frontend inventory, bounded driver, exact nine-file catalog, and provenance. The [descriptor profile](../service-descriptor-v1#foundation-echo-testadmission-profile), [architecture profile](../architecture-source-profile), and [configuration contract](../service-config-v1) now contain the accepted field, YAML, ABI, and projection rules. No runtime-to-Codegen dependency is introduced.
+
+Pure compilation validates supplied inventory structure and supplied descriptor/architecture bytes. The generation driver independently verifies actual TypeSpec source bytes before publication; a checked Digest alone proves syntax. The compiled descriptor records a path-to-digest projection without replacing input visibility rules. Operation identity comes from the resolved graph revision; service, tenant, and environment use the exact frozen profile identities.
+
+Implementation is pending. The independent corpus still needs the reviewed YAML-limit/NUL/vendor-error/span corrections and actual frontend/driver cases before behavioral RED. B3b supplies real runtime compilation/lifecycle, C adds separately reviewed durable admission, and independent acceptance remains gated.
+
+## Evidence
+
+No JSON evidence files are produced by this review. Evidence comes from parent's source inventory digests and the verified checkpoints linked above.
+
+## Related
+
+<CardGroup cols={2}>
+  <Card title="VS-001 Products" icon="box" href="/architecture/reviews/2026-09-23-vs001-products">
+    Checked product record identifying the implemented target IR and generated artifacts
+  </Card>
+
+  <Card title="Compiler Completion Plan" icon="list-check" href="/superpowers/plans/2026-09-23-foundation-compiler-completion">
+    B3a task scope, frontend inventory, and driver catalog
+  </Card>
+
+  <Card title="VS-001 Design" icon="compass" href="/superpowers/specs/2026-09-23-vs001-durable-capability-design">
+    Durable capability design specification for the VS-001 vertical
+  </Card>
+
+  <Card title="Foundation Next Steps" icon="road" href="/developer/foundation-next-steps">
+    Preserved next-task decisions and remaining scope
+  </Card>
+</CardGroup>

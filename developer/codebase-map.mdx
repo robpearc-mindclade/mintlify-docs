@@ -1,0 +1,168 @@
+---
+title: "Codebase Map: Components, Paths, and Status"
+sidebarTitle: "Codebase Map"
+description: "A navigable map of every implemented crate, generated product, and conformance target in the Mindclade monorepo, with paths, owners, and maturity status."
+---
+
+This page shows which components are implemented, where they live, and how they connect, from authored contracts to the conformance suite. It describes `main` at commit `72b762d`; the crate manifests it cites are unchanged at `main` `1fe3c1a` (the closeout merge), where B4 dependency enforcement (PR #22) has also merged. The platform is an experimental, partial foundation. B3b is **non-durable partial VS-001**. Nothing here is production, release, deployment, or scientific readiness.
+
+This page is a map, not an authority. Design lives in the [system design](/architecture/system-design), maturity in [maturity.yaml](https://github.com/Mindclade-org/mindclade-internal-monorepo/blob/main/docs/architecture/maturity.yaml), and task status in the [current task register](/developer/agent-handoff#current-task-register). Each component's README has its detail.
+
+## The pipeline
+
+```text
+AUTHORED INPUTS
+  contracts/typespec/public/echo.tsp          public Echo API
+  contracts/typespec/internal/*.tsp           internal records
+  contracts/fixtures/foundation/echo.tsp      foundation baseline
+  services/foundation_echo/service.descriptor.yaml
+  docs/architecture/model/architecture.yaml
+  contracts/registries/vs001-proto-fields{,.previous}.yaml
+        |
+        | .tsp sources and descriptor bytes
+        v
++----------------------------------------------------+
+| TypeSpec frontend   codegen/frontend/typespec      |
+| official TypeSpec 1.16.0 on Node                   |
+| emits SemanticInput@v1 (*.semantic.json)           |
++----------------------------------------------------+
+        |
+        | SemanticInput@v1, plus architecture YAML and
+        | Proto registries passed directly to Codegen
+        v
++----------------------------------------------------+
+| Codegen   codegen/ (Rust)   --uses-->   core/      |
+| validate, then seal one immutable MindcladeGraph@v1|
+| borrowed views -> target IR -> emitters            |
+| owned publisher (lock + journal) and --check       |
++----------------------------------------------------+
+        |
+        | writes only its owned catalogs
+        v
++----------------------------------------------------+
+| generated/foundation/  graph.json  manifest.json   |
+| generated/vs001/       graph.json  manifest.json   |
+|   public/   client.ts openapi.json echo.proto      |
+|             mcp.json README.md                     |
+|   rust/     mod.rs public.rs internal.rs wire.rs   |
+|   service/  descriptor.json config.rs http.rs      |
++----------------------------------------------------+
+     |                    |                     |
+     | client.ts          | rust/*, service/*   | all products
+     v                    v                     v
++-----------+  +-----------------------+  +------------------------+
+| TS caller |  | services/             |  | tests/conformance/     |
+| (standard |  |   foundation_echo     |  |   vs001                |
+|  fetch)   |  | lib + binary,         |  | black-box consumers    |
++-----------+  | TestAdmission         |  | and real drivers       |
+               +-----------------------+  +------------------------+
+                 | composes      ^ tests only
+                 v               |
+      +--------------------+  +-----------------------+
+      | platform/          |  | platform/testkit      |
+      |   runtimekit       |<-| testonly: clock,      |
+      | config, lifecycle, |  | identity, fault       |
+      | HTTP/1.1, telemetry|  | barriers, sink        |
+      +--------------------+  +-----------------------+
+
+BUILD LAYER (under everything above)
+  flake.nix + flake.lock --nix develop--> pinned tools, MINDCLADE_TOOLCHAIN_INFO
+  MODULE.bazel + tools/build/foundation.bzl --> @nix_rust @nix_cc @nix_node
+     @nix_python @nix_frontend_deps @nix_typescript @nix_protoc @nix_protobuf_python
+  tools/build/*.bzl rules + BUILD.bazel files --> Bazel build and test
+  Cargo.toml workspace --> cargo test --workspace --locked
+  justfile --> scripts/*.py (doctor, verify_*, generate_*, validate_*)
+```
+
+Reading the diagram: down to the generated products, arrows show data flow. In the bottom boxes, `composes` means Foundation Echo depends on RuntimeKit, `&lt;-` means TestKit depends on RuntimeKit, and `^ tests only` means only Echo's tests use TestKit. Every box is an existing path at `72b762d`, except `TS caller`, which stands for any external caller of the generated client.
+
+### Text equivalent
+
+1. **Authored inputs.** The public contract `contracts/typespec/public/echo.tsp`, the internal TypeSpec under `contracts/typespec/internal/`, and the foundation baseline `contracts/fixtures/foundation/echo.tsp` are the semantic sources. The Echo descriptor `services/foundation_echo/service.descriptor.yaml`, the architecture model `docs/architecture/model/architecture.yaml`, and the two Proto field registries in `contracts/registries/` are the other authored inputs.
+2. **TypeSpec frontend** (`codegen/frontend/typespec`). It runs the official TypeSpec compiler once and writes `SemanticInput@v1` JSON. The Bazel targets are `:echo` (foundation), `:vs001` and `:vs001_services` (which also stages the descriptor bytes).
+3. **Codegen** (`codegen/`, which uses the kernel in `core/`). It reads the frontend output plus the architecture YAML and registries. It validates them, seals one immutable `MindcladeGraph@v1`, lowers borrowed views into a target IR, runs the emitters, and publishes through its owned publisher. It is the only semantic compiler.
+4. **Generated products.** `generated/foundation/` (2 files) and `generated/vs001/` (14 files) are written only by Codegen.
+5. **Consumers.** Callers use `public/client.ts`. The Foundation Echo crate compiles `rust/mod.rs`, `service/http.rs`, and `service/config.rs` into itself. The conformance suite reads all products independently.
+6. **Runtime.** Foundation Echo composes the generated HTTP adapter over RuntimeKit, with the in-memory `TestAdmission` port. TestKit is test-only and used only by tests. RuntimeKit depends on neither TestKit nor Echo.
+7. **Build layer.** Nix pins the tools. Bazel imports them as `@nix_*` repositories and runs the builds and tests. Cargo runs the workspace tests. The `justfile` recipes call the `scripts/` drivers.
+
+## Implemented components
+
+| Component | Path | What it does | Main targets | README | Status |
+| --- | --- | --- | --- | --- | --- |
+| Contracts | `contracts/` | Authored TypeSpec (public Echo, internal records), foundation fixture, Proto field registries. Other registries are scaffold stubs. | Exported to Bazel from `//:BUILD.bazel` | [contracts](https://github.com/Mindclade-org/mindclade-internal-monorepo/blob/main/contracts/README.md), [typespec](https://github.com/Mindclade-org/mindclade-internal-monorepo/blob/main/contracts/typespec/README.md), [registries](https://github.com/Mindclade-org/mindclade-internal-monorepo/blob/main/contracts/registries/README.md), [fixtures](https://github.com/Mindclade-org/mindclade-internal-monorepo/blob/main/contracts/fixtures/README.md) | Partial (B1). Rob accepted the B1 baseline and the B2b field numbers on 2026-09-26 ([owner decisions](/developer/agent-handoff#owner-decisions-recorded-2026-09-26-after-the-closeout)). The transport-rejection profile (K1-30) is declared in the published products. |
+| Semantic kernel | `core/` (`mindclade-core`) | Identity, digest, typed reference, artifact, capability, run, evidence, claim, policy, decision and provenance primitives. | `//core:core`, `//core:tests` | [core](https://github.com/Mindclade-org/mindclade-internal-monorepo/blob/main/core/README.md) | Partial |
+| TypeSpec frontend | `codegen/frontend/typespec` | Official TypeSpec to `SemanticInput@v1`. | `:echo`, `:vs001`, `:vs001_services`, `:tests` | [frontend](https://github.com/Mindclade-org/mindclade-internal-monorepo/blob/main/codegen/frontend/typespec/README.md) | Partial |
+| Codegen | `codegen/` (`mindclade-codegen`) | Validation, graph sealing, compatibility, strict YAML, emitters, publisher, and the B4 boundary check (`codegen/src/boundaries.rs`). CLI: `compile`, `compile-vs001`, `compile-vs001-services`, `compile-vs001-protocols`, `compile-vs001-composition`, `compat`, `check-boundaries`, `check-architecture`. | `//codegen:codegen`, `//codegen:library`, plus test targets such as `:tests`, `:unit_tests`, `:service_http`, `:boundaries_tests` | [codegen](https://github.com/Mindclade-org/mindclade-internal-monorepo/blob/main/codegen/README.md) | Partial |
+| Generated products | `generated/foundation/`, `generated/vs001/` | Owned projections; never hand-edited. | Filegroups `//:vs001_client_source`, `//:vs001_rust_sources`, `//:vs001_protocol_products`, `//:vs001_service_sources` | [generated](https://github.com/Mindclade-org/mindclade-internal-monorepo/blob/main/generated/README.md) | Partial; API in [VS-001 Echo API](/api/vs001-echo) |
+| RuntimeKit | `platform/runtimekit` (`mindclade-runtimekit`) | Checked TestAdmission config, lifecycle and bounded drain, bounded HTTP/1.1 over `std::net`, closed telemetry. | `//platform/runtimekit:runtimekit`; tests `:unit_tests`, `:config_tests`, `:transport_tests`, `:shutdown_tests`, `:overrun_tests`, `:std_socket_probes`, `:dependency_tests` | [runtimekit](https://github.com/Mindclade-org/mindclade-internal-monorepo/blob/main/platform/runtimekit/README.md) | Partial (B3b); non-durable |
+| TestKit | `platform/testkit` (`mindclade-testkit`) | Test-only `ManualClock`, `FixedIdentity`, `FaultBarrier`, `RecordingSink`. | `//platform/testkit:testkit` (testonly); `:unit_tests`, `:testkit_tests` | [testkit](https://github.com/Mindclade-org/mindclade-internal-monorepo/blob/main/platform/testkit/README.md) | Partial; no fake stores, workers or models |
+| Foundation Echo | `services/foundation_echo` (`mindclade-foundation-echo`) | Generated adapter composed over RuntimeKit with `TestAdmission`; library and binary with stdin control. | `:foundation_echo_lib`, `:foundation_echo`; tests `:composition_in_process`, `:composition_compile_fail`, `:supervisor_unit_tests`, `:process_tests` | [foundation_echo](https://github.com/Mindclade-org/mindclade-internal-monorepo/blob/main/services/foundation_echo/README.md); [run it](/runbooks/run-foundation-echo) | Non-durable partial VS-001 (B3b) |
+| Build rules and actions | `tools/build/` | Nix-to-Bazel toolchain extension, `typespec_compile`/`typespec_test` and `vs001_*` rules, frontend and TypeScript action drivers, offline frontend dependency closure, toolchain test. | `//tools/build:generator_inputs` | [tools/build](https://github.com/Mindclade-org/mindclade-internal-monorepo/blob/main/tools/build/README.md) | Partial |
+| Conformance suite | `tests/conformance/vs001` | Black-box checks of generated products and real drivers: `client`, `types`, `dto`, `service_driver`, `protocol_products`, `proto_descriptor`, `protocol_driver`, `service_config_rust`, `service_config_compile_fail`, `service_http_rust`, `composition_driver`. | Those labels under `//tests/conformance/vs001` | [conformance](https://github.com/Mindclade-org/mindclade-internal-monorepo/blob/main/tests/conformance/vs001/README.md) | Tests authored separately from the emitters; source checks, not independent qualification (D4) |
+| Verification drivers | `justfile`, `scripts/` | Doctor, aggregate verification, generation, scaffold and tree checks. | `just` recipes | [local verification](/runbooks/local-verification), [regeneration](/runbooks/regenerate-generated-outputs) | Local source checks only |
+| Dependency-boundary collectors and wrappers (B4) | `tools/validation/`, `tools/build/dependency_facts.bzl` | Observe actual Cargo, Bazel and TypeScript dependencies as `DependencyFacts@v1` (`dependency_facts.py`, `typescript_facts.mjs`, the Bazel aspect); the wrappers `arch-lint.py`, `dependency-lint.py`, `descriptor-lint.py` and `generated-provenance.py` hand the decision to Codegen. | `just verify-boundaries` | [B4 criteria](https://github.com/Mindclade-org/mindclade-internal-monorepo/blob/main/docs/superpowers/specs/2026-09-24-b4-criteria.md); [local verification](/runbooks/local-verification) | Source complete on the branch; host-scope pass pending on both hosts |
+
+All 39 Bazel test targets that `just verify` runs are listed in `TEST_TARGETS` in [`scripts/verify_foundation.py`](https://github.com/Mindclade-org/mindclade-internal-monorepo/blob/main/scripts/verify_foundation.py).
+
+## Dependency direction today
+
+From the crate manifests and Bazel rules at `72b762d`:
+
+- `core` depends on no workspace crate.
+- `codegen` depends on `core`. It is the only semantic compiler. RuntimeKit and the service consume compiled Rust configuration and never parse TypeSpec or YAML at runtime.
+- `runtimekit` depends only on `core` and `httparse`. `//platform/runtimekit:dependency_tests` checks that it stays free of Echo, Codegen, YAML, and TestKit.
+- `testkit` depends on `core` and `runtimekit`, and is `testonly`.
+- `foundation_echo` depends on `core`, `runtimekit`, `serde` and `serde_json`. It takes TestKit only as a dev-dependency. `:composition_in_process` checks, through the `binary_deps` genquery, that the binary's closure excludes TestKit.
+- The conformance crate depends on `core` and compiles the generated Rust sources.
+- The generated TypeScript client has no package dependencies.
+
+These are local checks on specific crates. Repository-wide enforcement is B4, merged through PR #22: `just verify-boundaries` collects the running host's actual Cargo, Bazel, and TypeScript dependencies and has `codegen check-boundaries` check them against the `allow`, `deny`, and `external` rules of `docs/architecture/model/architecture.yaml`, in every `just verify`. The two-host matrix passed once for B4's head `a08e802` (receipt on PR #22); each candidate that governance admission consumes needs its own.
+
+## Not built yet, and who owns it
+
+| Capability | Owning gate | Where specified |
+| --- | --- | --- |
+| A fresh two-host B4 matrix for each candidate that governance admission consumes (B4 itself is merged) | B4 and G3 at O3 | [B4 criteria](https://github.com/Mindclade-org/mindclade-internal-monorepo/blob/main/docs/superpowers/specs/2026-09-24-b4-criteria.md) §9–§10; [task register](/developer/agent-handoff#current-task-register) |
+| PostgreSQL harness and schema | C1 | [C plan](https://github.com/Mindclade-org/mindclade-internal-monorepo/blob/main/docs/superpowers/plans/2026-09-23-vs001-c-durability.md) |
+| Atomic admission and idempotency (the first producer of `409`) | C2 | C plan |
+| Dispatch, ownership and fenced completion | C3 | C plan |
+| Recovery, retry and confirmed cancellation | C4 | C plan |
+| Generated client end to end on the durable path | C5 | C plan |
+| Bound artifacts, evidence and acyclic capsule | D1 | [D plan](https://github.com/Mindclade-org/mindclade-internal-monorepo/blob/main/docs/superpowers/plans/2026-09-23-vs001-d-assurance.md) |
+| Fresh-store sealed replay | D2 | D plan |
+| Fail-closed assessment and policy evaluation | D3 | D plan |
+| Independent run, final envelope and acceptance | D4 | D plan |
+| Trusted governance boundaries, DX2 rehearsal | G3, DX2 | Task register |
+| Protected operation, trusted custody, owner acceptance | O1–O4 | [Governance status](/architecture/engineering/governance-status) |
+| Retiring the legacy VS-001 7/9/13-file Codegen modes (decided by Rob on 2026-09-26, D-13; he accepted the B1 baseline and the B2b field numbers the same day) | A reviewed post-migration gate; criteria to write | [Owner decisions](/developer/agent-handoff#owner-decisions-recorded-2026-09-26-after-the-closeout) |
+
+Scaffolded directories such as `platform/runtimekit/health/` or `platform/testkit/fake_storage/` hold only `.gitkeep` markers. Their presence is not implementation ([ADR-015](/architecture/adr/adr-015-original-blueprint-scaffold-alignment)).
+
+## Related
+
+<CardGroup cols={2}>
+  <Card title="Start here" icon="rocket" href="/developer/start-here">
+    Access prerequisites and first commands for new engineers.
+  </Card>
+
+  <Card title="VS-001 Echo API" icon="code" href="/api/vs001-echo">
+    Reference for the generated Echo API surface.
+  </Card>
+
+  <Card title="Local verification" icon="check-circle" href="/runbooks/local-verification">
+    Run `just verify`, read receipts, and distinguish host failures from verdicts.
+  </Card>
+
+  <Card title="Regenerate outputs" icon="refresh-cw" href="/runbooks/regenerate-generated-outputs">
+    Re-run generators when authored inputs change or drift is detected.
+  </Card>
+
+  <Card title="Run Foundation Echo" icon="play" href="/runbooks/run-foundation-echo">
+    Build, start, call, and stop the non-durable Echo binary.
+  </Card>
+
+  <Card title="System design" icon="layers" href="/architecture/system-design">
+    Target architecture beyond what is currently built.
+  </Card>
+</CardGroup>

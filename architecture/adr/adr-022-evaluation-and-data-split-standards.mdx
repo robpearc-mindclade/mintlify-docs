@@ -1,0 +1,67 @@
+---
+title: "ADR-022: Evaluation Artifacts and Data-Split Standards"
+sidebarTitle: "Eval Data Splits"
+description: "Proposed ADR defining pin requirements for ProteinGym and FoldBench benchmarks and the mandatory fields for dataset split manifests."
+---
+
+This proposed ADR defines pin requirements for ProteinGym and FoldBench as versioned evaluation artifacts, and sets the mandatory fields for dataset split manifests. It is a draft from group D of the 2026-09-26 design audit and decides nothing until reviewed and accepted.
+
+| Attribute | Value |
+| --- | --- |
+| Status | Proposed |
+| Date | 2026-09-27 |
+| Related | ADR-021, ADR-019, ADR-004 |
+
+## Context
+
+Programmable biology already requires split qualification with deduplication, cross-source overlap, temporal and family or cluster controls, and leakage checkers validated with deliberately contaminated fixtures. Gate S1 of the roadmap exits on validated leakage controls. No standard yet names the benchmarks or the clustering and date parameters a manifest must carry, and ADR-021 cannot be decided without both.
+
+External facts this draft relies on:
+
+- **ProteinGym** v1.3 (DOI `10.5281/zenodo.15293562`) is MIT-licensed and ships as versioned archives. It covers about 2.7M missense variants across 217 substitution assays and about 300k mutants across 74 indel assays, with clinical benchmarks ([ProteinGym](https://github.com/OATML-Markslab/ProteinGym)).
+- **FoldBench** has 1,522 biological assemblies in nine tasks. Entries were deposited in the PDB after 2023-01-13 (the AlphaFold 3 validation cutoff) and before 2024-11-01. Homology filters include under 40% sequence identity to the training set for monomers and protein-peptide interfaces, TM-score under 0.5 for protein-protein interfaces, and ligand exclusion above 40% protein identity and 50% ligand Tanimoto similarity ([paper](https://pmc.ncbi.nlm.nih.gov/articles/PMC12800276/)). The [repository](https://github.com/BEAM-Labs/FoldBench) is MIT-licensed, has no release tags, and has had dated updates since publication.
+- **MMseqs2** (MIT) clusters with `--min-seq-id`, coverage `-c`, `--cluster-mode` and E-value `-e`, through `cluster` or `linclust` workflows ([MMseqs2 wiki](https://github.com/soedinglab/MMseqs2/wiki)).
+- **Foldseek** (GPL-3.0) clusters structures with `easy-cluster`, `--alignment-type`, `-c`, `--min-seq-id`, `-e`, `--tmscore-threshold` and `--lddt-threshold` ([Foldseek](https://github.com/steineggerlab/foldseek)).
+
+## Decision
+
+1. **Pinned evaluation artifacts.** ProteinGym and FoldBench are registered as versioned evaluation artifacts with identity, digest, kind, provenance, and a licence record (ADR-004). ProteinGym is pinned by release version and archive digests; FoldBench by commit and a digest of its target list and archives. Upgrading creates a new artifact version and a new comparison, never an in-place edit. CI uses pinned local fixtures, never a live download.
+2. **Use.** ProteinGym evaluates sequence representations and variant effects (Clade-Embed against ESM C). FoldBench evaluates structure (Clade Molecular against Boltz-2 and Protenix). Each claim pre-registers its subsets and metrics.
+3. **Required clustering fields.** Every dataset and split manifest records:
+   - tool, version and binary digest; workflow (`cluster`, `linclust`, `easy-cluster`) and alignment type;
+   - thresholds as run: sequence identity, coverage and coverage mode, cluster mode, E-value, and for structure the TM-score or LDDT threshold;
+   - for small molecules, the similarity measure and threshold;
+   - the reference set the held-out property is computed against (the training corpus snapshot, by digest), the cluster-assignment artifact, and the split unit (the cluster).
+4. **Required temporal fields.** The manifest records the date field used (for example PDB deposition, PDB release, or source-database release), the cutoff as an ISO 8601 date in UTC, whether the boundary is inclusive, and the source snapshot the dates come from. For each pretrained baseline it records the training-data cutoff that the baseline's publisher states, or `unknown`.
+5. **Inherited benchmark properties.** FoldBench is low-homology relative to PDB data before 2023-01-13. For a model trained on later or unknown data, results are labelled potentially contaminated and cannot support a held-out claim unless the targets are re-filtered against that model's own training set.
+6. **Contaminated fixtures.** Each leakage checker has deliberately contaminated fixtures: an exact duplicate across splits, a near-duplicate above threshold, a train-cluster member in test, a post-cutoff entry in train, and a cross-source duplicate under different identifiers. Each must make the checker FAIL, and a clean fixture must PASS. Reports are retained with the checker version.
+7. **Missing means BLOCKED.** A manifest that lacks a required field, or a checker without fixture evidence, leaves the split BLOCKED for qualification.
+8. **Values belong to the claim.** This ADR fixes the fields, not universal thresholds. Each evaluator policy pre-registers its values and freezes them with the evaluator before a campaign, as FoldBench does for its own targets.
+
+## Consequences
+
+- S1 dataset manifests and the S2 evaluator gain concrete required fields; ADR-021 becomes decidable.
+- Foldseek's GPL-3.0 licence should be reviewed before it is bundled; running it as a separate pinned tool is the expected pattern. Licences of the underlying PDB and assay data are recorded separately from the benchmark code licences.
+- Benchmark upgrades cost a re-evaluation of every compared model, by design.
+- Adopted baselines with unknown training cutoffs carry a contamination label, which limits what their comparisons can support.
+- Nothing is downloaded, and no manifest schema is authored here; schemas belong in `contracts/` through Codegen when S1 is activated.
+
+## Alternatives considered
+
+Using a custom benchmark suite was rejected because ProteinGym and FoldBench are already standard, have established community trust, and provide the necessary diversity of tasks.
+
+## Related
+
+<CardGroup cols={2}>
+  <Card title="Adopt-or-Build Gate" icon="code-compare" href="/architecture/adr/adr-021-clade-adopt-or-build-gate">
+    ADR-021, the gate these standards serve.
+  </Card>
+
+  <Card title="PyTorch Training Substrate" icon="microchip" href="/architecture/adr/adr-019-pytorch-training-substrate">
+    ADR-019, the loader that binds to split manifests.
+  </Card>
+
+  <Card title="Programmable Biology" icon="dna" href="/architecture/programmable-biology">
+    Scientific acceptance detail for capability planning.
+  </Card>
+</CardGroup>

@@ -1,0 +1,61 @@
+---
+title: "System Foundations Overview"
+sidebarTitle: "Overview"
+description: "Navigate the Mindclade architectural foundation pages. Authored 2026-09-23; partial compiler/kernel implementations exist, wider layers remain planned."
+---
+
+This page explains the full Mindclade target system, how its parts relate, and what evidence each part needs. It is an authored design reference dated 2026-09-23. The repository contains a partial compiler and kernel foundation; the wider platform, runtime, scientific planes, and deployment fabric remain planned. These pages explain accepted intent. They do not activate scaffolded packages, define new wire schemas, authorize execution, or establish qualification.
+
+Use the [current task register](/developer/agent-handoff#current-task-register) for remaining work and the [maturity model](https://github.com/Mindclade-org/mindclade-internal-monorepo/blob/main/docs/architecture/maturity.yaml) for recorded scope.
+
+## Reading routes
+
+For a first architectural reading, follow the pages in this order. Each page links to the existing contract, ADR, or specification that owns its details.
+
+| Reference | Question it answers |
+| --- | --- |
+| [System context](/architecture/foundations/system-context) | Who uses Mindclade, where are the system boundaries, and which root owns each responsibility? |
+| [Semantic compilation](/architecture/foundations/semantic-compilation) | How does authored intent become one graph and reproducible products? |
+| [Kernel and provenance](/architecture/foundations/kernel-and-provenance) | How are identities, artifacts, runs, evidence, and decisions related? |
+| [Platform and execution](/architecture/foundations/platform-and-execution) | How do thin services, RuntimeKit, durable orchestration, and model execution fit together? |
+| [Scientific and agent planes](/architecture/foundations/scientific-and-agent-planes) | How do biology, data, models, learning, and governed agents exchange attributable results? |
+| [Security and assurance](/architecture/foundations/security-and-assurance) | Where are trust boundaries, and who can accept which claim? |
+| [Delivery and operations](/architecture/foundations/delivery-and-operations) | How does reviewed intent reach an environment, and what must operators prove? |
+| [Generated surface ownership](/architecture/generated-surface-ownership) | Which files are authored, projected, mechanically maintained, or observed evidence? |
+| [Blueprint coverage](/architecture/foundations/blueprint-coverage) | Where are all 20 original sections and every target image box explained? |
+
+A developer making a change should begin with [start here](/developer/start-here), then the relevant foundation page and its governing specification. Claude should also read the [Claude handoff](/developer/claude-handoff); other agents use the same [provider-neutral workflow](https://github.com/Mindclade-org/mindclade-internal-monorepo/blob/main/.agents/workflows/foundation-development.md). An operator should begin with [delivery and operations](/architecture/foundations/delivery-and-operations) and the [GitHub operator runbook](/operations/github-governance), preserving all blocked gates. Reading an operating procedure does not grant its privileges.
+
+## One architecture, several useful views
+
+The layered [platform diagram](/architecture/platform-diagram) shows semantic compilation, platform/execution, and shared laws/delivery. The [system design](/architecture/system-design) provides a continuous overview. The [master blueprint](/architecture/master-blueprint) organizes the same design into responsibilities and ownership. The four responsibilities (stable truth, dynamic execution, independent assurance, and governed evolution) apply across the layers; they are not four competing systems.
+
+One Rust Codegen compiler seals an immutable `MindcladeGraph`. Semantic and Capability views borrow that graph; their names do not create separate editable authorities. Services compose domain capabilities and shared platform mechanisms. Logical planes do not require separately deployed microservices. External products remain adapters around Mindclade-owned meaning and policy.
+
+The image is a reference illustration, not a Codegen-emitted atlas or a live topology. The complete [repository tree](/architecture/repository-tree) is a mechanical inventory, not proof that every reserved path is implemented. Generated architecture models and views remain subject to their own compiler and evidence work; manually authored foundation pages do not substitute for them.
+
+## Authority and maintenance
+
+[AGENTS.md](https://github.com/Mindclade-org/mindclade-internal-monorepo/blob/main/AGENTS.md) defines precedence. Accepted ADRs and active architecture metadata govern these explanations. Exact schemas and behavior stay in their linked source contracts and specifications. The immutable [original blueprint](/architecture/sources/original-greenfield-blueprint) preserves the user's design input; [ADR-015](/architecture/adr/adr-015-original-blueprint-scaffold-alignment) records its scaffold exception and graph clarification.
+
+Use [repository layout](/architecture/model/repository-layout) and [CODEOWNERS](https://github.com/Mindclade-org/mindclade-internal-monorepo/blob/main/CODEOWNERS) for boundary and review ownership. Use the [generated-output policy](/architecture/generated-output-policy) for regeneration and provenance. Change an authority first when a design decision changes, then update its explanatory references. Do not copy volatile task status into this package or rewrite historical evidence to appear current.
+
+## Related
+
+<CardGroup cols={2}>
+  <Card title="System Context" icon="globe" href="/architecture/foundations/system-context">
+    Learn who uses Mindclade and where the system boundaries lie.
+  </Card>
+
+  <Card title="Blueprint Coverage" icon="map" href="/architecture/foundations/blueprint-coverage">
+    Locate every original blueprint section and architectural image box.
+  </Card>
+
+  <Card title="Semantic Compilation" icon="code" href="/architecture/foundations/semantic-compilation">
+    How authored intent becomes one immutable graph and generated products.
+  </Card>
+
+  <Card title="Kernel and Provenance" icon="fingerprint" href="/architecture/foundations/kernel-and-provenance">
+    Shared identity, artifact, and evidence primitives for every domain.
+  </Card>
+</CardGroup>

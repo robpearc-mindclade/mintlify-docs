@@ -1,0 +1,221 @@
+---
+title: "Documentation Automation"
+sidebarTitle: "Doc Automation"
+description: "Make documentation governance repeatable and machine-checkable without turning Linear or generated prose into technical authority."
+---
+
+This guide explains how documentation governance is repeatable and machine-checkable, without turning Linear or generated prose into technical authority. It is for documentation authors, integration owners and reviewersThis guide explains how documentation governance is repeatable and machine-checkable, without turning Linear or generated prose into technical authority. It is for documentation authors, integration owners and reviewers.
+
+<Info>
+  Status: experimental.
+</Info>
+
+## Authority and boundaries
+
+<Info>
+  Status: experimental.
+</Info>
+
+## Authority and boundaries
+
+Linear owns engineering work scope, assignment, blockers and closure. Git owns reviewed technical authority. The repository-owned [Linear task template](/developer/linear-task-template) captures the human work contract, while the [architecture documentation workflow](https://github.com/Mindclade-org/mindclade-internal-monorepo/blob/main/.agents/workflows/architecture-docs.md) defines how active documentation is authored and reviewedLinear owns engineering work scope, assignment, blockers and closure. Git owns reviewed technical authority. The repository-owned [Linear task template](/developer/linear-task-template) captures the human work contract, while the [architecture documentation workflow](https://github.com/Mindclade-org/mindclade-internal-monorepo/blob/main/.agents/workflows/architecture-docs.md) defines how active documentation is authored and reviewed.
+
+Automation does not grant execution, admission, release or publication authority. It does not call the Linear API from CI, create a second task register, amend accepted ADRs through prose, or treat a generated projection as an authored sourceAutomation does not grant execution, admission, release or publication authority. It does not call the Linear API from CI, create a second task register, amend accepted ADRs through prose, or treat a generated projection as an authored source.
+
+Generated files remain derived from their authored inputs and generator. Historical records remain bound to their original date and scope. Scaffold presence remains planned until its existing activation gate is reviewed and satisfied.
+
+## What the static check owns
+
+The repository check `scripts/validate_documentation_automation.py` verifies a small set of integration invariants that are not semantic architecture compilation:
+
+- the task template still exposes the required H2 contract headings;
+- the architecture workflow keeps its required H2/H3 headings outside fenced examples;
+- the architecture prompt keeps its required field labels inside the shared fenced `text` contract block;
+- the architecture evaluation keeps its required first-column table labels;
+- this guide links to each governing source;
+- `just check` and `just verify` both invoke `verify-doc-automation` first.
+
+Generated files remain derived from their authored inputs and generator. Historical records remain bound to their original date and scope. Scaffold presence remains planned until its existing activation gate is reviewed and satisfied.
+
+## What the static check owns
+
+The repository check `scripts/validate_documentation_automation.py` verifies a small set of integration invariants that are not semantic architecture compilation:
+
+- the task template still exposes the required H2 contract headings;
+- the architecture workflow keeps its required H2/H3 headings outside fenced examples;
+- the architecture prompt keeps its required field labels inside the shared fenced `text` contract block;
+- the architecture evaluation keeps its required first-column table labels;
+- this guide links to each governing source;
+- `just check` and `just verify` both invoke `verify-doc-automation` first.
+
+Matching is structural rather than substring-based: prose or fenced examples cannot silently satisfy a required heading or evaluation row. The prompt is the intentional exception because its shared field schema is itself a fenced `text` blockMatching is structural rather than substring-based: prose or fenced examples cannot silently satisfy a required heading or evaluation row. The prompt is the intentional exception because its shared field schema is itself a fenced `text` block.
+
+The deeper document-shape, repository-tree and local-link checks stay in `scripts/validate_repository.py`. Keeping those responsibilities separate avoids a second documentation schema or a competing architecture authoritydeeper document-shape, repository-tree and local-link checks stay in `scripts/validate_repository.py`. Keeping those responsibilities separate avoids a second documentation schema or a competing architecture authority.
+
+The governing prompt and review surfaces are the [architecture documentation prompt](https://github.com/Mindclade-org/mindclade-internal-monorepo/blob/main/.agents/prompts/architecture-docs.md) and [architecture documentation evaluation](https://github.com/Mindclade-org/mindclade-internal-monorepo/blob/main/.agents/evals/architecture-docs.md). Changes to their wording are allowed, but deleting contract anchors requires an intentional update to the validator, tests and this guide in the same reviewed change.
+
+## Connected Linear task binding
+
+The governing prompt and review surfaces are the [architecture documentation prompt](https://github.com/Mindclade-org/mindclade-internal-monorepo/blob/main/.agents/prompts/architecture-docs.md) and [architecture documentation evaluation](https://github.com/Mindclade-org/mindclade-internal-monorepo/blob/main/.agents/evals/architecture-docs.md). Changes to their wording are allowed, but deleting contract anchors requires an intentional update to the validator, tests and this guide in the same reviewed change.
+
+## Connected Linear task binding
+
+`scripts/validate_linear_task_binding.py` adds a separate connected-boundary observation without moving Linear authority into the static documentation validator. It reads only the bounded GitHub event JSON supplied to the workflow and the versioned supervised policy; it never calls Linear or another network service`scripts/validate_linear_task_binding.py` adds a separate connected-boundary observation without moving Linear authority into the static documentation validator. It reads only the bounded GitHub event JSON supplied to the workflow and the versioned supervised policy; it never calls Linear or another network service.
+
+The dedicated App identity is derived from `.agents/policies/supervised.v1.json`. For a `pull_request` authored by that App's bot, intentional task-binding sources are the Linear-generated head branch, a `MIN-N:` title prefix, and explicit body lines such as `Fixes MIN-N` or `References MIN-N`. Present sources must resolve to one canonical identifier. Missing, malformed, or conflicting bindings fail closed. Duplicate explicit references to the same identifier remain one candidate; incidental prose mentions do not bindThe dedicated App identity is derived from `.agents/policies/supervised.v1.json`. For a `pull_request` authored by that App's bot, intentional task-binding sources are the Linear-generated head branch, a `MIN-N:` title prefix, and explicit body lines such as `Fixes MIN-N` or `References MIN-N`. Present sources must resolve to one canonical identifier. Missing, malformed, or conflicting bindings fail closed. Duplicate explicit references to the same identifier remain one candidate; incidental prose mentions do not bind.
+
+Pull requests not authored by the dedicated App return `NOT_APPLICABLE`, not PASS. `merge_group`, `push`, `workflow_dispatch`, and local runs are also `NOT_APPLICABLE`; App authorship, CODEOWNER review, merge-queue admission, and Linear issue existence/state remain separate governance facts. The deterministic observation schema is `mindclade.linear-task-binding-observation/v1` and is retained under `target/foundation-verification/` when the aggregate verification runs.
+
+## Local verification
+
+Use the narrow check while editing:
+
+```bash
+just verify-doc-automation
+just verify-linear-task-binding
+```
+
+Pull requests not authored by the dedicated App return `NOT_APPLICABLE`, not PASS. `merge_group`, `push`, `workflow_dispatch`, and local runs are also `NOT_APPLICABLE`; App authorship, CODEOWNER review, merge-queue admission, and Linear issue existence/state remain separate governance facts. The deterministic observation schema is `mindclade.linear-task-binding-observation/v1` and is retained under `target/foundation-verification/` when the aggregate verification runs.
+
+## Local verification
+
+Use the narrow check while editing:
+
+```bash
+just verify-doc-automation
+just verify-linear-task-binding
+```
+
+Without a pull-request event, the task-binding command deterministically reports `NOT_APPLICABLE` and exits successfully. In Actions it evaluates the current PR event before the heavier foundation verification dependencies.Without a pull-request event, the task-binding command deterministically reports `NOT_APPLICABLE` and exits successfully. In Actions it evaluates the current PR event before the heavier foundation verification dependencies.
+
+For automation or dashboard consumers, request one deterministic diagnostic document:
+
+```bash
+python3 scripts/validate_documentation_automation.py --json
+```
+
+For automation or dashboard consumers, request one deterministic diagnostic document:
+
+```bash
+python3 scripts/validate_documentation_automation.py --json
+```
+
+The JSON schema is `mindclade.documentation-automation-check.v1`. It reports only static check names, PASS/FAIL status and failure detail. It is a diagnostic projection, not WorkPacket@v1, GovernanceReport@v1, approval evidence or task state.The JSON schema is `mindclade.documentation-automation-check.v1`. It reports only static check names, PASS/FAIL status and failure detail. It is a diagnostic projection, not WorkPacket@v1, GovernanceReport@v1, approval evidence or task state.
+
+Before review, run the repository tree and link validator as well:
+
+```bash
+just verify-tree
+```
+
+The parent or integration owner runs the broader repository verification required by the admitted task. A local pass is source evidence only; unavailable required checks remain BLOCKED rather than being described as successful.
+
+## CI integration
+
+Before review, run the repository tree and link validator as well:
+
+```bash
+just verify-tree
+```
+
+The parent or integration owner runs the broader repository verification required by the admitted task. A local pass is source evidence only; unavailable required checks remain BLOCKED rather than being described as successful.
+
+## CI integration
+
+The existing [Executable Foundation workflow](https://github.com/Mindclade-org/mindclade-internal-monorepo/blob/main/.github/workflows/foundation.yaml) runs `just verify` for pull-request, merge-group and main evidence. Documentation automation is therefore part of the existing verification graph instead of a second required GitHub Actions workflow. The documentation check is the first dependency of both `just check` and `just verify`; the event-only Linear task-binding observation is the second dependency of `just verify`. Cheap governance and binding drift therefore fail before the broader Python, Rust, Bazel and generated-output work begie existing [Executable Foundation workflow](https://github.com/Mindclade-org/mindclade-internal-monorepo/blob/main/.github/workflows/foundation.yaml) runs `just verify` for pull-request, merge-group and main evidence. Documentation automation is therefore part of the existing verification graph instead of a second required GitHub Actions workflow. The documentation check is the first dependency of both `just check` and `just verify`; the event-only Linear task-binding observation is the second dependency of `just verify`. Cheap governance and binding drift therefore fail before the broader Python, Rust, Bazel and generated-output work begins.
+
+This avoids duplicate CI and keeps the repository's single required `linux-foundation` context authoritative. The workflow itself retains its existing least-privilege `contents: read` permissions and pinned actions.
+
+## Extending the contract
+
+Add an invariant only when it protects an existing repository authority boundary. For a new invariant:
+
+1. write or change its regression test first and observe the expected failure;
+2. make the smallest validator change that satisfies that test;
+3. update this guide when the operator or contributor workflow changes;
+4. refresh the mechanical repository tree when tracked paths changed;
+5. run the narrow checks and the task's required parent-owned verification;
+6. obtain fresh whole-candidate review before governed publication.
+
+Do not add live Linear reads, implicit network dependencies or generated-document rewrites to this static check. Cross-system synchronization belongs to the connected integration layer and remains subject to its own credentials, evidence and failure handling.
+
+## Failure behaviour
+
+This avoids duplicate CI and keeps the repository's single required `linux-foundation` context authoritative. The workflow itself retains its existing least-privilege `contents: read` permissions and pinned actions.
+
+## Extending the contract
+
+Add an invariant only when it protects an existing repository authority boundary. For a new invariant:
+
+1. write or change its regression test first and observe the expected failure;
+2. make the smallest validator change that satisfies that test;
+3. update this guide when the operator or contributor workflow changes;
+4. refresh the mechanical repository tree when tracked paths changed;
+5. run the narrow checks and the task's required parent-owned verification;
+6. obtain fresh whole-candidate review before governed publication.
+
+Do not add live Linear reads, implicit network dependencies or generated-document rewrites to this static check. Cross-system synchronization belongs to the connected integration layer and remains subject to its own credentials, evidence and failure handling.
+
+## Failure behaviour
+
+A missing governing file, structurally missing anchor, missing guide link, or misordered/missing Just recipe dependency returns exit status 1 with the violated contract detail. Text mode writes the first failure to stderr. `--json` mode writes one parseable report to stdout, emits no diagnostic prose to stderr, and still exits 1 when any named check fails. The validator does not repair files or mutate external systemsA missing governing file, structurally missing anchor, missing guide link, or misordered/missing Just recipe dependency returns exit status 1 with the violated contract detail. Text mode writes the first failure to stderr. `--json` mode writes one parseable report to stdout, emits no diagnostic prose to stderr, and still exits 1 when any named check fails. The validator does not repair files or mutate external systems.
+
+Publication still follows the [GitHub governance operator runbook](/operations/github-governance): governed coding and documentation PRs use the dedicated App identity, and Rob remains the CODEOWNER acceptance role. This check does not bypass that separation.
+
+## Related
+
+<CardGroup cols={2}>
+  <Card title="Linear task template" icon="list-todo" href="/developer/linear-task-template">
+    Human work contract for Linear.
+  </Card>
+
+  <Card title="Architecture workflow" icon="git-branch" href="https://github.com/Mindclade-org/mindclade-internal-monorepo/blob/main/.agents/workflows/architecture-docs.md">
+    How active documentation is authored and reviewed.
+  </Card>
+
+  <Card title="Architecture prompt" icon="text-cursor" href="https://github.com/Mindclade-org/mindclade-internal-monorepo/blob/main/.agents/prompts/architecture-docs.md">
+    Shared field schema for the architecture prompt.
+  </Card>
+
+  <Card title="Architecture evaluation" icon="ruler" href="https://github.com/Mindclade-org/mindclade-internal-monorepo/blob/main/.agents/evals/architecture-docs.md">
+    Evaluation surface for architecture docs.
+  </Card>
+
+  <Card title="GitHub governance" icon="github" href="/operations/github-governance">
+    Governed PR, merge queue and operator runbook.
+  </Card>
+
+  <Card title="Agent handoff" icon="hand" href="/developer/agent-handoff">
+    Current task register.
+  </Card>
+</CardGroup>
+
+Publication still follows the [GitHub governance operator runbook](/operations/github-governance): governed coding and documentation PRs use the dedicated App identity, and Rob remains the CODEOWNER acceptance role. This check does not bypass that separation.
+
+## Related
+
+<CardGroup cols={2}>
+  <Card title="Linear task template" icon="list-todo" href="/developer/linear-task-template">
+    Human work contract for Linear.
+  </Card>
+
+  <Card title="Architecture workflow" icon="git-branch" href="https://github.com/Mindclade-org/mindclade-internal-monorepo/blob/main/.agents/workflows/architecture-docs.md">
+    How active documentation is authored and reviewed.
+  </Card>
+
+  <Card title="Architecture prompt" icon="text-cursor" href="https://github.com/Mindclade-org/mindclade-internal-monorepo/blob/main/.agents/prompts/architecture-docs.md">
+    Shared field schema for the architecture prompt.
+  </Card>
+
+  <Card title="Architecture evaluation" icon="ruler" href="https://github.com/Mindclade-org/mindclade-internal-monorepo/blob/main/.agents/evals/architecture-docs.md">
+    Evaluation surface for architecture docs.
+  </Card>
+
+  <Card title="GitHub governance" icon="github" href="/operations/github-governance">
+    Governed PR, merge queue and operator runbook.
+  </Card>
+
+  <Card title="Agent handoff" icon="hand" href="/developer/agent-handoff">
+    Current task register.
+  </Card>
+</CardGroup>
