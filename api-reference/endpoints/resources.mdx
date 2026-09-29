@@ -1,5 +1,5 @@
 ---
-title: "Resources API: Create, Read, Update, and Delete"
+title: "Resources API Reference: Create, Read, Update, Delete"
 sidebarTitle: "Resources"
 description: "Full reference for the MindClade Resources API. Create, list, retrieve, update, and delete resources with complete request and response examples."
 ---
@@ -52,6 +52,20 @@ const page = await client.resources.list({
 for (const resource of page.data) {
   console.log(resource.id, resource.name);
 }
+```
+
+```python Python
+import mindclade
+
+client = mindclade.MindClade(api_key="mk_live_4xKz9mPqRtL2vNwY8cJdB3sH")
+
+page = client.resources.list(
+    limit=25,
+    metadata={"env": "production"},
+)
+
+for resource in page.data:
+    print(resource.id, resource.name)
 ```
 </CodeGroup>
 
@@ -147,6 +161,23 @@ const resource = await client.resources.create({
 
 console.log(resource.id); // res_9gU4lXnYqRoM2wAb
 ```
+
+```python Python
+import mindclade
+
+client = mindclade.MindClade(api_key="mk_live_4xKz9mPqRtL2vNwY8cJdB3sH")
+
+resource = client.resources.create(
+    name="Ingestion Worker",
+    metadata={
+        "env": "production",
+        "region": "us-east-1",
+        "team": "platform",
+    },
+)
+
+print(resource.id)  # res_9gU4lXnYqRoM2wAb
+```
 </CodeGroup>
 
 ### Response example
@@ -223,6 +254,17 @@ const resource = await client.resources.retrieve("res_9gU4lXnYqRoM2wAb");
 
 console.log(resource.name);   // "Ingestion Worker"
 console.log(resource.status); // "active"
+```
+
+```python Python
+import mindclade
+
+client = mindclade.MindClade(api_key="mk_live_4xKz9mPqRtL2vNwY8cJdB3sH")
+
+resource = client.resources.retrieve("res_9gU4lXnYqRoM2wAb")
+
+print(resource.name)    # "Ingestion Worker"
+print(resource.status)  # "active"
 ```
 </CodeGroup>
 
@@ -326,6 +368,25 @@ console.log(resource.name);              // "Ingestion Worker — v2"
 console.log(resource.metadata.region);  // "eu-west-1"
 console.log(resource.metadata.env);     // "production" — untouched
 ```
+
+```python Python
+import mindclade
+
+client = mindclade.MindClade(api_key="mk_live_4xKz9mPqRtL2vNwY8cJdB3sH")
+
+resource = client.resources.update(
+    "res_9gU4lXnYqRoM2wAb",
+    name="Ingestion Worker — v2",
+    metadata={
+        "region": "eu-west-1",
+        "version": "2.0.0",
+    },
+)
+
+print(resource.name)             # "Ingestion Worker — v2"
+print(resource.metadata.region)  # "eu-west-1"
+print(resource.metadata.env)     # "production" — untouched
+```
 </CodeGroup>
 
 ### Response example
@@ -407,6 +468,17 @@ const result = await client.resources.delete("res_9gU4lXnYqRoM2wAb");
 
 console.log(result.deleted); // true
 console.log(result.id);      // "res_9gU4lXnYqRoM2wAb"
+```
+
+```python Python
+import mindclade
+
+client = mindclade.MindClade(api_key="mk_live_4xKz9mPqRtL2vNwY8cJdB3sH")
+
+result = client.resources.delete("res_9gU4lXnYqRoM2wAb")
+
+print(result.deleted)  # True
+print(result.id)       # "res_9gU4lXnYqRoM2wAb"
 ```
 </CodeGroup>
 

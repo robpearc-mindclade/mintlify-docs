@@ -1,5 +1,5 @@
 ---
-title: "Events API: List and Inspect Platform Events"
+title: "Events API: List, Filter, and Inspect Platform Events"
 sidebarTitle: "Events"
 description: "Use the MindClade Events API to retrieve a log of all state changes across your resources. Filter by type, resource, or date range."
 ---
@@ -62,6 +62,24 @@ for (const event of page.data) {
 if (page.has_more) {
   const nextPage = await client.events.list({ cursor: page.next_cursor });
 }
+```
+
+```python Python
+import mindclade
+
+client = mindclade.MindClade(api_key="mk_live_4xKz9mPqRtL2vNwY8cJdB3sH")
+
+page = client.events.list(
+    limit=20,
+    resource_id="res_9gU4lXnYqRoM2wAb",
+    type="resource.updated",
+)
+
+for event in page.data:
+    print(event.id, event.type, event.created_at)
+
+if page.has_more:
+    next_page = client.events.list(cursor=page.next_cursor)
 ```
 </CodeGroup>
 
@@ -155,7 +173,7 @@ MindClade emits four event types. Every event in the API and in webhook payloads
 | `resource.created` | A new resource is successfully created via `POST /resources`. |
 | `resource.updated` | An existing resource's `name` or `metadata` is modified via `PATCH /resources/{id}`. |
 | `resource.deleted` | A resource is permanently removed via `DELETE /resources/{id}`. |
-| `event.triggered` | A custom platform-level event is fired internally by MindClade (for example, a scheduled job completing or a threshold being crossed). |
+| `event.triggered` | A custom platform-level event is emitted by MindClade on your account's behalf (for example, a scheduled job completing or a threshold being crossed). |
 
 <Tip>
   Use the `type` filter on `GET /events` alongside `resource_id` to narrow your query to exactly the lifecycle moment you care about — for example, all `resource.deleted` events on a specific resource to audit its removal history.

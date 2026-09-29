@@ -1,7 +1,7 @@
 ---
-title: "Authenticate Your Requests to the MindClade API"
+title: "MindClade API Authentication: Keys, Security, and Rotation"
 sidebarTitle: "Authentication"
-description: "MindClade uses API keys for authentication. Learn how to create keys, pass them in requests, rotate them, and handle auth errors."
+description: "MindClade uses API keys for authentication. Learn how to create keys, pass them in requests, rotate them safely, and handle auth errors."
 ---
 
 Every request to the MindClade API must include an API key. Keys are long-lived bearer tokens that you create in the dashboard, scoped to either the sandbox or production environment. There are no OAuth flows or session cookies to manage — attach the key to the `Authorization` header and MindClade handles the rest. This page covers where to find your keys, how to use them in requests, how to keep them safe, and how to rotate them without downtime.

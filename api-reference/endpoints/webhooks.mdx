@@ -59,6 +59,21 @@ const webhook = await client.webhooks.create({
 console.log(webhook.id);     // "wh_7cRmXtPsNqLkY2eA"
 console.log(webhook.secret); // "whsec_Kd9fTzR4mW1xQ8vN3bYpL5cJsH6oEu2a"
 ```
+
+```python Python
+import mindclade
+
+client = mindclade.MindClade(api_key="mk_live_4xKz9mPqRtL2vNwY8cJdB3sH")
+
+webhook = client.webhooks.create(
+    url="https://app.example.com/hooks/mindclade",
+    events=["resource.created", "resource.updated", "resource.deleted"],
+)
+
+# Store webhook.secret securely — it will not be returned again
+print(webhook.id)      # "wh_7cRmXtPsNqLkY2eA"
+print(webhook.secret)  # "whsec_Kd9fTzR4mW1xQ8vN3bYpL5cJsH6oEu2a"
+```
 </CodeGroup>
 
 ### Response example
@@ -115,10 +130,34 @@ Remove a registered webhook endpoint. Once deleted, MindClade immediately stops 
 
 ### Request example
 
+<CodeGroup>
 ```bash cURL
 curl -X DELETE https://api.mindclade.com/v1/webhooks/wh_7cRmXtPsNqLkY2eA \
   -H "Authorization: Bearer mk_live_4xKz9mPqRtL2vNwY8cJdB3sH"
 ```
+
+```javascript JavaScript
+import MindClade from "@mindclade/sdk";
+
+const client = new MindClade({ apiKey: "mk_live_4xKz9mPqRtL2vNwY8cJdB3sH" });
+
+const result = await client.webhooks.delete("wh_7cRmXtPsNqLkY2eA");
+
+console.log(result.deleted); // true
+console.log(result.id);      // "wh_7cRmXtPsNqLkY2eA"
+```
+
+```python Python
+import mindclade
+
+client = mindclade.MindClade(api_key="mk_live_4xKz9mPqRtL2vNwY8cJdB3sH")
+
+result = client.webhooks.delete("wh_7cRmXtPsNqLkY2eA")
+
+print(result.deleted)  # True
+print(result.id)       # "wh_7cRmXtPsNqLkY2eA"
+```
+</CodeGroup>
 
 ### Response example
 
